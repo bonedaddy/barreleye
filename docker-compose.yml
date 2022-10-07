@@ -1,0 +1,7 @@
+version: "3"
+services:
+  barreleye-insights:
+    build: .
+    image: barreleye-insights:latest
+    ports:
+      - "22773:22773"

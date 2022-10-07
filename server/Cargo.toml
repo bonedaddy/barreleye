@@ -22,5 +22,5 @@ features = [
   "sqlx-sqlite",
   "sqlx-postgres",
   "sqlx-mysql",
-  "runtime-tokio-native-tls"
+  "runtime-tokio-rustls"
 ]

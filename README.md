@@ -9,6 +9,8 @@ This is a work-in-progress and not ready for production.
 
 ## Setup
 
+#### Manual:
+
 First, fetch the data:
 
 ```bash
@@ -19,6 +21,12 @@ Then, start the server:
 
 ```bash
 cargo run server
+```
+
+#### With Docker:
+
+```
+docker-compose up --build
 ```
 
 ## Run

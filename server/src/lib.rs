@@ -26,25 +26,37 @@ pub async fn start() -> Result<()> {
 
 	let port = settings.server.port;
 	let ip_v4 = SocketAddr::new(settings.server.ip_v4.parse()?, port);
-	let ip_v6 = SocketAddr::new(settings.server.ip_v6.parse()?, port);
 
-	info!("Listening on {} & {}…", style(ip_v4).bold(), style(ip_v6).bold());
+	if settings.server.ip_v6.is_empty() {
+		info!("Listening on {}…", style(ip_v4).bold());
+		Server::bind(&ip_v4)
+			.serve(app.into_make_service())
+			.with_graceful_shutdown(shutdown_signal())
+			.await?;
+	} else {
+		let ip_v6 = SocketAddr::new(settings.server.ip_v6.parse()?, port);
 
-	let listeners = CombinedIncoming {
-		a: match AddrIncoming::bind(&ip_v4) {
-			Ok(v) => v,
-			Err(e) => bail!(e.into_cause().unwrap()),
-		},
-		b: match AddrIncoming::bind(&ip_v6) {
-			Ok(v) => v,
-			Err(e) => bail!(e.into_cause().unwrap()),
-		},
-	};
+		let listeners = CombinedIncoming {
+			a: match AddrIncoming::bind(&ip_v4) {
+				Ok(v) => v,
+				Err(e) => bail!(e.into_cause().unwrap()),
+			},
+			b: match AddrIncoming::bind(&ip_v6) {
+				Ok(v) => v,
+				Err(e) => bail!(e.into_cause().unwrap()),
+			},
+		};
 
-	Server::builder(listeners)
-		.serve(app.into_make_service())
-		.with_graceful_shutdown(shutdown_signal())
-		.await?;
+		info!(
+			"Listening on {} & {}…",
+			style(ip_v4).bold(),
+			style(ip_v6).bold()
+		);
+		Server::builder(listeners)
+			.serve(app.into_make_service())
+			.with_graceful_shutdown(shutdown_signal())
+			.await?;
+	}
 
 	Ok(())
 }
