@@ -1,0 +1,29 @@
+[package]
+name = "barreleye-insights"
+description = "Privacy-friendly blockchain analytics for businesses dealing with digital assets."
+homepage = "https://barreleye.com"
+version = "0.0.1"
+license = "MPL-2.0"
+edition = "2021"
+readme = "README.md"
+repository = "https://github.com/barreleye/barreleye-insights"
+keywords = ["blockchain", "cryptocurrency", "insights", "analytics"]
+
+[[bin]]
+name = "barreleye-insights"
+path = "src/main.rs"
+
+[workspace]
+members = ["common", "scan", "server"]
+
+[dependencies]
+log = "0.4.0"
+color-eyre = "0.6.2"
+eyre = "0.6.8"
+chrono =  "0.4.22"
+clap = { version = "4.0.10", features = ["cargo"] }
+fern = { version = "0.6.1", features = ["colored"] }
+
+barreleye-common = { path = "./common", version = "0.0.1" }
+barreleye-scan = { path = "./scan", version = "0.0.1" }
+barreleye-server = { path = "./server", version = "0.0.1" }
