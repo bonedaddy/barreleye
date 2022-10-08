@@ -13,4 +13,4 @@ COPY --from=build /barreleye-insights/target/release/barreleye-insights .
 COPY --from=build /barreleye-insights/settings.toml .
 
 RUN ["./barreleye-insights", "scan"]
-CMD ["./barreleye-insights", "server"]
+CMD ["./barreleye-insights", "server", "--bannerless"]

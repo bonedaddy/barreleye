@@ -9,15 +9,11 @@ use serde_json::json;
 
 #[derive(Debug, Display, Error)]
 pub enum AppError {
-	Internal {
-		error: String,
-	},
+	#[display(fmt = "Internal error: {error}")]
+	Internal { error: String },
 
 	#[display(fmt = "Invalid setting \"{key}\" = `{value}`")]
-	Settings {
-		key: String,
-		value: String,
-	},
+	Settings { key: String, value: String },
 }
 
 impl From<ErrReport> for AppError {
