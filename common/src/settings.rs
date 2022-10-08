@@ -1,6 +1,12 @@
-use config::Config;
-use eyre::Result;
+use config::{Config, Environment, File, FileFormat};
+use eyre::{bail, Result};
 use serde::Deserialize;
+use std::{fs, fs::OpenOptions};
+
+use crate::{
+	constants::{DEFAULT_SETTINGS_CONTENT, DEFAULT_SETTINGS_FILENAME},
+	errors::AppError,
+};
 
 #[derive(Debug, Deserialize)]
 pub struct Server {
@@ -36,9 +42,23 @@ pub struct Settings {
 
 impl Settings {
 	pub fn new() -> Result<Self> {
+		if OpenOptions::new()
+			.write(true)
+			.create_new(true)
+			.open(DEFAULT_SETTINGS_FILENAME)
+			.is_ok()
+		{
+			if let Err(e) = fs::write(
+				DEFAULT_SETTINGS_FILENAME,
+				DEFAULT_SETTINGS_CONTENT.trim(),
+			) {
+				bail!(AppError::Internal { error: e.to_string() });
+			}
+		}
+
 		let s = Config::builder()
-			.add_source(config::File::with_name("settings"))
-			.add_source(config::Environment::with_prefix("BARRELEYE"))
+			.add_source(File::new(DEFAULT_SETTINGS_FILENAME, FileFormat::Toml))
+			.add_source(Environment::with_prefix("BARRELEYE"))
 			.build()?;
 
 		let settings = s.try_deserialize()?;
