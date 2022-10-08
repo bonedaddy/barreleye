@@ -14,7 +14,7 @@ unsound = "deny"
 yanked = "deny"
 notice = "warn"
 ignore = [
-  # @TODO
+  # @TODO Potential segfault in the time crate
   "RUSTSEC-2020-0071",
   # dotenv is Unmaintained
   "RUSTSEC-2021-0141"

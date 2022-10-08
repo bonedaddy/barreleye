@@ -2,6 +2,7 @@ use clap::{command, Command};
 use color_eyre::eyre::WrapErr;
 use eyre::Result;
 
+mod banner;
 mod log;
 
 fn main() -> Result<()> {
@@ -19,9 +20,11 @@ fn main() -> Result<()> {
 
 	match matches.subcommand() {
 		Some(("scan", _)) => {
+			banner::show();
 			barreleye_scan::start().wrap_err("Could not start scan")?;
 		}
 		Some(("server", _)) => {
+			banner::show();
 			barreleye_server::start().wrap_err("Could not start server")?;
 		}
 		_ => unreachable!("No command found"),
