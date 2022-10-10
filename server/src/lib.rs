@@ -3,6 +3,7 @@ use console::style;
 use eyre::{bail, Result};
 use hyper::server::{accept::Accept, conn::AddrIncoming};
 use log::info;
+use sea_orm::DatabaseConnection;
 use signal::unix::SignalKind;
 use std::{
 	net::SocketAddr,
@@ -12,15 +13,21 @@ use std::{
 };
 use tokio::signal;
 
-use barreleye_common::{db, Settings, AppState};
+use barreleye_common::{db, errors::AppError, Settings};
 
 mod handlers;
+
+pub struct ServerState {
+	pub db: DatabaseConnection,
+}
+
+pub type ServerResult<T> = Result<T, AppError>;
 
 #[tokio::main]
 pub async fn start() -> Result<()> {
 	let settings = Settings::new()?;
 
-	let shared_state = Arc::new(AppState { db: db::new().await? });
+	let shared_state = Arc::new(ServerState { db: db::new().await? });
 	let app = Router::with_state(shared_state.clone())
 		.merge(handlers::get_routes(shared_state));
 

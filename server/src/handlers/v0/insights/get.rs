@@ -5,12 +5,9 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-use barreleye_common::{
-	models::{
-		sanctioned_address::Status as SanctionedAddressStatus,
-		SanctionedAddress,
-	},
-	AppState, ServerResult,
+use crate::{ServerResult, ServerState};
+use barreleye_common::models::{
+	sanctioned_address::Status as SanctionedAddressStatus, SanctionedAddress,
 };
 
 #[derive(Deserialize)]
@@ -40,7 +37,7 @@ pub struct Response {
 }
 
 pub async fn handler(
-	State(app): State<Arc<AppState>>,
+	State(app): State<Arc<ServerState>>,
 	Query(payload): Query<Payload>,
 ) -> ServerResult<Json<Response>> {
 	let mut response = Response {
