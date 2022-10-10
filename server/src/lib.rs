@@ -12,13 +12,13 @@ use std::{
 };
 use tokio::signal;
 
-use barreleye_common::{db, settings, AppState};
+use barreleye_common::{db, Settings, AppState};
 
 mod handlers;
 
 #[tokio::main]
 pub async fn start() -> Result<()> {
-	let settings = settings::Settings::new()?;
+	let settings = Settings::new()?;
 
 	let shared_state = Arc::new(AppState { db: db::new().await? });
 	let app = Router::with_state(shared_state.clone())
@@ -37,14 +37,10 @@ pub async fn start() -> Result<()> {
 		let ip_v6 = SocketAddr::new(settings.server.ip_v6.parse()?, port);
 
 		let listeners = CombinedIncoming {
-			a: match AddrIncoming::bind(&ip_v4) {
-				Ok(v) => v,
-				Err(e) => bail!(e.into_cause().unwrap()),
-			},
-			b: match AddrIncoming::bind(&ip_v6) {
-				Ok(v) => v,
-				Err(e) => bail!(e.into_cause().unwrap()),
-			},
+			a: AddrIncoming::bind(&ip_v4)
+				.or_else(|e| bail!(e.into_cause().unwrap()))?,
+			b: AddrIncoming::bind(&ip_v6)
+				.or_else(|e| bail!(e.into_cause().unwrap()))?,
 		};
 
 		info!(

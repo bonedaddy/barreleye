@@ -343,7 +343,7 @@ dependencies = [
  "barreleye-scan",
  "barreleye-server",
  "chrono",
- "clap 4.0.11",
+ "clap 4.0.12",
  "color-eyre",
  "console",
  "eyre",
@@ -491,9 +491,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "4.0.11"
+version = "4.0.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4ed45cc2c62a3eff523e718d8576ba762c83a3146151093283ac62ae11933a73"
+checksum = "385007cbbed899260395a4107435fead4cad80684461b3cc78238bdcb0bad58f"
 dependencies = [
  "atty",
  "bitflags",
@@ -1363,9 +1363,9 @@ dependencies = [
 
 [[package]]
 name = "libc"
-version = "0.2.134"
+version = "0.2.135"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "329c933548736bc49fd575ee68c89e8be4d260064184389a5b77517cddd99ffb"
+checksum = "68783febc7782c6c5cb401fbda4de5a9898be1762314da0bb2c10ced61f18b0c"
 
 [[package]]
 name = "libm"
@@ -3010,9 +3010,9 @@ dependencies = [
 
 [[package]]
 name = "uuid"
-version = "1.1.2"
+version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dd6469f4314d5f1ffec476e05f17cc9a78bc7a27a6a857842170bdf8d6f98d2f"
+checksum = "feb41e78f93363bb2df8b0e86a2ca30eed7806ea16ea0c790d757cf93f79be83"
 dependencies = [
  "getrandom",
  "serde",

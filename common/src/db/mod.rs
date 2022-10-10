@@ -10,7 +10,7 @@ use url::Url;
 use crate::{
 	constants::{DRIVER_MYSQL, DRIVER_POSTGRES, DRIVER_SQLITE},
 	errors::AppError,
-	settings::Settings,
+	Settings,
 };
 
 mod migrations;
@@ -67,10 +67,9 @@ pub async fn new() -> Result<DatabaseConnection> {
 	if Url::parse(&url).is_err() {
 		bail!(err_settings_database_url);
 	}
-	let conn = match Database::connect(with_options(url.clone())).await {
-		Ok(v) => v,
-		Err(_) => bail!(err_settings_database_url),
-	};
+	let conn = Database::connect(with_options(url.clone()))
+		.await
+		.or_else(|_| bail!(err_settings_database_url))?;
 
 	let db_name = settings.database.name;
 	let url_with_database = format!("{url}/{db_name}");
