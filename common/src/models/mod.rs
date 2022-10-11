@@ -1,3 +1,4 @@
+use async_trait::async_trait;
 use eyre::Result;
 use sea_orm::{
 	entity::prelude::*,
@@ -10,9 +11,9 @@ pub mod sanctioned_address;
 
 pub use sanctioned_address::{SanctionedAddress, SanctionedAddressActiveModel};
 
-#[async_trait::async_trait(?Send)]
+#[async_trait]
 pub trait BasicModel {
-	type ActiveModel: ActiveModelTrait + ActiveModelBehavior;
+	type ActiveModel: ActiveModelTrait + ActiveModelBehavior + Sized + Send;
 
 	async fn count_all(db: &DatabaseConnection) -> Result<i64> {
 		#[derive(FromQueryResult)]

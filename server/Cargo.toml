@@ -15,6 +15,7 @@ console = "0.15.1"
 hyper = "0.14.20"
 
 barreleye-common = { path = "../common", version = "0.0.1" }
+barreleye-scan = { path = "../scan", version = "0.0.1" }
 
 [dependencies.sea-orm]
 version = "0.9.3"

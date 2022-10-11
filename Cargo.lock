@@ -324,6 +324,7 @@ dependencies = [
  "axum",
  "chrono",
  "config",
+ "console",
  "derive_more",
  "eyre",
  "log",
@@ -343,7 +344,7 @@ dependencies = [
  "barreleye-scan",
  "barreleye-server",
  "chrono",
- "clap 4.0.12",
+ "clap 4.0.13",
  "color-eyre",
  "console",
  "eyre",
@@ -370,6 +371,7 @@ version = "0.0.1"
 dependencies = [
  "axum",
  "barreleye-common",
+ "barreleye-scan",
  "console",
  "eyre",
  "hyper",
@@ -491,9 +493,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "4.0.12"
+version = "4.0.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "385007cbbed899260395a4107435fead4cad80684461b3cc78238bdcb0bad58f"
+checksum = "69d64e88428747154bd8bc378d178377ef4dace7a5735ca1f3855be72f2c2cb5"
 dependencies = [
  "atty",
  "bitflags",
@@ -2782,9 +2784,9 @@ dependencies = [
 
 [[package]]
 name = "tokio-stream"
-version = "0.1.10"
+version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f6edf2d6bc038a43d31353570e27270603f4648d18f5ed10c0e179abe43255af"
+checksum = "d660770404473ccd7bc9f8b28494a811bc18542b915c0855c51e8f419d5223ce"
 dependencies = [
  "futures-core",
  "pin-project-lite",
@@ -2851,9 +2853,9 @@ dependencies = [
 
 [[package]]
 name = "tower-layer"
-version = "0.3.1"
+version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "343bc9466d3fe6b0f960ef45960509f84480bf4fd96f92901afe7ff3df9d3a62"
+checksum = "c20c8dbed6283a09604c3e69b4b7eeb54e298b8a600d4d5ecb5ad39de609f1d0"
 
 [[package]]
 name = "tower-service"

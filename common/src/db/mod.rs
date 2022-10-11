@@ -10,14 +10,20 @@ use url::Url;
 use crate::{
 	constants::{DRIVER_MYSQL, DRIVER_POSTGRES, DRIVER_SQLITE},
 	errors::AppError,
+	progress,
+	progress::Step,
 	Settings,
 };
 
 mod migrations;
 use migrations::{Migrator, MigratorTrait};
 
-pub async fn new() -> Result<DatabaseConnection> {
+pub async fn new(silent: bool) -> Result<DatabaseConnection> {
 	let settings = Settings::new()?;
+
+	if !silent {
+		progress::show(Step::Database).await;
+	}
 
 	let url;
 	if settings.database.driver == DRIVER_SQLITE {
@@ -101,6 +107,10 @@ pub async fn new() -> Result<DatabaseConnection> {
 		}
 		DbBackend::Sqlite => conn,
 	};
+
+	if !silent {
+		progress::show(Step::Migrations).await;
+	}
 
 	Migrator::up(&db, None).await?;
 

@@ -13,7 +13,9 @@ use std::{
 };
 use tokio::signal;
 
-use barreleye_common::{db, errors::AppError, Settings};
+use barreleye_common::{
+	db, errors::AppError, progress, progress::Step, Settings,
+};
 
 mod handlers;
 
@@ -27,15 +29,18 @@ pub type ServerResult<T> = Result<T, AppError>;
 pub async fn start() -> Result<()> {
 	let settings = Settings::new()?;
 
-	let shared_state = Arc::new(ServerState { db: db::new().await? });
+	let shared_state = Arc::new(ServerState { db: db::new(false).await? });
 	let app = Router::with_state(shared_state.clone())
-		.merge(handlers::get_routes(shared_state));
+		.merge(handlers::get_routes(shared_state.clone()));
+
+	progress::show(Step::Fetching).await;
+	barreleye_scan::update_lists(&shared_state.db).await?;
 
 	let port = settings.server.port;
 	let ip_v4 = SocketAddr::new(settings.server.ip_v4.parse()?, port);
 
 	if settings.server.ip_v6.is_empty() {
-		info!("Listening on {}…", style(ip_v4).bold());
+		progress::show(Step::Ready(style(ip_v4).bold().to_string())).await;
 		Server::bind(&ip_v4)
 			.serve(app.into_make_service())
 			.with_graceful_shutdown(shutdown_signal())
@@ -50,11 +55,13 @@ pub async fn start() -> Result<()> {
 				.or_else(|e| bail!(e.into_cause().unwrap()))?,
 		};
 
-		info!(
-			"Listening on {} & {}…",
+		progress::show(Step::Ready(format!(
+			"{} & {}",
 			style(ip_v4).bold(),
 			style(ip_v6).bold()
-		);
+		)))
+		.await;
+
 		Server::builder(listeners)
 			.serve(app.into_make_service())
 			.with_graceful_shutdown(shutdown_signal())

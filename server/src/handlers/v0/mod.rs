@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use crate::ServerState;
 
-pub mod insights;
+mod insights;
 
 pub fn get_routes(shared_state: Arc<ServerState>) -> Router<Arc<ServerState>> {
 	Router::with_state(shared_state)
