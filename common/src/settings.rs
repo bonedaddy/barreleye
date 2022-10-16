@@ -3,10 +3,33 @@ use eyre::{bail, Result};
 use serde::Deserialize;
 use std::{fs, fs::OpenOptions};
 
-use crate::{
-	constants::{DEFAULT_SETTINGS_CONTENT, DEFAULT_SETTINGS_FILENAME},
-	errors::AppError,
-};
+use crate::errors::AppError;
+
+pub static DEFAULT_SETTINGS_FILENAME: &str = "settings.toml";
+pub static DEFAULT_SETTINGS_CONTENT: &str = r#"
+[server]
+ip_v4 = "0.0.0.0"
+ip_v6 = "" # "::"
+port = 22773
+
+[database]
+driver = "sqlite"
+name = "barreleye_insights"
+min_connections = 5
+max_connections = 100
+connect_timeout = 8
+idle_timeout = 8
+max_lifetime = 8
+
+[database.sqlite]
+url = "sqlite://data.db?mode=rwc"
+
+[database.postgres]
+url = "" # eg: "postgres://user:password@localhost:5432"
+
+[database.mysql]
+url = "" # eg: "mysql://user:password@localhost:3306"
+"#;
 
 #[derive(Debug, Deserialize)]
 pub struct Server {
