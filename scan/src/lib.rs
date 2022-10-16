@@ -1,10 +1,11 @@
 use eyre::Result;
-use log::info;
 use sea_orm::DatabaseConnection;
 
 use barreleye_common::{
 	db,
 	models::{BasicModel, SanctionedAddress},
+	progress,
+	progress::Step,
 };
 
 mod lists;
@@ -24,14 +25,10 @@ pub async fn update_lists(db: &DatabaseConnection) -> Result<Option<i64>> {
 
 #[tokio::main]
 pub async fn start() -> Result<()> {
-	let db = db::new(true).await?;
+	let db = db::new().await?;
 
-	info!("Fetching data…");
-	if let Some(count) = update_lists(&db).await? {
-		info!("Updated; {count} total record(s)");
-	} else {
-		info!("Could not pull new data");
-	}
+	progress::show(Step::Scanning).await;
+	update_lists(&db).await?;
 
 	Ok(())
 }

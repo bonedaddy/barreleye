@@ -1,7 +1,9 @@
 use chrono::{offset::Utc, NaiveDateTime};
 use nanoid::nanoid;
 
-pub fn new_unique_id(prefix: &str) -> String {
+use crate::IdPrefix;
+
+pub fn new_unique_id(prefix: IdPrefix) -> String {
 	unique_id(
 		prefix,
 		&nanoid!(
@@ -15,7 +17,7 @@ pub fn new_unique_id(prefix: &str) -> String {
 	)
 }
 
-pub fn unique_id(prefix: &str, id: &str) -> String {
+pub fn unique_id(prefix: IdPrefix, id: &str) -> String {
 	format!("{prefix}_{id}")
 }
 
@@ -29,6 +31,9 @@ mod tests {
 
 	#[test]
 	fn test_unique_id() {
-		assert_eq!(unique_id("prefix", "id"), "prefix_id");
+		assert_eq!(
+			unique_id(IdPrefix::SanctionedAddress, "id"),
+			format!("{}_id", IdPrefix::SanctionedAddress)
+		);
 	}
 }

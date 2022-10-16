@@ -379,6 +379,7 @@ dependencies = [
  "sea-orm",
  "serde",
  "tokio",
+ "tower",
 ]
 
 [[package]]

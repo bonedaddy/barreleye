@@ -6,4 +6,6 @@ RUN cargo build --release
 
 FROM debian:bookworm
 COPY --from=build /barreleye-insights/target/release/barreleye-insights .
-CMD ["./barreleye-insights", "server", "--bannerless"]
+
+RUN ["./barreleye-insights", "scan"]
+CMD ["./barreleye-insights", "server", "--plain"]

@@ -1,15 +1,15 @@
 use console::{style, Emoji};
 
 static DATABASE: Emoji<'_, '_> = Emoji("💾  ", "");
-static MIGRATIONS: Emoji<'_, '_> = Emoji("🚢  ", "");
-static FETCHING: Emoji<'_, '_> = Emoji("📥  ", "");
-static READY: Emoji<'_, '_> = Emoji("🟢  ", "");
+static MIGRATIONS: Emoji<'_, '_> = Emoji("🚐  ", "");
+static LISTENING: Emoji<'_, '_> = Emoji("🟢  ", "");
+static SCANNING: Emoji<'_, '_> = Emoji("🔎  ", "");
 
 pub enum Step {
 	Database,
 	Migrations,
-	Fetching,
-	Ready(String),
+	Listening(String),
+	Scanning,
 }
 
 pub async fn show(step: Step) {
@@ -17,31 +17,27 @@ pub async fn show(step: Step) {
 		Step::Database => {
 			println!(
 				"{} {}Checking database…",
-				style("[1/4]").bold().dim(),
+				style("[1/3]").bold().dim(),
 				DATABASE
 			);
 		}
 		Step::Migrations => {
 			println!(
 				"{} {}Running migrations…",
-				style("[2/4]").bold().dim(),
+				style("[2/3]").bold().dim(),
 				MIGRATIONS
 			);
 		}
-		Step::Fetching => {
-			println!(
-				"{} {}Updating sanction lists…",
-				style("[3/4]").bold().dim(),
-				FETCHING
-			);
-		}
-		Step::Ready(addr) => {
+		Step::Listening(addr) => {
 			println!(
 				"{} {}Listening on {}…",
-				style("[4/4]").bold().dim(),
-				READY,
+				style("[3/3]").bold().dim(),
+				LISTENING,
 				addr,
 			);
+		}
+		Step::Scanning => {
+			println!("{} {}Scanning…", style("[3/3]").bold().dim(), SCANNING);
 		}
 	}
 }

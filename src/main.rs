@@ -9,7 +9,7 @@ fn main() -> Result<()> {
 	log::setup()?;
 
 	let matches = command!()
-		.author("Barreleye & contributors")
+		.author("Barreleye")
 		.propagate_version(true)
 		.subcommand_required(true)
 		.arg_required_else_help(true)
@@ -17,9 +17,9 @@ fn main() -> Result<()> {
 			Command::new("scan").about("Start scanning blockchain data"),
 		)
 		.subcommand(
-			Command::new("server")
-				.about("Start the insights server")
-				.arg(arg!(-b --bannerless "Skip displaying ASCII banner")),
+			Command::new("server").about("Start the insights server").arg(
+				arg!(-p --plain "Don't bother displaying the ASCII banner"),
+			),
 		)
 		.get_matches();
 
@@ -30,7 +30,8 @@ fn main() -> Result<()> {
 		}
 		Some(("server", sub_matches)) => {
 			let skip_ascii =
-				*sub_matches.get_one::<bool>("bannerless").unwrap_or(&false);
+				*sub_matches.get_one::<bool>("plain").unwrap_or(&false);
+
 			banner::show(skip_ascii)?;
 			barreleye_server::start().wrap_err("Could not start server")?;
 		}

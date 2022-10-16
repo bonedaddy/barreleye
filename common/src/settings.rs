@@ -3,7 +3,7 @@ use eyre::{bail, Result};
 use serde::Deserialize;
 use std::{fs, fs::OpenOptions};
 
-use crate::errors::AppError;
+use crate::{db::Backend, errors::AppError};
 
 pub static DEFAULT_SETTINGS_FILENAME: &str = "settings.toml";
 pub static DEFAULT_SETTINGS_CONTENT: &str = r#"
@@ -13,7 +13,7 @@ ip_v6 = "" # "::"
 port = 22773
 
 [database]
-driver = "sqlite"
+backend = "sqlite"
 name = "barreleye_insights"
 min_connections = 5
 max_connections = 100
@@ -45,7 +45,7 @@ pub struct DatabaseType {
 
 #[derive(Debug, Deserialize)]
 pub struct Database {
-	pub driver: String,
+	pub backend: Backend,
 	pub name: String,
 	pub min_connections: u32,
 	pub max_connections: u32,

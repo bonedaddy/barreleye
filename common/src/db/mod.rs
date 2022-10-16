@@ -1,57 +1,58 @@
+use derive_more::Display;
 use eyre::{bail, Result};
 use log::LevelFilter;
 use sea_orm::{
 	ConnectOptions, ConnectionTrait, Database, DatabaseConnection, DbBackend,
 	Statement,
 };
+use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use url::Url;
 
-use crate::{
-	constants::{DRIVER_MYSQL, DRIVER_POSTGRES, DRIVER_SQLITE},
-	errors::AppError,
-	progress,
-	progress::Step,
-	Settings,
-};
+use crate::{errors::AppError, progress, progress::Step, settings::Settings};
+
+#[derive(Display, Debug, Serialize, Deserialize)]
+pub enum Backend {
+	#[display(fmt = "sqlite")]
+	#[serde(rename = "sqlite")]
+	SQLite,
+
+	#[display(fmt = "postgres")]
+	#[serde(rename = "postgres")]
+	PostgreSQL,
+
+	#[display(fmt = "mysql")]
+	#[serde(rename = "mysql")]
+	MySQL,
+}
 
 mod migrations;
 use migrations::{Migrator, MigratorTrait};
 
-pub async fn new(silent: bool) -> Result<DatabaseConnection> {
+pub async fn new() -> Result<DatabaseConnection> {
 	let settings = Settings::new()?;
 
-	if !silent {
-		progress::show(Step::Database).await;
-	}
+	progress::show(Step::Database).await;
 
-	let url;
-	if settings.database.driver == DRIVER_SQLITE {
-		url = settings.database.sqlite.url;
-	} else if settings.database.driver == DRIVER_POSTGRES {
-		url = settings.database.postgres.url;
-	} else if settings.database.driver == DRIVER_MYSQL {
-		url = settings.database.mysql.url;
-	} else {
-		bail!(AppError::Settings {
-			key: "database.driver".to_string(),
-			value: settings.database.driver,
-		});
-	}
+	let url = match settings.database.backend {
+		Backend::SQLite => settings.database.sqlite.url,
+		Backend::PostgreSQL => settings.database.postgres.url,
+		Backend::MySQL => settings.database.mysql.url,
+	};
 
 	let with_options = |url: String| -> ConnectOptions {
 		let mut opt = ConnectOptions::new(url);
 
 		// @TODO for sqlite, max out at 1 connection otherwise
 		// writes are not guaranteed to be executed serially
-		let (min_connections, max_connections) =
-			match settings.database.driver.as_str() {
-				DRIVER_SQLITE => (1, 1),
-				_ => (
-					settings.database.min_connections,
-					settings.database.max_connections,
-				),
-			};
+		let (min_connections, max_connections) = match settings.database.backend
+		{
+			Backend::SQLite => (1, 1),
+			_ => (
+				settings.database.min_connections,
+				settings.database.max_connections,
+			),
+		};
 
 		opt.max_connections(max_connections)
 			.min_connections(min_connections)
@@ -67,7 +68,7 @@ pub async fn new(silent: bool) -> Result<DatabaseConnection> {
 	};
 
 	let err_settings_database_url = AppError::Settings {
-		key: format!("database.{}.driver", settings.database.driver),
+		key: format!("database.{}.backend", settings.database.backend),
 		value: url.clone(),
 	};
 	if Url::parse(&url).is_err() {
@@ -98,7 +99,7 @@ pub async fn new(silent: bool) -> Result<DatabaseConnection> {
 			if result.rows_affected() == 0 {
 				conn.execute(Statement::from_string(
 					DbBackend::Postgres,
-					format!("CREATE DATABASE \"{db_name}\";"),
+					format!(r#"CREATE DATABASE "{db_name}";"#),
 				))
 				.await?;
 			}
@@ -108,10 +109,7 @@ pub async fn new(silent: bool) -> Result<DatabaseConnection> {
 		DbBackend::Sqlite => conn,
 	};
 
-	if !silent {
-		progress::show(Step::Migrations).await;
-	}
-
+	progress::show(Step::Migrations).await;
 	Migrator::up(&db, None).await?;
 
 	Ok(db)

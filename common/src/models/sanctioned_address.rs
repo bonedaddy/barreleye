@@ -3,9 +3,7 @@ use sea_orm::entity::{prelude::*, *};
 use sea_orm_migration::prelude::OnConflict;
 use serde::{Deserialize, Serialize};
 
-use crate::{
-	constants::PREFIX_SANCTIONED_ADDRESS_ID, models::BasicModel, utils,
-};
+use crate::{models::BasicModel, utils, IdPrefix};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum Status {
@@ -59,7 +57,7 @@ impl Model {
 		symbol: &str,
 	) -> Result<ActiveModel> {
 		Ok(ActiveModel {
-			id: Set(utils::new_unique_id(PREFIX_SANCTIONED_ADDRESS_ID)),
+			id: Set(utils::new_unique_id(IdPrefix::SanctionedAddress)),
 			source: Set(source.to_string()),
 			address: Set(address.to_string()),
 			symbol: Set(symbol.to_string()),

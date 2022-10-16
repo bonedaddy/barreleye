@@ -13,6 +13,7 @@ axum = "0.6.0-rc.2"
 serde = "1.0.145"
 console = "0.15.1"
 hyper = "0.14.20"
+tower = { version = "0.4.13", features = ["timeout"] }
 
 barreleye-common = { path = "../common", version = "0.0.1" }
 barreleye-scan = { path = "../scan", version = "0.0.1" }
