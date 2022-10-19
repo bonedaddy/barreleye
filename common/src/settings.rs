@@ -25,10 +25,10 @@ max_lifetime = 8
 url = "sqlite://data.db?mode=rwc"
 
 [database.postgres]
-url = "" # eg: "postgres://user:password@localhost:5432"
+url = "" # eg: "postgres://USERNAME[:PASSWORD]@localhost:5432"
 
 [database.mysql]
-url = "" # eg: "mysql://user:password@localhost:3306"
+url = "" # eg: "mysql://USERNAME[:PASSWORD]@localhost:3306"
 "#;
 
 #[derive(Debug, Deserialize)]
