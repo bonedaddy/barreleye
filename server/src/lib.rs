@@ -4,7 +4,7 @@ use axum::{
 	BoxError, Router, Server,
 };
 use console::style;
-use eyre::{bail, Result};
+use eyre::{bail, Report, Result};
 use hyper::server::{accept::Accept, conn::AddrIncoming};
 use log::info;
 use sea_orm::DatabaseConnection;
@@ -19,11 +19,11 @@ use std::{
 use tokio::signal;
 use tower::ServiceBuilder;
 
-use barreleye_common::{
-	db, errors::AppError, progress, progress::Step, Settings,
-};
+use barreleye_common::{db, progress, progress::Step, Settings};
 
+mod error;
 mod handlers;
+use error::ServerError;
 
 #[derive(Clone)]
 pub struct ServerState {
@@ -36,7 +36,7 @@ impl ServerState {
 	}
 }
 
-pub type ServerResult<T> = Result<T, AppError>;
+pub type ServerResult<T> = Result<T, ServerError>;
 
 #[tokio::main]
 pub async fn start() -> Result<()> {
@@ -45,13 +45,10 @@ pub async fn start() -> Result<()> {
 	let db = Arc::new(db::new().await?);
 	let shared_state = Arc::new(ServerState::new(db));
 
-	let app = Router::with_state(shared_state.clone())
-		.merge(handlers::get_routes(shared_state.clone()))
-		.layer(
-			ServiceBuilder::new()
-				.layer(HandleErrorLayer::new(handle_timeout_error))
-				.timeout(Duration::from_secs(30)),
-		);
+	let app = wrap_router(
+		Router::with_state(shared_state.clone())
+			.merge(handlers::get_routes(shared_state.clone())),
+	);
 
 	let port = settings.server.port;
 	let ip_v4 = SocketAddr::new(settings.server.ip_v4.parse()?, port);
@@ -88,12 +85,28 @@ pub async fn start() -> Result<()> {
 	Ok(())
 }
 
-async fn handle_timeout_error(
-	method: Method,
-	uri: Uri,
-	_err: BoxError,
-) -> ServerResult<StatusCode> {
-	Err(AppError::Internal { error: format!("`{method} {uri}` timed out") })
+pub fn wrap_router(
+	router: Router<Arc<ServerState>>,
+) -> Router<Arc<ServerState>> {
+	async fn handle_404() -> ServerResult<StatusCode> {
+		Err(ServerError::NotFound)
+	}
+
+	async fn handle_timeout_error(
+		method: Method,
+		uri: Uri,
+		_err: BoxError,
+	) -> ServerResult<StatusCode> {
+		Err(ServerError::Internal {
+			error: Report::msg(format!("`{method} {uri}` timed out")),
+		})
+	}
+
+	router.fallback(handle_404).layer(
+		ServiceBuilder::new()
+			.layer(HandleErrorLayer::new(handle_timeout_error))
+			.timeout(Duration::from_secs(30)),
+	)
 }
 
 struct CombinedIncoming {

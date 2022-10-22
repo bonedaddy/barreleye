@@ -10,8 +10,10 @@ tokio = { version = "1.21.1", features = ["full"] }
 log = "0.4.0"
 eyre = "0.6.8"
 axum = "0.6.0-rc.2"
+derive_more = "0.99.17"
 serde = "1.0.145"
 console = "0.15.1"
+serde_json = "1.0.86"
 hyper = "0.14.20"
 tower = { version = "0.4.13", features = ["timeout"] }
 
