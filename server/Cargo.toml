@@ -21,7 +21,7 @@ barreleye-common = { path = "../common", version = "0.0.1" }
 barreleye-scan = { path = "../scan", version = "0.0.1" }
 
 [dependencies.sea-orm]
-version = "0.9.3"
+version = "0.10.1"
 features = [
   "sqlx-sqlite",
   "sqlx-postgres",

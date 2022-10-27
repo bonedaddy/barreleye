@@ -10,7 +10,7 @@ pub static DEFAULT_SETTINGS_CONTENT: &str = r#"
 [server]
 ip_v4 = "0.0.0.0"
 ip_v6 = "" # "::"
-port = 22773
+port = 22775
 
 [database]
 backend = "sqlite"

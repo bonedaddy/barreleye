@@ -34,7 +34,7 @@ docker-compose up --build
 To get insights for an address:
 
 ```
-http://localhost:22773/v0/insights?address=0x0
+http://localhost:22775/v0/insights?address=0x0
 ```
 
 ```json

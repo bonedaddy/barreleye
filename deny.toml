@@ -15,9 +15,7 @@ yanked = "deny"
 notice = "warn"
 ignore = [
   # @TODO Potential segfault in the time crate
-  "RUSTSEC-2020-0071",
-  # dotenv is Unmaintained
-  "RUSTSEC-2021-0141"
+  "RUSTSEC-2020-0071"
 ]
 
 [licenses]

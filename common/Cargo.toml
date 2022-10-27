@@ -8,7 +8,7 @@ workspace = ".."
 [dependencies]
 async-trait = "0.1.57"
 eyre = "0.6.8"
-sea-orm-migration = "0.9.3"
+sea-orm-migration = "0.10.1"
 nanoid = "0.4.0"
 serde = "1.0.145"
 log = "0.4.17"
@@ -21,7 +21,7 @@ url = "2.3.1"
 console = "0.15.2"
 
 [dependencies.sea-orm]
-version = "0.9.3"
+version = "0.10.1"
 features = [
   "sqlx-sqlite",
   "sqlx-postgres",

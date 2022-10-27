@@ -4,4 +4,4 @@ services:
     build: .
     image: barreleye-insights:latest
     ports:
-      - "22773:22773"
+      - "22775:22775"

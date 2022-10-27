@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use url::Url;
 
-use crate::{errors::AppError, progress, progress::Step, settings::Settings};
+use crate::{errors::AppError, progress, progress::Step, Settings};
 
 #[derive(Display, Debug, Serialize, Deserialize)]
 pub enum Backend {
