@@ -1,13 +1,13 @@
 [package]
 name = "barreleye-insights"
-description = "Self-hosted, privacy-friendly blockchain analytics for businesses handling digital assets."
-homepage = "https://barreleye.com/insights"
+description = "Self-hosted, multi-chain customer analytics & insights for businesses handling digital assets."
+homepage = "https://barreleye.com"
 version = "0.0.1"
 license = "MPL-2.0"
 edition = "2021"
 readme = "README.md"
 repository = "https://github.com/barreleye/barreleye-insights"
-keywords = ["blockchain", "cryptocurrency", "insights", "analytics"]
+keywords = ["blockchain", "cryptocurrency", "insights", "analytics", "kyc", "kyt"]
 
 [[bin]]
 name = "barreleye-insights"

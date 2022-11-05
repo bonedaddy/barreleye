@@ -979,7 +979,7 @@ pub fn show(skip_ascii: bool) -> Result<()> {
 	};
 
 	println!(
-		"{}› {} v{}{}\n› https://barreleye.com/insights\n",
+		"{}› {} v{}{}\n› https://barreleye.com\n",
 		banner,
 		style("Barreleye Insights").bold(),
 		env!("CARGO_PKG_VERSION"),
