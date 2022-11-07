@@ -7,7 +7,9 @@ Self-hosted, multi-chain customer analytics & insights for businesses handling d
 
 This is a work-in-progress and not ready for production 🚧
 
-## Setup
+## Setup (dev)
+
+Requires [Anvil](https://book.getfoundry.sh/anvil/) and [Clickhouse](https://github.com/ClickHouse/ClickHouse) running locally (defaults to [SQLite](https://www.sqlite.org/), but [PostgreSQL](https://www.postgresql.org/) and [MySQL](https://www.mysql.com/) are supported):
 
 ```bash
 cargo run server -w --env localhost
