@@ -2,36 +2,67 @@ use async_trait::async_trait;
 use eyre::Result;
 use sea_orm::{
 	entity::prelude::*,
-	query::*,
 	sea_query::{types::*, Expr},
-	FromQueryResult,
 };
 
-pub mod sanctioned_address;
+// @TODO `https://github.com/SeaQL/sea-orm/issues/1068`
+pub type PrimaryId = i64;
 
-pub use sanctioned_address::{SanctionedAddress, SanctionedAddressActiveModel};
+pub mod account;
+pub use account::{Account, AccountActiveModel};
+
+pub mod api_key;
+pub use api_key::{ApiKey, ApiKeyActiveModel};
+
+pub mod label;
+pub use label::{Label, LabelActiveModel};
+
+pub mod labeled_address;
+pub use labeled_address::{LabeledAddress, LabeledAddressActiveModel};
+
+pub mod network;
+pub use network::{Network, NetworkActiveModel};
+
+pub mod transaction;
+pub use transaction::{Transaction, TransactionActiveModel};
 
 #[async_trait]
 pub trait BasicModel {
 	type ActiveModel: ActiveModelTrait + ActiveModelBehavior + Sized + Send;
 
-	async fn count_all(db: &DatabaseConnection) -> Result<i64> {
-		#[derive(FromQueryResult)]
-		struct Count {
-			count: i64,
-		}
+    async fn create_many(
+		db: &DatabaseConnection,
+		data: Vec<Self::ActiveModel>,
+	) -> Result<<<<Self::ActiveModel as ActiveModelTrait>::Entity as EntityTrait>::PrimaryKey as
+	PrimaryKeyTrait>::ValueType>{
+		let insert_result =
+			<Self::ActiveModel as ActiveModelTrait>::Entity::insert_many(data)
+				.exec(db)
+				.await?;
 
-		let res = <Self::ActiveModel as ActiveModelTrait>::Entity::find()
-			.select_only()
-			.column_as(Expr::col(Alias::new("id")).count(), "count")
-			.into_model::<Count>()
-			.all(db)
-			.await?;
+		Ok(insert_result.last_insert_id)
+	}
 
-		if !res.is_empty() {
-			return Ok(res[0].count);
-		}
+    async fn get(
+		db: &DatabaseConnection,
+		primary_id: <<<Self::ActiveModel as ActiveModelTrait>::Entity as EntityTrait>::PrimaryKey as
+		PrimaryKeyTrait>::ValueType,
+	) -> Result<Option<<<Self::ActiveModel as ActiveModelTrait>::Entity as EntityTrait>::Model>, DbErr>{
+		<Self::ActiveModel as ActiveModelTrait>::Entity::find_by_id(primary_id)
+			.one(db)
+			.await
+	}
 
-		Ok(0)
+	async fn delete_by_ids(
+		db: &DatabaseConnection,
+		ids: Vec<String>,
+	) -> Result<u64, DbErr> {
+		let res =
+			<Self::ActiveModel as ActiveModelTrait>::Entity::delete_many()
+				.filter(Expr::col(Alias::new("id")).is_in(ids))
+				.exec(db)
+				.await?;
+
+		Ok(res.rows_affected)
 	}
 }

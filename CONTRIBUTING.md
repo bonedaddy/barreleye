@@ -6,7 +6,7 @@ We highly appreciate your effort to contribute, but we recommend you talk to a m
 
 ## Feature Requests
 
-Feature Requests by the community are highly encouraged. Feel free to submit a new one or upvote an existing feature request at [Github Discussions](https://github.com/barreleye/barreleye-insights/discussions).
+Feature Requests by the community are highly encouraged. Feel free to submit a new one or upvote an existing feature request at [Github Discussions](https://github.com/barreleye/barreleye/discussions).
 
 ## Code of Conduct
 
@@ -16,7 +16,7 @@ This project, and everyone participating in it, are governed by the [Barreleye C
 
 ### Individual contribution
 
-You need to sign a Contributor License Agreement (CLA) to accept your pull request. You only need to do this once. If you submit a pull request for the first time, you can complete your CLA [here](https://cla-assistant.io/barreleye/barreleye-insights), or our CLA bot will automatically ask you to sign before merging the pull request.
+You need to sign a Contributor License Agreement (CLA) to accept your pull request. You only need to do this once. If you submit a pull request for the first time, you can complete your CLA [here](https://cla-assistant.io/barreleye/barreleye), or our CLA bot will automatically ask you to sign before merging the pull request.
 
 ### Company contribution
 
@@ -24,7 +24,7 @@ If you make contributions to our repositories on behalf of your company, we will
 
 ## Bugs
 
-Barreleye is using [GitHub issues](https://github.com/barreleye/barreleye-insights/issues) to manage bugs. We keep a close eye on them. Before filing a new issue, try to ensure your problem does not already exist.
+Barreleye is using [GitHub issues](https://github.com/barreleye/barreleye/issues) to manage bugs. We keep a close eye on them. Before filing a new issue, try to ensure your problem does not already exist.
 
 ---
 

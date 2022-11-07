@@ -1,6 +1,8 @@
-use console::{style, Emoji};
+use console::style;
 use eyre::Result;
 use std::{env, str};
+
+use barreleye_common::Env;
 
 static BANNER_ANSI: &[u8] = &[
 	32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 59, 95, 63, 42, 63,
@@ -964,7 +966,7 @@ static BANNER_TRUECOLOR: &[u8] = &[
 	59, 48, 109, 32, 27, 91, 48, 109,
 ];
 
-pub fn show(skip_ascii: bool) -> Result<()> {
+pub fn show(env: Env, is_watcher: bool, skip_ascii: bool) -> Result<()> {
 	let banner = if skip_ascii {
 		"".to_string()
 	} else {
@@ -978,12 +980,34 @@ pub fn show(skip_ascii: bool) -> Result<()> {
 		)
 	};
 
+	let name = "Barreleye".to_string();
+	let tags = {
+		let s = |s| style(s).bright().bold();
+
+		let mut t = vec![];
+		if env == Env::Localhost {
+			t.push(s("+Localhost").cyan().to_string())
+		} else if env == Env::Testnet {
+			t.push(s("+Testnet").cyan().to_string())
+		}
+		if is_watcher {
+			t.push(s("+Watcher").red().to_string())
+		}
+
+		let tags = t.join(", ");
+		if tags.is_empty() {
+			tags
+		} else {
+			format!(" [{}]", tags)
+		}
+	};
+
 	println!(
 		"{}› {} v{}{}\n› https://barreleye.com\n",
 		banner,
-		style("Barreleye Insights").bold(),
+		style(name).bold(),
 		env!("CARGO_PKG_VERSION"),
-		Emoji(" 🪪", ""),
+		tags,
 	);
 
 	Ok(())

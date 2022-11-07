@@ -1,18 +1,17 @@
 use derive_more::Display;
-use eyre::{bail, Result};
+use eyre::Result;
 use log::LevelFilter;
 use sea_orm::{
 	ConnectOptions, ConnectionTrait, Database, DatabaseConnection, DbBackend,
 	Statement,
 };
 use serde::{Deserialize, Serialize};
-use std::time::Duration;
-use url::Url;
+use std::{sync::Arc, time::Duration};
 
-use crate::{errors::AppError, progress, progress::Step, Settings};
+use crate::{progress, progress::Step, Settings};
 
 #[derive(Display, Debug, Serialize, Deserialize)]
-pub enum Backend {
+pub enum Dialect {
 	#[display(fmt = "sqlite")]
 	#[serde(rename = "sqlite")]
 	SQLite,
@@ -29,25 +28,17 @@ pub enum Backend {
 mod migrations;
 use migrations::{Migrator, MigratorTrait};
 
-pub async fn new() -> Result<DatabaseConnection> {
-	let settings = Settings::new()?;
-
-	progress::show(Step::Database).await;
-
-	let url = match settings.database.backend {
-		Backend::SQLite => settings.database.sqlite.url,
-		Backend::PostgreSQL => settings.database.postgres.url,
-		Backend::MySQL => settings.database.mysql.url,
-	};
+pub async fn new(settings: Arc<Settings>) -> Result<DatabaseConnection> {
+	let url = get_url(settings.clone());
 
 	let with_options = |url: String| -> ConnectOptions {
 		let mut opt = ConnectOptions::new(url);
 
 		// @TODO for sqlite, max out at 1 connection otherwise
 		// writes are not guaranteed to be executed serially
-		let (min_connections, max_connections) = match settings.database.backend
+		let (min_connections, max_connections) = match settings.database.dialect
 		{
-			Backend::SQLite => (1, 1),
+			Dialect::SQLite => (1, 1),
 			_ => (
 				settings.database.min_connections,
 				settings.database.max_connections,
@@ -67,19 +58,9 @@ pub async fn new() -> Result<DatabaseConnection> {
 		opt
 	};
 
-	let err_settings_database_url = AppError::Settings {
-		key: format!("database.{}.backend", settings.database.backend),
-		value: url.clone(),
-	};
-	if Url::parse(&url).is_err() {
-		bail!(err_settings_database_url);
-	}
-	let conn = Database::connect(with_options(url.clone()))
-		.await
-		.or_else(|_| bail!(err_settings_database_url))?;
-
-	let db_name = settings.database.name;
+	let db_name = settings.database.name.clone();
 	let url_with_database = format!("{url}/{db_name}");
+	let conn = Database::connect(with_options(url.clone())).await?;
 
 	let db = match conn.get_database_backend() {
 		DbBackend::MySql => {
@@ -109,8 +90,23 @@ pub async fn new() -> Result<DatabaseConnection> {
 		DbBackend::Sqlite => conn,
 	};
 
-	progress::show(Step::Migrations).await;
-	Migrator::up(&db, None).await?;
-
 	Ok(db)
+}
+
+pub async fn run_migrations(
+	db: &DatabaseConnection,
+	is_watcher: bool,
+) -> Result<()> {
+	progress::show(Step::Migrations, is_watcher).await;
+	Migrator::up(db, None).await?;
+
+	Ok(())
+}
+
+pub fn get_url(settings: Arc<Settings>) -> String {
+	match settings.database.dialect {
+		Dialect::SQLite => settings.database.sqlite.url.clone(),
+		Dialect::PostgreSQL => settings.database.postgres.url.clone(),
+		Dialect::MySQL => settings.database.mysql.url.clone(),
+	}
 }

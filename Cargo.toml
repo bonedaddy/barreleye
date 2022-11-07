@@ -1,20 +1,20 @@
 [package]
-name = "barreleye-insights"
+name = "barreleye"
 description = "Self-hosted, multi-chain customer analytics & insights for businesses handling digital assets."
 homepage = "https://barreleye.com"
 version = "0.0.1"
 license = "MPL-2.0"
 edition = "2021"
 readme = "README.md"
-repository = "https://github.com/barreleye/barreleye-insights"
+repository = "https://github.com/barreleye/barreleye"
 keywords = ["blockchain", "cryptocurrency", "insights", "analytics", "kyc", "kyt"]
 
 [[bin]]
-name = "barreleye-insights"
+name = "barreleye"
 path = "src/main.rs"
 
 [workspace]
-members = ["common", "scan", "server"]
+members = [ "chain", "common", "server" ]
 
 [dependencies]
 log = "0.4.0"
@@ -22,9 +22,9 @@ color-eyre = "0.6.2"
 eyre = "0.6.8"
 chrono =  "0.4.22"
 console = "0.15.1"
-clap = { version = "4.0.13", features = ["cargo"] }
+clap = { version = "4.0.19", features = ["cargo"] }
 fern = { version = "0.6.1", features = ["colored"] }
 
+barreleye-chain = { path = "./chain", version = "0.0.1" }
 barreleye-common = { path = "./common", version = "0.0.1" }
-barreleye-scan = { path = "./scan", version = "0.0.1" }
 barreleye-server = { path = "./server", version = "0.0.1" }

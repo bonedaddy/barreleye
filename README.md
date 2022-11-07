@@ -1,52 +1,14 @@
-# Barreleye Insights
+# Barreleye
 
-![Github Actions](https://github.com/barreleye/barreleye-insights/workflows/tests/badge.svg)
-[![dependency status](https://deps.rs/repo/github/barreleye/barreleye-insights/status.svg)](https://deps.rs/repo/github/barreleye/barreleye-insights)
+![Github Actions](https://github.com/barreleye/barreleye/workflows/tests/badge.svg)
+[![dependency status](https://deps.rs/repo/github/barreleye/barreleye/status.svg)](https://deps.rs/repo/github/barreleye/barreleye)
 
-Privacy-friendly blockchain analytics for businesses dealing with digital assets.
+Self-hosted, multi-chain customer analytics & insights for businesses handling digital assets.
 
-This is a work-in-progress and not ready for production.
+This is a work-in-progress and not ready for production 🚧
 
 ## Setup
 
-#### Manual:
-
-First, fetch the data:
-
 ```bash
-cargo run scan
+cargo run server -w --env localhost
 ```
-
-Then, start the server:
-
-```bash
-cargo run server
-```
-
-#### With Docker:
-
-```
-docker-compose up --build
-```
-
-## Run
-
-To get insights for an address:
-
-```
-http://localhost:22775/v0/insights?address=0x0
-```
-
-```json
-{
-  "address": "0x0",
-  "overview": {
-    "netWorth": 0,
-    "netWorthCurrency": "USD"
-  },
-  "compliance": {
-    "status": "NO_ISSUES_FOUND"
-  }
-}
-```
-

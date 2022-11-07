@@ -1,9 +1,10 @@
 use config::{Config, Environment, File, FileFormat};
-use eyre::{bail, Result};
+use eyre::Result;
 use serde::Deserialize;
 use std::{fs, fs::OpenOptions};
+use url::Url;
 
-use crate::{db::Backend, errors::AppError};
+use crate::{db::Dialect as DatabaseDialect, errors::AppError, progress};
 
 pub static DEFAULT_SETTINGS_FILENAME: &str = "settings.toml";
 pub static DEFAULT_SETTINGS_CONTENT: &str = r#"
@@ -12,9 +13,19 @@ ip_v4 = "0.0.0.0"
 ip_v6 = "" # "::"
 port = 22775
 
+[lists]
+refresh_rate = 3600 # in seconds
+
+[warehouse]
+dialect = "clickhouse"
+name = "barreleye"
+
+[warehouse.clickhouse]
+url = "http://localhost:8123"
+
 [database]
-backend = "sqlite"
-name = "barreleye_insights"
+dialect = "sqlite"
+name = "barreleye"
 min_connections = 5
 max_connections = 100
 connect_timeout = 8
@@ -39,52 +50,96 @@ pub struct Server {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct DatabaseType {
+pub struct Lists {
+	pub refresh_rate: u64,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Dsn {
 	pub url: String,
 }
 
 #[derive(Debug, Deserialize)]
+pub enum WarehouseDialect {
+	#[serde(rename = "clickhouse")]
+	Clickhouse,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Warehouse {
+	pub dialect: WarehouseDialect,
+	pub name: String,
+	pub clickhouse: Dsn,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct Database {
-	pub backend: Backend,
+	pub dialect: DatabaseDialect,
 	pub name: String,
 	pub min_connections: u32,
 	pub max_connections: u32,
 	pub connect_timeout: u64,
 	pub idle_timeout: u64,
 	pub max_lifetime: u64,
-	pub sqlite: DatabaseType,
-	pub postgres: DatabaseType,
-	pub mysql: DatabaseType,
+	pub sqlite: Dsn,
+	pub postgres: Dsn,
+	pub mysql: Dsn,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct Settings {
 	pub server: Server,
+	pub lists: Lists,
+	pub warehouse: Warehouse,
 	pub database: Database,
 }
 
 impl Settings {
 	pub fn new() -> Result<Self> {
+		// create a blank file if doesn't exist
 		if OpenOptions::new()
 			.write(true)
 			.create_new(true)
 			.open(DEFAULT_SETTINGS_FILENAME)
 			.is_ok()
 		{
-			if let Err(e) = fs::write(
+			fs::write(
 				DEFAULT_SETTINGS_FILENAME,
 				DEFAULT_SETTINGS_CONTENT.trim(),
-			) {
-				bail!(AppError::Internal { error: e.to_string() });
-			}
+			)?;
 		}
 
+		// builder settings
 		let s = Config::builder()
 			.add_source(File::new(DEFAULT_SETTINGS_FILENAME, FileFormat::Toml))
 			.add_source(Environment::with_prefix("BARRELEYE"))
 			.build()?;
 
-		let settings = s.try_deserialize()?;
+		// try to create a struct
+		let settings: Settings = s.try_deserialize()?;
+
+		// test for common errors
+		if Url::parse(&settings.warehouse.clickhouse.url).is_err() {
+			progress::quit(AppError::InvalidSetting {
+				key: "warehouse.clickhouse.url".to_string(),
+				value: settings.warehouse.clickhouse.url.clone(),
+			});
+		}
+
+		let backend_url = match settings.database.dialect {
+			DatabaseDialect::SQLite => settings.database.sqlite.url.clone(),
+			DatabaseDialect::PostgreSQL => {
+				settings.database.postgres.url.clone()
+			}
+			DatabaseDialect::MySQL => settings.database.mysql.url.clone(),
+		};
+		if Url::parse(&backend_url).is_err() {
+			progress::quit(AppError::InvalidSetting {
+				key: format!("database.{}.url", settings.database.dialect),
+				value: backend_url,
+			});
+		}
+
 		Ok(settings)
 	}
 }

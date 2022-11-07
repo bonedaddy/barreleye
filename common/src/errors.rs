@@ -1,40 +1,25 @@
-use axum::{
-	http::StatusCode,
-	response::{IntoResponse, Response},
-	Json,
-};
 use derive_more::{Display, Error};
-use eyre::ErrReport;
-use serde_json::json;
 
 #[derive(Debug, Display, Error)]
 pub enum AppError {
-	#[display(fmt = "Internal error: {error}")]
-	Internal { error: String },
+	#[display(fmt = "Failed to install signal handler.")]
+	SignalHandler,
 
-	#[display(fmt = "Invalid setting \"{key}\" = `{value}`")]
-	Settings { key: String, value: String },
-}
+	#[display(
+		fmt = "Check configuration settings. Invalid value found for `{key} = {value}`."
+	)]
+	InvalidSetting { key: String, value: String },
 
-impl From<ErrReport> for AppError {
-	fn from(err: ErrReport) -> AppError {
-		AppError::Internal { error: err.to_string() }
-	}
-}
+	#[display(
+		fmt = "Could not connect to the warehouse database at `{url}`. Check `warehouse` settings and make sure the server is accessible."
+	)]
+	WarehouseConnection { url: String },
 
-impl IntoResponse for AppError {
-	fn into_response(self) -> Response {
-		let (status, error_message) = match self {
-			AppError::Settings { key: _, value: _ } => {
-				(StatusCode::INTERNAL_SERVER_ERROR, "Invalid settings")
-			}
-			_ => (StatusCode::INTERNAL_SERVER_ERROR, "Something broke"),
-		};
+	#[display(
+		fmt = "Could not connect to the database at `{url}`. Check `database` settings and make sure the server is accessible."
+	)]
+	DatabaseConnection { url: String },
 
-		let body = Json(json!({
-			"error": error_message,
-		}));
-
-		(status, body).into_response()
-	}
+	#[display(fmt = "Could not complete network setup:\n{error}")]
+	NetworkFailure { error: String },
 }

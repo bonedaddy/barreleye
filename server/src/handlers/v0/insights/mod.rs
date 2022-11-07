@@ -1,7 +1,7 @@
 use axum::{routing::get, Router};
 use std::sync::Arc;
 
-use crate::{wrap_router, ServerState};
+use crate::{server::wrap_router, ServerState};
 
 mod get;
 

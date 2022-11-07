@@ -1,9 +1,11 @@
-use clap::{arg, command, Command};
+use clap::{arg, command, value_parser, Command};
 use color_eyre::eyre::WrapErr;
 use eyre::Result;
 
 mod banner;
 mod log;
+
+use barreleye_common::Env;
 
 fn main() -> Result<()> {
 	log::setup()?;
@@ -14,26 +16,28 @@ fn main() -> Result<()> {
 		.subcommand_required(true)
 		.arg_required_else_help(true)
 		.subcommand(
-			Command::new("scan").about("Start scanning blockchain data"),
-		)
-		.subcommand(
-			Command::new("server").about("Start the insights server").arg(
-				arg!(-p --plain "Don't bother displaying the ASCII banner"),
-			),
+			Command::new("server")
+				.about("Start the insights server")
+				.arg(
+					arg!(-w --watch "Run in watcher mode (push blockchain data to warehouse)"),
+				)
+				.arg(
+					arg!(--env <ENV> "Network types to load")
+						.value_parser(value_parser!(Env)),
+				)
+				.arg(arg!(-p --plain "No ASCII banner")),
 		)
 		.get_matches();
 
 	match matches.subcommand() {
-		Some(("scan", _)) => {
-			banner::show(true)?;
-			barreleye_scan::start().wrap_err("Could not start scan")?;
-		}
-		Some(("server", sub_matches)) => {
-			let skip_ascii =
-				*sub_matches.get_one::<bool>("plain").unwrap_or(&false);
+		Some(("server", opts)) => {
+			let env: Env = *opts.get_one("env").unwrap_or(&Env::Mainnet);
+			let is_watcher: bool = *opts.get_one("watch").unwrap_or(&false);
+			let skip_ascii: bool = *opts.get_one("plain").unwrap_or(&false);
 
-			banner::show(skip_ascii)?;
-			barreleye_server::start().wrap_err("Could not start server")?;
+			banner::show(env, is_watcher, skip_ascii)?;
+			barreleye_server::start(env, is_watcher)
+				.wrap_err("Could not start the insights server")?;
 		}
 		_ => unreachable!("No command found"),
 	}
