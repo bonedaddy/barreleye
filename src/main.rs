@@ -1,6 +1,7 @@
 use clap::{arg, command, value_parser, Command};
 use color_eyre::eyre::WrapErr;
 use eyre::Result;
+use std::env;
 
 mod banner;
 mod log;
@@ -12,6 +13,7 @@ fn main() -> Result<()> {
 
 	let matches = command!()
 		.author("Barreleye")
+       	.version(env!("CARGO_PKG_VERSION"))
 		.propagate_version(true)
 		.subcommand_required(true)
 		.arg_required_else_help(true)
@@ -19,7 +21,7 @@ fn main() -> Result<()> {
 			Command::new("server")
 				.about("Start the insights server")
 				.arg(
-					arg!(-w --watch "Run in watcher mode (push blockchain data to warehouse)"),
+					arg!(-w --watch "Run in watcher mode. Syncs sanction lists, watches blockchains for new blocks, and pushes new data to warehouse."),
 				)
 				.arg(
 					arg!(--env <ENV> "Network types to load")
