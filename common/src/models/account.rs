@@ -63,11 +63,16 @@ impl Model {
 	pub async fn get_by_api_key(
 		db: &DatabaseConnection,
 		api_key: Uuid,
+		is_admin_key_required: bool,
 	) -> Result<Option<Self>> {
-		Ok(Entity::find()
+		let mut q = Entity::find()
 			.join(JoinType::LeftJoin, Relation::ApiKey.def())
-			.filter(api_key::Column::Uuid.eq(api_key))
-			.one(db)
-			.await?)
+			.filter(api_key::Column::Uuid.eq(api_key));
+
+		if is_admin_key_required {
+			q = q.filter(api_key::Column::IsAdmin.eq(true));
+		}
+
+		Ok(q.one(db).await?)
 	}
 }

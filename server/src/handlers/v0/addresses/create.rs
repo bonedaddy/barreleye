@@ -40,7 +40,7 @@ pub async fn handler(
 		});
 	}
 
-	// create labeled addresses
+	// create new
 	LabeledAddress::create_many(
 		&app.db,
 		payload

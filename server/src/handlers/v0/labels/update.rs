@@ -26,15 +26,15 @@ pub async fn handler(
 	let update_data = LabelActiveModel {
 		name: match payload.name {
 			Some(name) => ActiveValue::set(name),
-			None => ActiveValue::not_set(),
+			_ => ActiveValue::not_set(),
 		},
 		is_enabled: match payload.is_enabled {
 			Some(is_enabled) => ActiveValue::set(is_enabled),
-			None => ActiveValue::not_set(),
+			_ => ActiveValue::not_set(),
 		},
 		is_tracked: match payload.is_tracked {
 			Some(is_tracked) => ActiveValue::set(is_tracked),
-			None => ActiveValue::not_set(),
+			_ => ActiveValue::not_set(),
 		},
 		..Default::default()
 	};

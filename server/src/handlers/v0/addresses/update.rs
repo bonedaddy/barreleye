@@ -36,11 +36,11 @@ pub async fn handler(
 
 				ActiveValue::set(label.label_id)
 			}
-			None => ActiveValue::not_set(),
+			_ => ActiveValue::not_set(),
 		},
 		address: match payload.address {
 			Some(address) => ActiveValue::set(address),
-			None => ActiveValue::not_set(),
+			_ => ActiveValue::not_set(),
 		},
 		..Default::default()
 	};

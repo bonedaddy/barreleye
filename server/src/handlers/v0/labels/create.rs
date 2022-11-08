@@ -24,7 +24,7 @@ pub async fn handler(
 		});
 	}
 
-	// create a label
+	// create new
 	let label_id = Label::create(
 		&app.db,
 		Label::new_model(payload.name, true, false, payload.is_tracked),
@@ -32,6 +32,5 @@ pub async fn handler(
 	.await?;
 
 	// return newly created
-	let label = Label::get(&app.db, label_id).await?.unwrap();
-	Ok(label.into())
+	Ok(Label::get(&app.db, label_id).await?.unwrap().into())
 }

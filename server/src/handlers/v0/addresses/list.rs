@@ -32,7 +32,7 @@ pub async fn handler(
 				Some(label) => {
 					conditions.push(LabeledAddressLabelId.eq(label.label_id))
 				}
-				None => {
+				_ => {
 					return Err(ServerError::InvalidParam {
 						field: "label".to_string(),
 						value: label_id,
@@ -45,9 +45,7 @@ pub async fn handler(
 		limit = payload.limit;
 	}
 
-	let labels =
-		LabeledAddress::get_all_where(&app.db, conditions, offset, limit)
-			.await?;
-
-	Ok(labels.into())
+	Ok(LabeledAddress::get_all_where(&app.db, conditions, offset, limit)
+		.await?
+		.into())
 }

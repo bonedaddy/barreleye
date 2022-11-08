@@ -35,10 +35,10 @@ async fn auth<B>(
 	mut req: Request<B>,
 	next: Next<B>,
 ) -> ServerResult<Response> {
-	let public_endpoints = vec!["/v0/insights"];
-	for public_endpoint in public_endpoints.iter() {
-		if req.uri().to_string().starts_with(public_endpoint) {
-			return Ok(next.run(req).await);
+	let mut is_admin_key_required = true;
+	for user_endpoint in vec!["/v0/insights"].iter() {
+		if req.uri().to_string().starts_with(user_endpoint) {
+			is_admin_key_required = false;
 		}
 	}
 
@@ -49,17 +49,18 @@ async fn auth<B>(
 		.to_str()
 		.map_err(|_| ServerError::Unauthorized)?;
 
-	let split = authorization.split_once(' ');
-	let bearer_token = match split {
+	let token = match authorization.split_once(' ') {
 		Some((name, contents)) if name == "Bearer" => contents.to_string(),
 		_ => return Err(ServerError::Unauthorized),
 	};
 
-	let bearer_token_uuid = Uuid::parse_str(&bearer_token)
-		.map_err(|_| ServerError::Unauthorized)?;
-	if let Some(account) = Account::get_by_api_key(&app.db, bearer_token_uuid)
-		.await
-		.map_err(|_| ServerError::Unauthorized)?
+	let api_key =
+		Uuid::parse_str(&token).map_err(|_| ServerError::Unauthorized)?;
+
+	if let Some(account) =
+		Account::get_by_api_key(&app.db, api_key, is_admin_key_required)
+			.await
+			.map_err(|_| ServerError::Unauthorized)?
 	{
 		req.extensions_mut().insert(account);
 		Ok(next.run(req).await)
@@ -199,7 +200,7 @@ async fn shutdown_signal() {
 			Ok(mut signal) => {
 				signal.recv().await;
 			}
-			Err(_) => progress::quit(AppError::SignalHandler),
+			_ => progress::quit(AppError::SignalHandler),
 		};
 	};
 

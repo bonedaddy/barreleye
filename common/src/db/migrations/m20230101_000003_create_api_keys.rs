@@ -39,6 +39,7 @@ impl MigrationTrait for Migration {
 							.uuid()
 							.not_null(),
 					)
+					.col(ColumnDef::new(ApiKeys::IsAdmin).boolean().not_null())
 					.col(ColumnDef::new(ApiKeys::UpdatedAt).date_time().null())
 					.col(
 						ColumnDef::new(ApiKeys::CreatedAt)
@@ -70,11 +71,17 @@ impl MigrationTrait for Migration {
 			.exec_stmt(
 				Query::insert()
 					.into_table(ApiKeys::Table)
-					.columns([ApiKeys::AccountId, ApiKeys::Id, ApiKeys::Uuid])
+					.columns([
+						ApiKeys::AccountId,
+						ApiKeys::Id,
+						ApiKeys::Uuid,
+						ApiKeys::IsAdmin,
+					])
 					.values_panic([
 						account_id.into(),
-						utils::unique_id(IdPrefix::ApiKey, "default").into(),
+						utils::unique_id(IdPrefix::ApiKey, "admin").into(),
 						utils::new_uuid().into(),
+						true.into(),
 					])
 					.on_conflict(
 						OnConflict::columns([ApiKeys::Id])
@@ -99,6 +106,7 @@ enum ApiKeys {
 	AccountId,
 	Id,
 	Uuid,
+	IsAdmin,
 	UpdatedAt,
 	CreatedAt,
 }

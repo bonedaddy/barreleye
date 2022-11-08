@@ -10,16 +10,25 @@ use crate::{
 	Clone, Debug, PartialEq, Eq, Serialize, Deserialize, DeriveEntityModel,
 )]
 #[sea_orm(table_name = "api_keys")]
+#[serde(rename_all = "camelCase")]
 pub struct Model {
 	#[sea_orm(primary_key)]
-	#[serde(skip_deserializing)]
+	#[serde(skip_serializing, skip_deserializing)]
 	pub api_key_id: PrimaryId,
+	#[serde(skip_serializing)]
 	pub account_id: PrimaryId,
 	pub id: String,
+	#[serde(skip_serializing)]
 	pub uuid: Uuid,
+	#[serde(skip_serializing)]
+	pub is_admin: bool,
 	#[sea_orm(nullable)]
+	#[serde(skip_serializing)]
 	pub updated_at: Option<DateTime>,
 	pub created_at: DateTime,
+
+	#[sea_orm(ignore)]
+	pub key: String, // abbreviated `uuid` used in responses
 }
 
 pub use ActiveModel as ApiKeyActiveModel;
@@ -48,12 +57,17 @@ impl BasicModel for Model {
 }
 
 impl Model {
-	pub fn new_model(account_id: PrimaryId) -> ActiveModel {
+	pub fn new_model(account_id: PrimaryId, is_admin: bool) -> ActiveModel {
 		ActiveModel {
 			account_id: Set(account_id),
 			id: Set(utils::new_unique_id(IdPrefix::ApiKey)),
 			uuid: Set(utils::new_uuid()),
+			is_admin: Set(is_admin),
 			..Default::default()
 		}
+	}
+
+	pub fn format(&self) -> Self {
+		Self { key: self.uuid.to_string()[..4].to_string(), ..self.clone() }
 	}
 }
