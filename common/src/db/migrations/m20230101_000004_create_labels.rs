@@ -27,7 +27,12 @@ impl MigrationTrait for Migration {
 							.string()
 							.not_null(),
 					)
-					.col(ColumnDef::new(Labels::Name).string().not_null())
+					.col(
+						ColumnDef::new(Labels::Name)
+							.unique_key()
+							.string()
+							.not_null(),
+					)
 					.col(ColumnDef::new(Labels::IsEnabled).boolean().not_null())
 					.col(
 						ColumnDef::new(Labels::IsHardcoded)

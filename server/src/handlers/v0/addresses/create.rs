@@ -1,0 +1,65 @@
+use axum::{extract::State, Json};
+use serde::Deserialize;
+use std::sync::Arc;
+
+use crate::{errors::ServerError, ServerResult, ServerState};
+use barreleye_common::{
+	models::{BasicModel, Label, LabeledAddress},
+	Address,
+};
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Payload {
+	label: String,
+	addresses: Vec<String>,
+}
+
+pub async fn handler(
+	State(app): State<Arc<ServerState>>,
+	Json(payload): Json<Payload>,
+) -> ServerResult<Json<Vec<LabeledAddress>>> {
+	let label = Label::get_by_id(&app.db, &payload.label).await?.ok_or(
+		ServerError::InvalidParam {
+			field: "label".to_string(),
+			value: payload.label,
+		},
+	)?;
+
+	// check for duplicates
+	let labeled_addresses = LabeledAddress::get_all_by_label_id_and_addresses(
+		&app.db,
+		label.label_id,
+		payload.addresses.clone(),
+	)
+	.await?;
+	if !labeled_addresses.is_empty() {
+		return Err(ServerError::Duplicate {
+			field: "address".to_string(),
+			value: labeled_addresses[0].address.clone(),
+		});
+	}
+
+	// create labeled addresses
+	LabeledAddress::create_many(
+		&app.db,
+		payload
+			.addresses
+			.clone()
+			.iter()
+			.map(|address| {
+				LabeledAddress::new_model(label.label_id, Address::new(address))
+			})
+			.collect(),
+	)
+	.await?;
+
+	// return newly created
+	Ok(LabeledAddress::get_all_by_label_id_and_addresses(
+		&app.db,
+		label.label_id,
+		payload.addresses,
+	)
+	.await?
+	.into())
+}

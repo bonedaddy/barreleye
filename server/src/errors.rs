@@ -13,8 +13,17 @@ pub enum ServerError {
 	#[display(fmt = "unauthorized")]
 	Unauthorized,
 
-	#[display(fmt = "validation error on field: {field}")]
+	#[display(fmt = "validation error on field `{field}`")]
 	Validation { field: String },
+
+	#[display(fmt = "invalid parameter @ `{field} = {value}`")]
+	InvalidParam { field: String, value: String },
+
+	#[display(fmt = "duplicate item found @ `{field} = {value}`")]
+	Duplicate { field: String, value: String },
+
+	#[display(fmt = "bad request: {reason}")]
+	BadRequest { reason: String },
 
 	#[display(fmt = "not found")]
 	NotFound,
@@ -28,6 +37,9 @@ impl IntoResponse for ServerError {
 		let http_code = match self {
 			ServerError::Unauthorized => StatusCode::UNAUTHORIZED,
 			ServerError::Validation { .. } => StatusCode::BAD_REQUEST,
+			ServerError::InvalidParam { .. } => StatusCode::BAD_REQUEST,
+			ServerError::Duplicate { .. } => StatusCode::BAD_REQUEST,
+			ServerError::BadRequest { .. } => StatusCode::BAD_REQUEST,
 			ServerError::NotFound => StatusCode::NOT_FOUND,
 			ServerError::Internal { .. } => StatusCode::INTERNAL_SERVER_ERROR,
 		};

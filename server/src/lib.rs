@@ -8,9 +8,9 @@ use barreleye_chain::Networks;
 use barreleye_common::{
 	db, progress, progress::Step, AppError, Clickhouse, Env, Settings,
 };
-use error::ServerError;
+use errors::ServerError;
 
-mod error;
+mod errors;
 mod handlers;
 mod lists;
 mod server;

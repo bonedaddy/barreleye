@@ -23,7 +23,7 @@ use tokio::signal;
 use tower::ServiceBuilder;
 use uuid::Uuid;
 
-use crate::{error::ServerError, handlers, ServerResult, ServerState};
+use crate::{errors::ServerError, handlers, ServerResult, ServerState};
 use barreleye_chain::Networks;
 use barreleye_common::{
 	models::Account, progress, progress::Step, AppError, Clickhouse, Env,

@@ -1,5 +1,9 @@
 use eyre::Result;
-use sea_orm::entity::{prelude::*, *};
+use sea_orm::{
+	entity::prelude::*,
+	sea_query::{func::Func, Expr},
+	Condition, Set,
+};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -11,10 +15,10 @@ use crate::{
 	Clone, Debug, PartialEq, Eq, Serialize, Deserialize, DeriveEntityModel,
 )]
 #[sea_orm(table_name = "labels")]
+#[serde(rename_all = "camelCase")]
 pub struct Model {
 	#[sea_orm(primary_key)]
-	#[serde(skip_serializing)]
-	#[serde(skip_deserializing)]
+	#[serde(skip_serializing, skip_deserializing)]
 	pub label_id: PrimaryId,
 	pub id: String,
 	pub name: String,
@@ -22,7 +26,6 @@ pub struct Model {
 	pub is_enabled: bool,
 	#[serde(skip_serializing)]
 	pub is_hardcoded: bool,
-	#[serde(skip_serializing)]
 	pub is_tracked: bool,
 	#[sea_orm(nullable)]
 	#[serde(skip_serializing)]
@@ -72,6 +75,21 @@ impl Model {
 			.filter(Column::IsEnabled.eq(true))
 			.filter(Column::IsHardcoded.eq(true))
 			.all(db)
+			.await?)
+	}
+
+	pub async fn get_by_name(
+		db: &DatabaseConnection,
+		name: &str,
+	) -> Result<Option<Self>> {
+		Ok(Entity::find()
+			.filter(
+				Condition::all().add(
+					Func::lower(Expr::col(Column::Name))
+						.equals(name.trim().to_lowercase()),
+				),
+			)
+			.one(db)
 			.await?)
 	}
 }

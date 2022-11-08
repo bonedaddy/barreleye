@@ -33,7 +33,7 @@ pub enum IdPrefix {
 	Label,
 	#[display(fmt = "lab_adr")]
 	LabeledAddress,
-	#[display(fmt = "tra")]
+	#[display(fmt = "txn")]
 	Transaction,
 }
 
