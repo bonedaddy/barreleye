@@ -22,6 +22,8 @@ pub struct Model {
 	pub is_enabled: bool,
 	#[serde(skip_serializing)]
 	pub is_hardcoded: bool,
+	#[serde(skip_serializing)]
+	pub is_tracked: bool,
 	#[sea_orm(nullable)]
 	#[serde(skip_serializing)]
 	pub updated_at: Option<DateTime>,
@@ -47,10 +49,18 @@ impl BasicModel for Model {
 }
 
 impl Model {
-	pub fn new_model(name: String) -> ActiveModel {
+	pub fn new_model(
+		name: String,
+		is_enabled: bool,
+		is_hardcoded: bool,
+		is_tracked: bool,
+	) -> ActiveModel {
 		ActiveModel {
 			id: Set(utils::new_unique_id(IdPrefix::Label)),
 			name: Set(name),
+			is_enabled: Set(is_enabled),
+			is_hardcoded: Set(is_hardcoded),
+			is_tracked: Set(is_tracked),
 			..Default::default()
 		}
 	}

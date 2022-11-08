@@ -43,6 +43,7 @@ impl Clickhouse {
               amount UInt256,
               created_at DateTime
             ) ENGINE = MergeTree()
+            ORDER BY (network_id, created_at)
             PARTITION BY toYYYYMM(created_at);
 			"#,
 			self.db_name

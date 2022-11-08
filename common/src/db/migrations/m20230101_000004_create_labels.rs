@@ -34,6 +34,7 @@ impl MigrationTrait for Migration {
 							.boolean()
 							.not_null(),
 					)
+					.col(ColumnDef::new(Labels::IsTracked).boolean().not_null())
 					.col(ColumnDef::new(Labels::UpdatedAt).date_time().null())
 					.col(
 						ColumnDef::new(Labels::CreatedAt)
@@ -54,16 +55,19 @@ impl MigrationTrait for Migration {
 						Labels::Name,
 						Labels::IsEnabled,
 						Labels::IsHardcoded,
+						Labels::IsTracked,
 					])
 					.values_panic([
 						LabelId::Ofac.to_string().into(),
 						"OFAC".into(),
 						true.into(),
 						true.into(),
+						true.into(),
 					])
 					.values_panic([
 						LabelId::Ofsi.to_string().into(),
 						"OFSI".into(),
+						true.into(),
 						true.into(),
 						true.into(),
 					])
@@ -91,6 +95,7 @@ enum Labels {
 	Name,
 	IsEnabled,
 	IsHardcoded,
+	IsTracked,
 	UpdatedAt,
 	CreatedAt,
 }
