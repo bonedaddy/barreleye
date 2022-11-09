@@ -35,7 +35,7 @@ pub async fn handler(
 	.await?;
 	if !labeled_addresses.is_empty() {
 		return Err(ServerError::Duplicate {
-			field: "address".to_string(),
+			field: "addresses".to_string(),
 			value: labeled_addresses[0].address.clone(),
 		});
 	}

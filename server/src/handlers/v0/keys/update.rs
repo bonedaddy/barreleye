@@ -3,12 +3,13 @@ use axum::{
 	http::StatusCode,
 	Json,
 };
-use sea_orm::entity::ActiveValue;
 use serde::Deserialize;
 use std::sync::Arc;
 
 use crate::{errors::ServerError, ServerResult, ServerState};
-use barreleye_common::models::{ApiKey, ApiKeyActiveModel, BasicModel};
+use barreleye_common::models::{
+	optional_set, ApiKey, ApiKeyActiveModel, BasicModel,
+};
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -22,10 +23,7 @@ pub async fn handler(
 	Json(payload): Json<Payload>,
 ) -> ServerResult<StatusCode> {
 	let update_data = ApiKeyActiveModel {
-		is_admin: match payload.is_admin {
-			Some(is_admin) => ActiveValue::set(is_admin),
-			_ => ActiveValue::not_set(),
-		},
+		is_admin: optional_set(payload.is_admin),
 		..Default::default()
 	};
 

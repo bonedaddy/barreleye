@@ -89,10 +89,7 @@ pub async fn start(
 	let app = wrap_router(
 		Router::with_state(shared_state.clone())
 			.merge(handlers::get_routes(shared_state.clone()))
-			.route_layer(middleware::from_fn_with_state(
-				shared_state,
-				auth,
-			)),
+			.route_layer(middleware::from_fn_with_state(shared_state, auth)),
 	);
 
 	let ipv4 =

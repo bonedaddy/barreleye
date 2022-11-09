@@ -4,7 +4,7 @@ use sea_orm::{
 	entity::prelude::*,
 	query::*,
 	sea_query::{types::*, Expr, SimpleExpr},
-	QuerySelect,
+	ActiveValue, QuerySelect,
 };
 
 use crate::utils;
@@ -29,6 +29,16 @@ pub use network::{Network, NetworkActiveModel};
 
 pub mod transaction;
 pub use transaction::{Transaction, TransactionActiveModel};
+
+pub fn optional_set<T>(o: Option<T>) -> ActiveValue<T>
+where
+	T: Into<sea_orm::Value>,
+{
+	match o {
+		Some(v) => ActiveValue::set(v),
+		_ => ActiveValue::not_set(),
+	}
+}
 
 #[async_trait]
 pub trait BasicModel {

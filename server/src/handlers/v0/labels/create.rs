@@ -16,7 +16,7 @@ pub async fn handler(
 	State(app): State<Arc<ServerState>>,
 	Json(payload): Json<Payload>,
 ) -> ServerResult<Json<Label>> {
-	// check for duplicates
+	// check for duplicate name
 	if Label::get_by_name(&app.db, &payload.name).await?.is_some() {
 		return Err(ServerError::Duplicate {
 			field: "name".to_string(),

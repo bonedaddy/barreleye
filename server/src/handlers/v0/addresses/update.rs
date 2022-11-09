@@ -9,7 +9,7 @@ use std::sync::Arc;
 
 use crate::{errors::ServerError, ServerResult, ServerState};
 use barreleye_common::models::{
-	BasicModel, Label, LabeledAddress, LabeledAddressActiveModel,
+	optional_set, BasicModel, Label, LabeledAddress, LabeledAddressActiveModel,
 };
 
 #[derive(Deserialize)]
@@ -38,10 +38,7 @@ pub async fn handler(
 			}
 			_ => ActiveValue::not_set(),
 		},
-		address: match payload.address {
-			Some(address) => ActiveValue::set(address),
-			_ => ActiveValue::not_set(),
-		},
+		address: optional_set(payload.address),
 		..Default::default()
 	};
 

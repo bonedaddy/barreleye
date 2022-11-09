@@ -1,5 +1,9 @@
 use eyre::Result;
-use sea_orm::entity::{prelude::*, *};
+use sea_orm::{
+	entity::prelude::*,
+	sea_query::{func::Func, Expr},
+	Condition, Set,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
@@ -14,7 +18,7 @@ use crate::{
 #[sea_orm(table_name = "networks")]
 pub struct Model {
 	#[sea_orm(primary_key)]
-	#[serde(skip_deserializing)]
+	#[serde(skip_serializing, skip_deserializing)]
 	pub network_id: PrimaryId,
 	pub id: String,
 	pub name: String,
@@ -26,6 +30,7 @@ pub struct Model {
 	pub rpc: String,
 	pub rpc_bootstraps: Json,
 	#[sea_orm(nullable)]
+	#[serde(skip_serializing)]
 	pub updated_at: Option<DateTime>,
 	pub created_at: DateTime,
 }
@@ -78,5 +83,34 @@ impl Model {
 		env: Env,
 	) -> Result<Vec<Self>> {
 		Ok(Entity::find().filter(Column::Env.eq(env)).all(db).await?)
+	}
+
+	pub async fn get_by_name(
+		db: &DatabaseConnection,
+		name: &str,
+	) -> Result<Option<Self>> {
+		Ok(Entity::find()
+			.filter(
+				Condition::all().add(
+					Func::lower(Expr::col(Column::Name))
+						.equals(name.trim().to_lowercase()),
+				),
+			)
+			.one(db)
+			.await?)
+	}
+
+	pub async fn get_by_env_blockchain_and_chain_id(
+		db: &DatabaseConnection,
+		env: Env,
+		blockchain: Blockchain,
+		chain_id: i64,
+	) -> Result<Option<Self>> {
+		Ok(Entity::find()
+			.filter(Column::Env.eq(env))
+			.filter(Column::Blockchain.eq(blockchain))
+			.filter(Column::ChainId.eq(chain_id))
+			.one(db)
+			.await?)
 	}
 }

@@ -3,12 +3,13 @@ use axum::{
 	http::StatusCode,
 	Json,
 };
-use sea_orm::entity::ActiveValue;
 use serde::Deserialize;
 use std::sync::Arc;
 
 use crate::{errors::ServerError, ServerResult, ServerState};
-use barreleye_common::models::{BasicModel, Label, LabelActiveModel};
+use barreleye_common::models::{
+	optional_set, BasicModel, Label, LabelActiveModel,
+};
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -23,19 +24,26 @@ pub async fn handler(
 	Path(label_id): Path<String>,
 	Json(payload): Json<Payload>,
 ) -> ServerResult<StatusCode> {
+	let label = Label::get_by_id(&app.db, &label_id)
+		.await?
+		.ok_or(ServerError::NotFound)?;
+
+	// check for duplicate name
+	if let Some(name) = payload.name.clone() {
+		if label_id != label.id &&
+			label.name.trim().to_lowercase() == name.trim().to_lowercase()
+		{
+			return Err(ServerError::Duplicate {
+				field: "name".to_string(),
+				value: name,
+			});
+		}
+	}
+
 	let update_data = LabelActiveModel {
-		name: match payload.name {
-			Some(name) => ActiveValue::set(name),
-			_ => ActiveValue::not_set(),
-		},
-		is_enabled: match payload.is_enabled {
-			Some(is_enabled) => ActiveValue::set(is_enabled),
-			_ => ActiveValue::not_set(),
-		},
-		is_tracked: match payload.is_tracked {
-			Some(is_tracked) => ActiveValue::set(is_tracked),
-			_ => ActiveValue::not_set(),
-		},
+		name: optional_set(payload.name),
+		is_enabled: optional_set(payload.is_enabled),
+		is_tracked: optional_set(payload.is_tracked),
 		..Default::default()
 	};
 
