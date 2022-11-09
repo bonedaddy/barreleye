@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use crate::{server::wrap_router, ServerState};
 
+mod accounts;
 mod addresses;
 mod heartbeat;
 mod insights;
@@ -14,6 +15,7 @@ pub fn get_routes(shared_state: Arc<ServerState>) -> Router<Arc<ServerState>> {
 	wrap_router(
 		Router::with_state(shared_state.clone())
 			.nest("/heartbeat", heartbeat::get_routes(shared_state.clone()))
+			.nest("/accounts", accounts::get_routes(shared_state.clone()))
 			.nest("/keys", keys::get_routes(shared_state.clone()))
 			.nest("/networks", networks::get_routes(shared_state.clone()))
 			.nest("/labels", labels::get_routes(shared_state.clone()))

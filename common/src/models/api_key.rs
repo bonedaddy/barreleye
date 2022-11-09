@@ -1,3 +1,4 @@
+use eyre::Result;
 use sea_orm::entity::{prelude::*, *};
 use serde::{Deserialize, Serialize};
 
@@ -65,6 +66,16 @@ impl Model {
 			is_admin: Set(is_admin),
 			..Default::default()
 		}
+	}
+
+	pub async fn get_all_by_account_id(
+		db: &DatabaseConnection,
+		account_id: PrimaryId,
+	) -> Result<Vec<Self>> {
+		Ok(Entity::find()
+			.filter(Column::AccountId.eq(account_id))
+			.all(db)
+			.await?)
 	}
 
 	pub fn format(&self) -> Self {

@@ -45,8 +45,8 @@ impl MigrationTrait for Migration {
 					.into_table(Accounts::Table)
 					.columns([Accounts::Id, Accounts::Name])
 					.values_panic([
-						utils::unique_id(IdPrefix::Account, "default").into(),
-						"Default Account".into(),
+						utils::new_unique_id(IdPrefix::Account).into(),
+						"".into(),
 					])
 					.on_conflict(
 						OnConflict::columns([Accounts::Id])

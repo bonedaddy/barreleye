@@ -17,11 +17,12 @@ use crate::{
 #[sea_orm(table_name = "accounts")]
 pub struct Model {
 	#[sea_orm(primary_key)]
-	#[serde(skip_deserializing)]
+	#[serde(skip_serializing, skip_deserializing)]
 	pub account_id: PrimaryId,
 	pub id: String,
 	pub name: String,
 	#[sea_orm(nullable)]
+	#[serde(skip_serializing)]
 	pub updated_at: Option<DateTime>,
 	pub created_at: DateTime,
 }
