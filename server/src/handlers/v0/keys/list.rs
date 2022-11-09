@@ -3,7 +3,7 @@ use sea_orm::ColumnTrait;
 use serde::Deserialize;
 use std::sync::Arc;
 
-use crate::{errors::ServerError, ServerResult, ServerState};
+use crate::{errors::ServerError, AppState, ServerResult};
 use barreleye_common::models::{
 	account::Column::AccountId as AccountAccountId, Account, ApiKey, BasicModel,
 };
@@ -17,7 +17,7 @@ pub struct Payload {
 }
 
 pub async fn handler(
-	State(app): State<Arc<ServerState>>,
+	State(app): State<Arc<AppState>>,
 	Json(payload): Json<Option<Payload>>,
 ) -> ServerResult<Json<Vec<ApiKey>>> {
 	let mut conditions = vec![];

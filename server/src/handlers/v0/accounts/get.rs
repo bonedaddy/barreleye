@@ -4,11 +4,11 @@ use axum::{
 };
 use std::sync::Arc;
 
-use crate::{errors::ServerError, ServerResult, ServerState};
+use crate::{errors::ServerError, AppState, ServerResult};
 use barreleye_common::models::{Account, BasicModel};
 
 pub async fn handler(
-	State(app): State<Arc<ServerState>>,
+	State(app): State<Arc<AppState>>,
 	Path(account_id): Path<String>,
 ) -> ServerResult<Json<Account>> {
 	Account::get_by_id(&app.db, &account_id)

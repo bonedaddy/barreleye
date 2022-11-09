@@ -6,7 +6,7 @@ use axum::{
 use serde::Deserialize;
 use std::sync::Arc;
 
-use crate::{errors::ServerError, ServerResult, ServerState};
+use crate::{errors::ServerError, AppState, ServerResult};
 use barreleye_common::models::{
 	optional_set, BasicModel, Label, LabelActiveModel,
 };
@@ -20,7 +20,7 @@ pub struct Payload {
 }
 
 pub async fn handler(
-	State(app): State<Arc<ServerState>>,
+	State(app): State<Arc<AppState>>,
 	Path(label_id): Path<String>,
 	Json(payload): Json<Payload>,
 ) -> ServerResult<StatusCode> {

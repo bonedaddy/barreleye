@@ -40,7 +40,7 @@ impl MigrationTrait for Migration {
 							.not_null(),
 					)
 					.col(ColumnDef::new(ApiKeys::IsAdmin).boolean().not_null())
-					.col(ColumnDef::new(ApiKeys::UpdatedAt).date_time().null())
+					.col(ColumnDef::new(ApiKeys::UpdatedAt).date_time().null()) // @TODO index
 					.col(
 						ColumnDef::new(ApiKeys::CreatedAt)
 							.date_time()

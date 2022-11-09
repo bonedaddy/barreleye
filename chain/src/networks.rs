@@ -2,26 +2,28 @@ use eyre::{ErrReport, Result};
 use futures::future::join_all;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use itertools::{Either, Itertools};
-use sea_orm::entity::prelude::*;
 use std::{collections::HashMap, sync::Arc, time::Duration};
 use tokio::signal;
 
 use crate::{Bitcoin, ChainTrait, Evm, Solana};
-
 use barreleye_common::{
 	models::{Network, PrimaryId},
 	progress,
 	progress::Step,
-	AppError, Blockchain, Env,
+	AppError, AppState, Blockchain,
 };
 
 pub struct Networks {
-	db: Arc<DatabaseConnection>,
-	network_id_to_chain_map: HashMap<PrimaryId, Arc<Box<dyn ChainTrait>>>,
+	app_state: Arc<AppState>,
+	map_network_id_to_chain: HashMap<PrimaryId, Arc<Box<dyn ChainTrait>>>,
 }
 
 impl Networks {
-	pub async fn new(db: Arc<DatabaseConnection>, env: Env) -> Result<Self> {
+	pub fn new(app_state: Arc<AppState>) -> Self {
+		Self { app_state, map_network_id_to_chain: HashMap::new() }
+	}
+
+	pub async fn connect(&mut self) -> Result<()> {
 		progress::show(Step::Networks).await;
 
 		let spinner_style = ProgressStyle::with_template(
@@ -31,41 +33,44 @@ impl Networks {
 		.tick_chars("⠁⠂⠄⡀⢀⠠⠐⠈ ");
 
 		let m = MultiProgress::new();
-		let threads = Network::get_all_by_env(&db, env)
-			.await?
-			.into_iter()
-			.map(|network| {
-				let pb = m.add(ProgressBar::new(1_000_000));
-				pb.set_style(spinner_style.clone());
-				pb.set_prefix(network.name.clone());
-				pb.enable_steady_tick(Duration::from_millis(50));
+		let threads =
+			Network::get_all_by_env(&self.app_state.db, self.app_state.env)
+				.await?
+				.into_iter()
+				.map(|network| {
+					let pb = m.add(ProgressBar::new(1_000_000));
+					pb.set_style(spinner_style.clone());
+					pb.set_prefix(network.name.clone());
+					pb.enable_steady_tick(Duration::from_millis(50));
 
-				tokio::spawn(async move {
-					let boxed_chain: Box<dyn ChainTrait> =
-						match network.blockchain {
-							Blockchain::Bitcoin => {
-								Box::new(Bitcoin::new(network, &pb).await?)
-							}
-							Blockchain::Evm => {
-								Box::new(Evm::new(network, &pb).await?)
-							}
-							Blockchain::Solana => {
-								Box::new(Solana::new(network, &pb).await?)
-							}
-						};
+					tokio::spawn(async move {
+						let boxed_chain: Box<dyn ChainTrait> =
+							match network.blockchain {
+								Blockchain::Bitcoin => {
+									Box::new(Bitcoin::new(network, &pb).await?)
+								}
+								Blockchain::Evm => {
+									Box::new(Evm::new(network, &pb).await?)
+								}
+								Blockchain::Solana => {
+									Box::new(Solana::new(network, &pb).await?)
+								}
+							};
 
-					if let Some(rpc) = boxed_chain.get_rpc() {
-						pb.finish_with_message(format!("connected to {rpc}"));
-					} else {
-						pb.finish_with_message("could not connect");
-					}
+						if let Some(rpc) = boxed_chain.get_rpc() {
+							pb.finish_with_message(format!(
+								"connected to {rpc}"
+							));
+						} else {
+							pb.finish_with_message("could not connect");
+						}
 
-					Ok::<_, ErrReport>(boxed_chain)
+						Ok::<_, ErrReport>(boxed_chain)
+					})
 				})
-			})
-			.collect::<Vec<_>>();
+				.collect::<Vec<_>>();
 
-		let (network_id_to_chain_map, failures): (HashMap<_, _>, Vec<_>) =
+		let (map_network_id_to_chain, failures): (HashMap<_, _>, Vec<_>) =
 			join_all(threads).await.into_iter().partition_map(|result| {
 				match result.unwrap() {
 					Ok(boxed_chain) => {
@@ -82,16 +87,18 @@ impl Networks {
 			});
 		}
 
-		Ok(Self { db, network_id_to_chain_map })
+		self.map_network_id_to_chain = map_network_id_to_chain;
+
+		Ok(())
 	}
 
-	pub async fn watch(&self) {
+	pub async fn start(&self) {
 		let mut futures = vec![];
 
-		for (_, chain) in self.network_id_to_chain_map.iter() {
+		for (_, chain) in self.map_network_id_to_chain.iter() {
 			let handler = tokio::spawn({
 				let c = chain.clone();
-				let d = self.db.clone();
+				let d = self.app_state.db.clone();
 				async move { c.watch(d).await }
 			});
 
@@ -109,8 +116,8 @@ impl Networks {
 		&self,
 		network_id: PrimaryId,
 	) -> Option<&Box<dyn ChainTrait>> {
-		if self.network_id_to_chain_map.contains_key(&network_id) {
-			Some(&self.network_id_to_chain_map[&network_id])
+		if self.map_network_id_to_chain.contains_key(&network_id) {
+			Some(&self.map_network_id_to_chain[&network_id])
 		} else {
 			None
 		}
@@ -122,12 +129,12 @@ impl Networks {
 		blockchain: Blockchain,
 		chain_id: u64,
 	) -> Option<&Box<dyn ChainTrait>> {
-		for (network_id, b) in self.network_id_to_chain_map.iter() {
+		for (network_id, b) in self.map_network_id_to_chain.iter() {
 			let network = b.get_network();
 			if network.blockchain == blockchain &&
 				network.chain_id == chain_id as PrimaryId
 			{
-				return Some(&self.network_id_to_chain_map[network_id]);
+				return Some(&self.map_network_id_to_chain[network_id]);
 			}
 		}
 

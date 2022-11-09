@@ -1,51 +1,22 @@
 use eyre::Result;
-use sea_orm::DatabaseConnection;
-use std::sync::{atomic::AtomicBool, Arc};
-use uuid::Uuid;
+use std::sync::Arc;
 
 pub use barreleye_common;
 
 use barreleye_chain::Networks;
 use barreleye_common::{
-	db, progress, progress::Step, utils, AppError, Clickhouse, Env, Settings,
+	db, progress, progress::Step, AppError, AppState, Clickhouse, Env, Settings,
 };
 use errors::ServerError;
 
 mod errors;
 mod handlers;
+
 mod lists;
+use lists::Lists;
+
 mod server;
-
-#[derive(Clone)]
-pub struct ServerState {
-	pub uuid: Uuid,
-	pub is_leader: Arc<AtomicBool>,
-	pub settings: Arc<Settings>,
-	pub warehouse: Arc<Clickhouse>,
-	pub db: Arc<DatabaseConnection>,
-	pub networks: Arc<Networks>,
-	pub env: Env,
-}
-
-impl ServerState {
-	pub fn new(
-		settings: Arc<Settings>,
-		warehouse: Arc<Clickhouse>,
-		db: Arc<DatabaseConnection>,
-		networks: Arc<Networks>,
-		env: Env,
-	) -> Self {
-		ServerState {
-			uuid: utils::new_uuid(),
-			is_leader: Arc::new(AtomicBool::new(false)),
-			settings,
-			warehouse,
-			db,
-			networks,
-			env,
-		}
-	}
-}
+use server::Server;
 
 pub type ServerResult<T> = Result<T, ServerError>;
 
@@ -55,15 +26,16 @@ pub async fn start(env: Env) -> Result<()> {
 
 	let settings = Arc::new(Settings::new()?);
 
-	let clickhouse = Clickhouse::new(settings.clone())
-		.await
-		.map_err(|_| {
-			progress::quit(AppError::WarehouseConnection {
-				url: settings.warehouse.clickhouse.url.clone(),
-			});
-		})
-		.unwrap();
-	let warehouse = Arc::new(clickhouse);
+	let warehouse = Arc::new(
+		Clickhouse::new(settings.clone())
+			.await
+			.map_err(|_| {
+				progress::quit(AppError::WarehouseConnection {
+					url: settings.warehouse.clickhouse.url.clone(),
+				});
+			})
+			.unwrap(),
+	);
 
 	let db_conn = db::new(settings.clone())
 		.await
@@ -76,26 +48,26 @@ pub async fn start(env: Env) -> Result<()> {
 	db::run_migrations(&db_conn).await?;
 	let database = Arc::new(db_conn);
 
-	let networks = Arc::new(Networks::new(database.clone(), env).await?);
-	let networks_clone = networks.clone();
+	let app_state = Arc::new(AppState::new(settings, warehouse, database, env));
 
-	let lists = lists::Lists::new(database.clone(), settings.clone());
+	let mut networks = Networks::new(app_state.clone());
+	networks.connect().await?;
 
 	let (server_done, watcher_done, lists_done) = tokio::join! {
-		tokio::spawn(async move {
-			server::start(
-				settings,
-				warehouse,
-				database,
-				networks,
-				env,
-			).await
+		tokio::spawn({
+			let app_state = app_state.clone();
+			async move {
+				Server::new(app_state).start().await
+			}
 		}),
 		tokio::spawn(async move {
-			networks_clone.watch().await
+			networks.start().await
 		}),
-		tokio::spawn(async move {
-			lists.watch().await
+		tokio::spawn({
+			let app_state = app_state.clone();
+			async move {
+				Lists::new(app_state).start().await
+			}
 		}),
 	};
 

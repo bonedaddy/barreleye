@@ -7,7 +7,7 @@ use serde::Deserialize;
 use serde_json::json;
 use std::sync::Arc;
 
-use crate::{errors::ServerError, ServerResult, ServerState};
+use crate::{errors::ServerError, AppState, ServerResult};
 use barreleye_common::{
 	models::{optional_set, BasicModel, Network, NetworkActiveModel},
 	Blockchain, Env,
@@ -27,7 +27,7 @@ pub struct Payload {
 }
 
 pub async fn handler(
-	State(app): State<Arc<ServerState>>,
+	State(app): State<Arc<AppState>>,
 	Path(network_id): Path<String>,
 	Json(payload): Json<Payload>,
 ) -> ServerResult<StatusCode> {

@@ -1,6 +1,5 @@
 use eyre::Result;
 use regex::Regex;
-use sea_orm::entity::prelude::*;
 use std::{
 	collections::{HashMap, HashSet},
 	str::FromStr,
@@ -13,44 +12,52 @@ use tokio::{
 
 use barreleye_common::{
 	models::{BasicModel, Label, LabeledAddress},
-	utils, Address, LabelId, Settings,
+	utils, Address, AppState, LabelId,
 };
 
 pub struct Lists {
-	db: Arc<DatabaseConnection>,
-	refresh_rate: u64,
+	app_state: Arc<AppState>,
 }
 
 impl Lists {
-	pub fn new(db: Arc<DatabaseConnection>, settings: Arc<Settings>) -> Self {
-		Self { db, refresh_rate: settings.lists.refresh_rate }
+	pub fn new(app_state: Arc<AppState>) -> Self {
+		Self { app_state }
 	}
 
-	pub async fn watch(&self) {
-		let continue_watching = async move {
+	pub async fn start(&self) {
+		let watch = async move {
 			loop {
 				self.fetch_data().await.unwrap(); // @TODO handle properly
-				sleep(Duration::from_secs(self.refresh_rate)).await;
+				sleep(Duration::from_secs(
+					self.app_state.settings.lists.refresh_rate,
+				))
+				.await;
 			}
 		};
 
 		tokio::select! {
-			_ = continue_watching => {},
+			_ = watch => {},
 			_ = signal::ctrl_c() => {},
 		}
 	}
 
 	async fn fetch_data(&self) -> Result<()> {
-		let labels = Label::get_all_enabled_and_hardcoded(&self.db).await?;
+		let labels =
+			Label::get_all_enabled_and_hardcoded(&self.app_state.db).await?;
 
 		// skips labels that have been recently fetched
 		let mut label_ids = vec![];
 		for label in labels.iter() {
-			if let Some(la) =
-				LabeledAddress::get_latest_by_label_id(&self.db, label.label_id)
-					.await?
+			if let Some(la) = LabeledAddress::get_latest_by_label_id(
+				&self.app_state.db,
+				label.label_id,
+			)
+			.await?
 			{
-				if la.created_at < utils::ago_in_seconds(self.refresh_rate) {
+				if la.created_at <
+					utils::ago_in_seconds(
+						self.app_state.settings.lists.refresh_rate,
+					) {
 					label_ids.push(label.label_id);
 				}
 			} else {
@@ -62,7 +69,8 @@ impl Lists {
 		}
 
 		let labeled_addresses =
-			LabeledAddress::get_all_by_label_ids(&self.db, label_ids).await?;
+			LabeledAddress::get_all_by_label_ids(&self.app_state.db, label_ids)
+				.await?;
 
 		// lab_ofac => {
 		//     lab_adr_123 => 'addr1',
@@ -108,7 +116,7 @@ impl Lists {
 			}
 			if !addresses_to_add.is_empty() {
 				LabeledAddress::create_many(
-					&self.db,
+					&self.app_state.db,
 					addresses_to_add
 						.iter()
 						.map(|(label_id, address)| {
@@ -130,7 +138,11 @@ impl Lists {
 				}
 			}
 			if !ids_to_delete.is_empty() {
-				LabeledAddress::delete_by_ids(&self.db, ids_to_delete).await?;
+				LabeledAddress::delete_by_ids(
+					&self.app_state.db,
+					ids_to_delete,
+				)
+				.await?;
 			}
 		}
 

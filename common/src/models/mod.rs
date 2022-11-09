@@ -24,6 +24,9 @@ pub use label::{Label, LabelActiveModel};
 pub mod labeled_address;
 pub use labeled_address::{LabeledAddress, LabeledAddressActiveModel};
 
+pub mod leader;
+pub use leader::{Leader, LeaderActiveModel};
+
 pub mod network;
 pub use network::{Network, NetworkActiveModel};
 
