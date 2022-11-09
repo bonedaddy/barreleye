@@ -31,7 +31,7 @@ use barreleye_common::{
 };
 
 async fn auth<B>(
-	State(app): State<ServerState>,
+	State(app): State<Arc<ServerState>>,
 	mut req: Request<B>,
 	next: Next<B>,
 ) -> ServerResult<Response> {
@@ -89,7 +89,7 @@ pub async fn start(
 	let app = wrap_router(
 		Router::with_state(shared_state.clone())
 			.merge(handlers::get_routes(shared_state.clone()))
-			.route_layer(middleware::from_fn_with_state_arc(
+			.route_layer(middleware::from_fn_with_state(
 				shared_state,
 				auth,
 			)),

@@ -31,8 +31,8 @@ pub fn setup() -> Result<()> {
 		})
 		.level(LevelFilter::Warn)
 		.level_for("axum", LevelFilter::Info)
+		.level_for("barreleye_chain", LevelFilter::Info)
 		.level_for("barreleye_common", LevelFilter::Info)
-		.level_for("barreleye_scan", LevelFilter::Info)
 		.level_for("barreleye_server", LevelFilter::Info)
 		.chain(std::io::stdout())
 		.apply()?;
