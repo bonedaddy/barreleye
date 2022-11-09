@@ -966,7 +966,7 @@ static BANNER_TRUECOLOR: &[u8] = &[
 	59, 48, 109, 32, 27, 91, 48, 109,
 ];
 
-pub fn show(env: Env, is_watcher: bool, skip_ascii: bool) -> Result<()> {
+pub fn show(env: Env, skip_ascii: bool) -> Result<()> {
 	let banner = if skip_ascii {
 		"".to_string()
 	} else {
@@ -982,16 +982,13 @@ pub fn show(env: Env, is_watcher: bool, skip_ascii: bool) -> Result<()> {
 
 	let name = "Barreleye".to_string();
 	let tags = {
-		let s = |s| style(s).bright().bold();
+		let s = |s| style(s).bright().bold().yellow().to_string();
 
 		let mut t = vec![];
 		if env == Env::Localhost {
-			t.push(s("+Localhost").cyan().to_string())
+			t.push(s("+Localhost"))
 		} else if env == Env::Testnet {
-			t.push(s("+Testnet").cyan().to_string())
-		}
-		if is_watcher {
-			t.push(s("+Watcher").red().to_string())
+			t.push(s("+Testnet"))
 		}
 
 		let tags = t.join(", ");

@@ -73,9 +73,8 @@ pub async fn start(
 	settings: Arc<Settings>,
 	warehouse: Arc<Clickhouse>,
 	db: Arc<DatabaseConnection>,
-	networks: Option<Arc<Networks>>,
+	networks: Arc<Networks>,
 	env: Env,
-	is_watcher: bool,
 ) -> Result<()> {
 	let shared_state = Arc::new(ServerState::new(
 		settings.clone(),
@@ -83,7 +82,6 @@ pub async fn start(
 		db,
 		networks,
 		env,
-		is_watcher,
 	));
 
 	let app = wrap_router(
@@ -95,8 +93,7 @@ pub async fn start(
 	let ipv4 =
 		SocketAddr::new(settings.server.ip_v4.parse()?, settings.server.port);
 	if settings.server.ip_v6.is_empty() {
-		progress::show(Step::Ready(style(ipv4).bold().to_string()), is_watcher)
-			.await;
+		progress::show(Step::Ready(style(ipv4).bold().to_string())).await;
 		Server::bind(&ipv4)
 			.serve(app.into_make_service())
 			.with_graceful_shutdown(shutdown_signal())
@@ -114,14 +111,11 @@ pub async fn start(
 				.or_else(|e| bail!(e.into_cause().unwrap()))?,
 		};
 
-		progress::show(
-			Step::Ready(format!(
-				"{} & {}",
-				style(ipv4).bold(),
-				style(ipv6).bold()
-			)),
-			is_watcher,
-		)
+		progress::show(Step::Ready(format!(
+			"{} & {}",
+			style(ipv4).bold(),
+			style(ipv6).bold()
+		)))
 		.await;
 
 		Server::builder(listeners)

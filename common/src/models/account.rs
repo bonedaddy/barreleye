@@ -15,6 +15,7 @@ use crate::{
 	Clone, Debug, PartialEq, Eq, Serialize, Deserialize, DeriveEntityModel,
 )]
 #[sea_orm(table_name = "accounts")]
+#[serde(rename_all = "camelCase")]
 pub struct Model {
 	#[sea_orm(primary_key)]
 	#[serde(skip_serializing, skip_deserializing)]

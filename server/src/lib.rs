@@ -1,12 +1,13 @@
 use eyre::Result;
 use sea_orm::DatabaseConnection;
-use std::sync::Arc;
+use std::sync::{atomic::AtomicBool, Arc};
+use uuid::Uuid;
 
 pub use barreleye_common;
 
 use barreleye_chain::Networks;
 use barreleye_common::{
-	db, progress, progress::Step, AppError, Clickhouse, Env, Settings,
+	db, progress, progress::Step, utils, AppError, Clickhouse, Env, Settings,
 };
 use errors::ServerError;
 
@@ -17,12 +18,13 @@ mod server;
 
 #[derive(Clone)]
 pub struct ServerState {
+	pub uuid: Uuid,
+	pub is_leader: Arc<AtomicBool>,
 	pub settings: Arc<Settings>,
 	pub warehouse: Arc<Clickhouse>,
 	pub db: Arc<DatabaseConnection>,
-	pub networks: Option<Arc<Networks>>,
+	pub networks: Arc<Networks>,
 	pub env: Env,
-	is_watcher: bool,
 }
 
 impl ServerState {
@@ -30,23 +32,26 @@ impl ServerState {
 		settings: Arc<Settings>,
 		warehouse: Arc<Clickhouse>,
 		db: Arc<DatabaseConnection>,
-		networks: Option<Arc<Networks>>,
+		networks: Arc<Networks>,
 		env: Env,
-		is_watcher: bool,
 	) -> Self {
-		ServerState { settings, warehouse, db, networks, env, is_watcher }
-	}
-
-	pub fn is_watcher(&self) -> bool {
-		self.is_watcher
+		ServerState {
+			uuid: utils::new_uuid(),
+			is_leader: Arc::new(AtomicBool::new(false)),
+			settings,
+			warehouse,
+			db,
+			networks,
+			env,
+		}
 	}
 }
 
 pub type ServerResult<T> = Result<T, ServerError>;
 
 #[tokio::main]
-pub async fn start(env: Env, is_watcher: bool) -> Result<()> {
-	progress::show(Step::Setup, is_watcher).await;
+pub async fn start(env: Env) -> Result<()> {
+	progress::show(Step::Setup).await;
 
 	let settings = Arc::new(Settings::new()?);
 
@@ -68,15 +73,10 @@ pub async fn start(env: Env, is_watcher: bool) -> Result<()> {
 			});
 		})
 		.unwrap();
-	db::run_migrations(&db_conn, is_watcher).await?;
+	db::run_migrations(&db_conn).await?;
 	let database = Arc::new(db_conn);
 
-	let mut networks = None;
-	if is_watcher {
-		networks = Some(Arc::new(
-			Networks::new(database.clone(), env, is_watcher).await?,
-		));
-	}
+	let networks = Arc::new(Networks::new(database.clone(), env).await?);
 	let networks_clone = networks.clone();
 
 	let lists = lists::Lists::new(database.clone(), settings.clone());
@@ -89,18 +89,13 @@ pub async fn start(env: Env, is_watcher: bool) -> Result<()> {
 				database,
 				networks,
 				env,
-				is_watcher,
 			).await
 		}),
 		tokio::spawn(async move {
-			if is_watcher {
-				networks_clone.unwrap().watch().await
-			}
+			networks_clone.watch().await
 		}),
 		tokio::spawn(async move {
-			if is_watcher {
-				lists.watch().await
-			}
+			lists.watch().await
 		}),
 	};
 

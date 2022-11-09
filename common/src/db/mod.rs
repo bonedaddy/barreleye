@@ -93,11 +93,8 @@ pub async fn new(settings: Arc<Settings>) -> Result<DatabaseConnection> {
 	Ok(db)
 }
 
-pub async fn run_migrations(
-	db: &DatabaseConnection,
-	is_watcher: bool,
-) -> Result<()> {
-	progress::show(Step::Migrations, is_watcher).await;
+pub async fn run_migrations(db: &DatabaseConnection) -> Result<()> {
+	progress::show(Step::Migrations).await;
 	Migrator::up(db, None).await?;
 
 	Ok(())

@@ -21,12 +21,8 @@ pub struct Networks {
 }
 
 impl Networks {
-	pub async fn new(
-		db: Arc<DatabaseConnection>,
-		env: Env,
-		is_watcher: bool,
-	) -> Result<Self> {
-		progress::show(Step::Networks, is_watcher).await;
+	pub async fn new(db: Arc<DatabaseConnection>, env: Env) -> Result<Self> {
+		progress::show(Step::Networks).await;
 
 		let spinner_style = ProgressStyle::with_template(
 			"       {spinner}  ↳ {prefix:.bold.dim}: {wide_msg}",

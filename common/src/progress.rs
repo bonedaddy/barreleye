@@ -16,39 +16,21 @@ pub enum Step {
 	Ready(String),
 }
 
-pub async fn show(step: Step, is_watcher: bool) {
-	let total_steps = if is_watcher { 4 } else { 3 };
+pub async fn show(step: Step) {
+	let out = |step, emoji, text| {
+		println!(
+			"{} {}{}",
+			style(format!("[{step}/4]")).bold().dim(),
+			emoji,
+			text,
+		)
+	};
 
 	match step {
-		Step::Setup => {
-			println!(
-				"{} {}Checking setup…",
-				style(format!("[1/{total_steps}]")).bold().dim(),
-				SETUP
-			);
-		}
-		Step::Migrations => {
-			println!(
-				"{} {}Running migrations…",
-				style(format!("[2/{total_steps}]")).bold().dim(),
-				MIGRATIONS
-			);
-		}
-		Step::Networks => {
-			println!(
-				"{} {}Pinging networks…",
-				style(format!("[3/{total_steps}]")).bold().dim(),
-				NETWORKS
-			);
-		}
-		Step::Ready(addr) => {
-			println!(
-				"{} {}Listening on {}…",
-				style(format!("[{total_steps}/{total_steps}]")).bold().dim(),
-				READY,
-				addr,
-			);
-		}
+		Step::Setup => out(1, SETUP, "Checking setup…"),
+		Step::Migrations => out(2, MIGRATIONS, "Running migrations…"),
+		Step::Networks => out(3, NETWORKS, "Pinging networks…"),
+		Step::Ready(addr) => out(4, READY, &format!("Listening on {addr}…")),
 	}
 }
 

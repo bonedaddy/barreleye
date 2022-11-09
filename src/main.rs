@@ -13,16 +13,13 @@ fn main() -> Result<()> {
 
 	let matches = command!()
 		.author("Barreleye")
-       	.version(env!("CARGO_PKG_VERSION"))
+		.version(env!("CARGO_PKG_VERSION"))
 		.propagate_version(true)
 		.subcommand_required(true)
 		.arg_required_else_help(true)
 		.subcommand(
 			Command::new("server")
 				.about("Start the insights server")
-				.arg(
-					arg!(-w --watch "Run in watcher mode. Syncs sanction lists, watches blockchains for new blocks, and pushes new data to warehouse."),
-				)
 				.arg(
 					arg!(--env <ENV> "Network types to load")
 						.value_parser(value_parser!(Env)),
@@ -34,12 +31,10 @@ fn main() -> Result<()> {
 	match matches.subcommand() {
 		Some(("server", opts)) => {
 			let env: Env = *opts.get_one("env").unwrap_or(&Env::Mainnet);
-			let is_watcher: bool = *opts.get_one("watch").unwrap_or(&false);
 			let skip_ascii: bool = *opts.get_one("plain").unwrap_or(&false);
 
-			banner::show(env, is_watcher, skip_ascii)?;
-			barreleye_server::start(env, is_watcher)
-				.wrap_err("Could not start the insights server")?;
+			banner::show(env, skip_ascii)?;
+			barreleye_server::start(env).wrap_err("Could not start server")?;
 		}
 		_ => unreachable!("No command found"),
 	}
