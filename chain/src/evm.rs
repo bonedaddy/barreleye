@@ -3,19 +3,23 @@ use ethers::prelude::*;
 use eyre::{bail, Result};
 use indicatif::ProgressBar;
 use std::sync::Arc;
-use tokio::time::{sleep, Duration};
 
 use crate::ChainTrait;
-use barreleye_common::{models::Network, Db};
+use barreleye_common::{models::Network, AppState};
 
 pub struct Evm {
+	_app_state: Arc<AppState>,
 	network: Network,
 	rpc: Option<String>,
 	_provider: Arc<Provider<Http>>,
 }
 
 impl Evm {
-	pub async fn new(network: Network, pb: &ProgressBar) -> Result<Self> {
+	pub async fn new(
+		app_state: Arc<AppState>,
+		network: Network,
+		pb: &ProgressBar,
+	) -> Result<Self> {
 		let abort = |s: &str| {
 			pb.abandon();
 			bail!(format!("{}: {}", network.name, s));
@@ -66,7 +70,7 @@ impl Evm {
 
 		let provider = Arc::new(maybe_provider.unwrap());
 
-		Ok(Self { network, rpc, _provider: provider })
+		Ok(Self { _app_state: app_state, network, rpc, _provider: provider })
 	}
 }
 
@@ -80,11 +84,8 @@ impl ChainTrait for Evm {
 		self.rpc.clone()
 	}
 
-	async fn watch(&self, _db: Arc<Db>) -> Result<()> {
-		loop {
-			// println!("new block @ evm, {}", self.network.id); // @TODO
-			sleep(Duration::from_secs(self.network.expected_block_time as u64))
-				.await;
-		}
+	async fn process_blocks(&self) -> Result<()> {
+		// println!("processing blocks at {}…", self.network.id); // @TODO
+		Ok(())
 	}
 }

@@ -1,5 +1,11 @@
 use eyre::Result;
-use sea_orm::{entity::prelude::*, QueryOrder, Set};
+// use sea_orm::{entity::prelude::*, QueryOrder, Set};
+use sea_orm::{
+	entity::prelude::*,
+	query::*,
+	sea_query::{types::*, Expr},
+	Set,
+};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -45,11 +51,40 @@ impl Model {
 		ActiveModel { uuid: Set(uuid), ..Default::default() }
 	}
 
-	pub async fn get_last_leader(db: &Db) -> Result<Option<Self>> {
+	pub async fn get_active(db: &Db, since: u64) -> Result<Option<Self>> {
 		Ok(Entity::find()
-			.filter(Column::UpdatedAt.gte(utils::ago_in_seconds(60)))
+			.filter(Column::UpdatedAt.gte(utils::ago_in_seconds(since)))
 			.order_by_desc(Column::UpdatedAt)
 			.one(db.get())
 			.await?)
+	}
+
+	pub async fn get_last(db: &Db) -> Result<Option<Self>> {
+		Ok(Entity::find()
+			.order_by_desc(Column::UpdatedAt)
+			.one(db.get())
+			.await?)
+	}
+
+	pub async fn check_in(db: &Db, uuid: Uuid) -> Result<bool, DbErr> {
+		let res = Entity::update_many()
+			.col_expr(Alias::new("updated_at"), Expr::value(utils::now()))
+			.filter(Expr::col(Alias::new("uuid")).eq(uuid))
+			.exec(db.get())
+			.await?;
+
+		Ok(res.rows_affected == 1)
+	}
+
+	pub async fn truncate(db: &Db, since: u64) -> Result<()> {
+		Entity::delete_many()
+			.filter(
+				Expr::col(Alias::new("updated_at"))
+					.lt(utils::ago_in_seconds(since)),
+			)
+			.exec(db.get())
+			.await?;
+
+		Ok(())
 	}
 }

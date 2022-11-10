@@ -8,17 +8,18 @@ use crate::{db::Dialect as DatabaseDialect, errors::AppError, progress};
 
 pub static DEFAULT_SETTINGS_FILENAME: &str = "settings.toml";
 pub static DEFAULT_SETTINGS_CONTENT: &str = r#"
+hardcoded_lists_refresh_rate = 3600 # in seconds
+
 [server]
 ip_v4 = "0.0.0.0"
 ip_v6 = "" # "::"
 port = 22775
 
-[lists]
-refresh_rate = 3600 # in seconds
-
 [warehouse]
 dialect = "clickhouse"
 name = "barreleye"
+processing_frequency = 5 # in seconds
+leader_promotion_timeout = 15 # in seconds
 
 [warehouse.clickhouse]
 url = "http://localhost:8123"
@@ -50,11 +51,6 @@ pub struct Server {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct Lists {
-	pub refresh_rate: u64,
-}
-
-#[derive(Debug, Deserialize)]
 pub struct Dsn {
 	pub url: String,
 }
@@ -69,6 +65,8 @@ pub enum WarehouseDialect {
 pub struct Warehouse {
 	pub dialect: WarehouseDialect,
 	pub name: String,
+	pub processing_frequency: u64,
+	pub leader_promotion_timeout: u64,
 	pub clickhouse: Dsn,
 }
 
@@ -88,8 +86,8 @@ pub struct Database {
 
 #[derive(Debug, Deserialize)]
 pub struct Settings {
+	pub hardcoded_lists_refresh_rate: u64,
 	pub server: Server,
-	pub lists: Lists,
 	pub warehouse: Warehouse,
 	pub database: Database,
 }
@@ -138,6 +136,12 @@ impl Settings {
 				key: format!("database.{}.url", settings.database.dialect),
 				value: backend_url,
 			});
+		}
+
+		if settings.warehouse.processing_frequency * 2 >=
+			settings.warehouse.leader_promotion_timeout
+		{
+			progress::quit(AppError::InvalidPromotionTimeout);
 		}
 
 		Ok(settings)

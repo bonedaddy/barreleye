@@ -62,12 +62,12 @@ pub async fn start(env: Env) -> Result<()> {
 			}
 		}),
 		tokio::spawn(async move {
-			networks.start().await
+			networks.watch().await
 		}),
 		tokio::spawn({
 			let app_state = app_state.clone();
 			async move {
-				Lists::new(app_state).start().await
+				Lists::new(app_state).watch().await
 			}
 		}),
 	};

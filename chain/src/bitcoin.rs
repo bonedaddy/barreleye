@@ -2,18 +2,22 @@ use async_trait::async_trait;
 use eyre::Result;
 use indicatif::ProgressBar;
 use std::sync::Arc;
-use tokio::time::{sleep, Duration};
 
 use crate::ChainTrait;
-use barreleye_common::{models::Network, Db};
+use barreleye_common::{models::Network, AppState};
 
 pub struct Bitcoin {
+	_app_state: Arc<AppState>,
 	network: Network,
 }
 
 impl Bitcoin {
-	pub async fn new(network: Network, _pb: &ProgressBar) -> Result<Self> {
-		Ok(Self { network })
+	pub async fn new(
+		app_state: Arc<AppState>,
+		network: Network,
+		_pb: &ProgressBar,
+	) -> Result<Self> {
+		Ok(Self { _app_state: app_state, network })
 	}
 }
 
@@ -27,11 +31,8 @@ impl ChainTrait for Bitcoin {
 		None
 	}
 
-	async fn watch(&self, _db: Arc<Db>) -> Result<()> {
-		loop {
-			// println!("new block @ bitcoin, {}", self.network.id); // @TODO
-			sleep(Duration::from_secs(self.network.expected_block_time as u64))
-				.await;
-		}
+	async fn process_blocks(&self) -> Result<()> {
+		// println!("processing blocks at {}…", self.network.id); // @TODO
+		Ok(())
 	}
 }

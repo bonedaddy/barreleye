@@ -44,6 +44,7 @@ pub fn quit(app_error: AppError) {
 
 	process::exit(match app_error {
 		AppError::SignalHandler => exitcode::OSERR,
+		AppError::InvalidPromotionTimeout => exitcode::CONFIG,
 		AppError::InvalidSetting { .. } => exitcode::CONFIG,
 		_ => exitcode::UNAVAILABLE,
 	});

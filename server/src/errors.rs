@@ -16,10 +16,10 @@ pub enum ServerError {
 	#[display(fmt = "validation error on field `{field}`")]
 	Validation { field: String },
 
-	#[display(fmt = "invalid parameter @ `{field} = {value}`")]
+	#[display(fmt = "invalid parameter @ `{field}`: `{value}`")]
 	InvalidParam { field: String, value: String },
 
-	#[display(fmt = "duplicate item found @ `{field} = {value}`")]
+	#[display(fmt = "duplicate item found @ `{field}`: `{value}`")]
 	Duplicate { field: String, value: String },
 
 	#[display(fmt = "bad request: {reason}")]

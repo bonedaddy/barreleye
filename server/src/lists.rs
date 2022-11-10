@@ -24,12 +24,12 @@ impl Lists {
 		Self { app_state }
 	}
 
-	pub async fn start(&self) {
+	pub async fn watch(&self) {
 		let watch = async move {
 			loop {
 				self.fetch_data().await.unwrap(); // @TODO handle properly
 				sleep(Duration::from_secs(
-					self.app_state.settings.lists.refresh_rate,
+					self.app_state.settings.hardcoded_lists_refresh_rate,
 				))
 				.await;
 			}
@@ -56,7 +56,7 @@ impl Lists {
 			{
 				if la.created_at <
 					utils::ago_in_seconds(
-						self.app_state.settings.lists.refresh_rate,
+						self.app_state.settings.hardcoded_lists_refresh_rate,
 					) {
 					label_ids.push(label.label_id);
 				}

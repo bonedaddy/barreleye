@@ -2,15 +2,18 @@ use eyre::{ErrReport, Result};
 use futures::future::join_all;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use itertools::{Either, Itertools};
-use std::{collections::HashMap, sync::Arc, time::Duration};
-use tokio::signal;
+use std::{collections::HashMap, sync::Arc};
+use tokio::{
+	signal,
+	time::{sleep, Duration},
+};
 
 use crate::{Bitcoin, ChainTrait, Evm, Solana};
 use barreleye_common::{
-	models::{Network, PrimaryId},
+	models::{BasicModel, Leader, Network, PrimaryId},
 	progress,
 	progress::Step,
-	AppError, AppState, Blockchain,
+	utils, AppError, AppState, Blockchain,
 };
 
 pub struct Networks {
@@ -37,35 +40,38 @@ impl Networks {
 			Network::get_all_by_env(&self.app_state.db, self.app_state.env)
 				.await?
 				.into_iter()
-				.map(|network| {
+				.map(|n| {
 					let pb = m.add(ProgressBar::new(1_000_000));
 					pb.set_style(spinner_style.clone());
-					pb.set_prefix(network.name.clone());
+					pb.set_prefix(n.name.clone());
 					pb.enable_steady_tick(Duration::from_millis(50));
 
-					tokio::spawn(async move {
-						let boxed_chain: Box<dyn ChainTrait> =
-							match network.blockchain {
-								Blockchain::Bitcoin => {
-									Box::new(Bitcoin::new(network, &pb).await?)
-								}
-								Blockchain::Evm => {
-									Box::new(Evm::new(network, &pb).await?)
-								}
-								Blockchain::Solana => {
-									Box::new(Solana::new(network, &pb).await?)
-								}
-							};
+					tokio::spawn({
+						let app_state = self.app_state.clone();
+						async move {
+							let boxed_chain: Box<dyn ChainTrait> =
+								match n.blockchain {
+									Blockchain::Bitcoin => Box::new(
+										Bitcoin::new(app_state, n, &pb).await?,
+									),
+									Blockchain::Evm => Box::new(
+										Evm::new(app_state, n, &pb).await?,
+									),
+									Blockchain::Solana => Box::new(
+										Solana::new(app_state, n, &pb).await?,
+									),
+								};
 
-						if let Some(rpc) = boxed_chain.get_rpc() {
-							pb.finish_with_message(format!(
-								"connected to {rpc}"
-							));
-						} else {
-							pb.finish_with_message("could not connect");
+							if let Some(rpc) = boxed_chain.get_rpc() {
+								pb.finish_with_message(format!(
+									"connected to {rpc}"
+								));
+							} else {
+								pb.finish_with_message("could not connect");
+							}
+
+							Ok::<_, ErrReport>(boxed_chain)
 						}
-
-						Ok::<_, ErrReport>(boxed_chain)
 					})
 				})
 				.collect::<Vec<_>>();
@@ -92,22 +98,63 @@ impl Networks {
 		Ok(self)
 	}
 
-	pub async fn start(&self) {
-		let mut futures = vec![];
-
-		for (_, chain) in self.map_network_id_to_chain.iter() {
-			let handler = tokio::spawn({
-				let c = chain.clone();
-				let d = self.app_state.db.clone();
-				async move { c.watch(d).await }
-			});
-
-			futures.push(handler);
-		}
+	pub async fn watch(&self) -> Result<()> {
+		Leader::truncate(
+			&self.app_state.db,
+			31_557_600 +
+				self.app_state.settings.warehouse.processing_frequency +
+				self.app_state.settings.warehouse.leader_promotion_timeout,
+		)
+		.await?;
 
 		tokio::select! {
-			_ = join_all(futures) => {},
+			_ = self.leader_check() => {},
 			_ = signal::ctrl_c() => {},
+		}
+
+		Ok(())
+	}
+
+	async fn leader_check(&self) -> Result<()> {
+		loop {
+			let frequency =
+				self.app_state.settings.warehouse.processing_frequency;
+			let promotion_at = utils::ago_in_seconds(
+				self.app_state.settings.warehouse.leader_promotion_timeout,
+			);
+
+			match Leader::get_active(&self.app_state.db, frequency + 1).await? {
+				Some(leader) if leader.uuid == self.app_state.uuid => {
+					Leader::check_in(&self.app_state.db, self.app_state.uuid)
+						.await?;
+
+					for (_, chain) in self.map_network_id_to_chain.iter() {
+						tokio::spawn({
+							let chain = chain.clone();
+							async move { chain.process_blocks().await }
+						});
+					}
+				}
+				None => {
+					let promote = Leader::create(
+						&self.app_state.db,
+						Leader::new_model(self.app_state.uuid),
+					);
+
+					match Leader::get_last(&self.app_state.db).await? {
+						Some(leader) if leader.updated_at < promotion_at => {
+							promote.await?;
+						}
+						None => {
+							promote.await?;
+						}
+						_ => {}
+					}
+				}
+				_ => {}
+			}
+
+			sleep(Duration::from_secs(frequency)).await
 		}
 	}
 
