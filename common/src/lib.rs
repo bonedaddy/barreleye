@@ -2,10 +2,7 @@ use clap::{builder, ValueEnum};
 use derive_more::Display;
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
-use std::{
-	str::FromStr,
-	sync::{atomic::AtomicBool, Arc},
-};
+use std::{str::FromStr, sync::Arc};
 
 pub mod models;
 pub mod progress;
@@ -29,7 +26,6 @@ pub use settings::Settings;
 #[derive(Clone)]
 pub struct AppState {
 	pub uuid: Uuid,
-	pub is_leader: Arc<AtomicBool>,
 	pub settings: Arc<Settings>,
 	pub warehouse: Arc<Clickhouse>,
 	pub db: Arc<Db>,
@@ -43,14 +39,7 @@ impl AppState {
 		db: Arc<Db>,
 		env: Env,
 	) -> Self {
-		AppState {
-			uuid: utils::new_uuid(),
-			is_leader: Arc::new(AtomicBool::new(false)),
-			settings,
-			warehouse,
-			db,
-			env,
-		}
+		AppState { uuid: utils::new_uuid(), settings, warehouse, db, env }
 	}
 }
 
