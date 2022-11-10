@@ -37,21 +37,22 @@ pub async fn start(env: Env) -> Result<()> {
 			.unwrap(),
 	);
 
-	let db = Db::new(settings.clone())
-		.await
-		.map_err(|url| {
-			progress::quit(AppError::DatabaseConnection {
-				url: url.to_string(),
-			});
-		})
-		.unwrap();
-	db.run_migrations().await?;
-	let database = Arc::new(db);
+	let db = Arc::new(
+		Db::new(settings.clone())
+			.await
+			.map_err(|url| {
+				progress::quit(AppError::DatabaseConnection {
+					url: url.to_string(),
+				});
+			})
+			.unwrap()
+			.run_migrations()
+			.await?,
+	);
 
-	let app_state = Arc::new(AppState::new(settings, warehouse, database, env));
+	let app_state = Arc::new(AppState::new(settings, warehouse, db, env));
 
-	let mut networks = Networks::new(app_state.clone());
-	networks.connect().await?;
+	let networks = Networks::new(app_state.clone()).connect().await?;
 
 	let (server_done, watcher_done, lists_done) = tokio::join! {
 		tokio::spawn({

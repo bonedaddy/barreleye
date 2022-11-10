@@ -114,11 +114,11 @@ impl Db {
 		Ok(Self { db })
 	}
 
-	pub async fn run_migrations(&self) -> Result<()> {
+	pub async fn run_migrations(self) -> Result<Self> {
 		progress::show(Step::Migrations).await;
 		Migrator::up(&self.db, None).await?;
 
-		Ok(())
+		Ok(self)
 	}
 
 	pub fn get(&self) -> &DatabaseConnection {

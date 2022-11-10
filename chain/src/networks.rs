@@ -23,7 +23,7 @@ impl Networks {
 		Self { app_state, map_network_id_to_chain: HashMap::new() }
 	}
 
-	pub async fn connect(&mut self) -> Result<()> {
+	pub async fn connect(mut self) -> Result<Self> {
 		progress::show(Step::Networks).await;
 
 		let spinner_style = ProgressStyle::with_template(
@@ -89,7 +89,7 @@ impl Networks {
 
 		self.map_network_id_to_chain = map_network_id_to_chain;
 
-		Ok(())
+		Ok(self)
 	}
 
 	pub async fn start(&self) {
