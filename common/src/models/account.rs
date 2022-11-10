@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
 	models::{api_key, BasicModel, PrimaryId},
-	utils, IdPrefix,
+	utils, Db, IdPrefix,
 };
 
 #[derive(
@@ -63,7 +63,7 @@ impl Model {
 	}
 
 	pub async fn get_by_api_key(
-		db: &DatabaseConnection,
+		db: &Db,
 		api_key: Uuid,
 		is_admin_key_required: bool,
 	) -> Result<Option<Self>> {
@@ -75,6 +75,6 @@ impl Model {
 			q = q.filter(api_key::Column::IsAdmin.eq(true));
 		}
 
-		Ok(q.one(db).await?)
+		Ok(q.one(db.get()).await?)
 	}
 }

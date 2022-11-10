@@ -1,12 +1,11 @@
 use async_trait::async_trait;
 use eyre::Result;
 use indicatif::ProgressBar;
-use sea_orm::DatabaseConnection;
 use std::sync::Arc;
 use tokio::time::{sleep, Duration};
 
 use crate::ChainTrait;
-use barreleye_common::models::Network;
+use barreleye_common::{models::Network, Db};
 
 pub struct Solana {
 	network: Network,
@@ -28,7 +27,7 @@ impl ChainTrait for Solana {
 		None
 	}
 
-	async fn watch(&self, _db: Arc<DatabaseConnection>) -> Result<()> {
+	async fn watch(&self, _db: Arc<Db>) -> Result<()> {
 		loop {
 			// println!("new block @ solana, {}", self.network.id); // @TODO
 			sleep(Duration::from_secs(self.network.expected_block_time as u64))

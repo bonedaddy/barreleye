@@ -5,7 +5,7 @@ pub use barreleye_common;
 
 use barreleye_chain::Networks;
 use barreleye_common::{
-	db, progress, progress::Step, AppError, AppState, Clickhouse, Env, Settings,
+	progress, progress::Step, AppError, AppState, Clickhouse, Db, Env, Settings,
 };
 use errors::ServerError;
 
@@ -37,16 +37,16 @@ pub async fn start(env: Env) -> Result<()> {
 			.unwrap(),
 	);
 
-	let db_conn = db::new(settings.clone())
+	let db = Db::new(settings.clone())
 		.await
-		.map_err(|_| {
+		.map_err(|url| {
 			progress::quit(AppError::DatabaseConnection {
-				url: db::get_url(settings.clone()),
+				url: url.to_string(),
 			});
 		})
 		.unwrap();
-	db::run_migrations(&db_conn).await?;
-	let database = Arc::new(db_conn);
+	db.run_migrations().await?;
+	let database = Arc::new(db);
 
 	let app_state = Arc::new(AppState::new(settings, warehouse, database, env));
 

@@ -7,10 +7,12 @@ use std::{
 	sync::{atomic::AtomicBool, Arc},
 };
 
-pub mod db;
 pub mod models;
 pub mod progress;
 pub mod utils;
+
+pub mod db;
+pub use db::Db;
 
 pub mod errors;
 pub use errors::AppError;
@@ -30,7 +32,7 @@ pub struct AppState {
 	pub is_leader: Arc<AtomicBool>,
 	pub settings: Arc<Settings>,
 	pub warehouse: Arc<Clickhouse>,
-	pub db: Arc<DatabaseConnection>,
+	pub db: Arc<Db>,
 	pub env: Env,
 }
 
@@ -38,7 +40,7 @@ impl AppState {
 	pub fn new(
 		settings: Arc<Settings>,
 		warehouse: Arc<Clickhouse>,
-		db: Arc<DatabaseConnection>,
+		db: Arc<Db>,
 		env: Env,
 	) -> Self {
 		AppState {

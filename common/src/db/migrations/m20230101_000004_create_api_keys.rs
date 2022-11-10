@@ -79,7 +79,7 @@ impl MigrationTrait for Migration {
 					])
 					.values_panic([
 						account_id.into(),
-						utils::unique_id(IdPrefix::ApiKey, "admin").into(),
+						utils::new_unique_id(IdPrefix::ApiKey).into(),
 						utils::new_uuid().into(),
 						true.into(),
 					])

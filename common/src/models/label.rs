@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
 	models::{BasicModel, PrimaryId},
-	utils, IdPrefix,
+	utils, Db, IdPrefix,
 };
 
 #[derive(
@@ -68,20 +68,15 @@ impl Model {
 		}
 	}
 
-	pub async fn get_all_enabled_and_hardcoded(
-		db: &DatabaseConnection,
-	) -> Result<Vec<Self>> {
+	pub async fn get_all_enabled_and_hardcoded(db: &Db) -> Result<Vec<Self>> {
 		Ok(Entity::find()
 			.filter(Column::IsEnabled.eq(true))
 			.filter(Column::IsHardcoded.eq(true))
-			.all(db)
+			.all(db.get())
 			.await?)
 	}
 
-	pub async fn get_by_name(
-		db: &DatabaseConnection,
-		name: &str,
-	) -> Result<Option<Self>> {
+	pub async fn get_by_name(db: &Db, name: &str) -> Result<Option<Self>> {
 		Ok(Entity::find()
 			.filter(
 				Condition::all().add(
@@ -89,7 +84,7 @@ impl Model {
 						.equals(name.trim().to_lowercase()),
 				),
 			)
-			.one(db)
+			.one(db.get())
 			.await?)
 	}
 }

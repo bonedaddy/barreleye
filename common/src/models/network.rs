@@ -1,3 +1,4 @@
+use crate::Db;
 use eyre::Result;
 use sea_orm::{
 	entity::prelude::*,
@@ -79,17 +80,11 @@ impl Model {
 		}
 	}
 
-	pub async fn get_all_by_env(
-		db: &DatabaseConnection,
-		env: Env,
-	) -> Result<Vec<Self>> {
-		Ok(Entity::find().filter(Column::Env.eq(env)).all(db).await?)
+	pub async fn get_all_by_env(db: &Db, env: Env) -> Result<Vec<Self>> {
+		Ok(Entity::find().filter(Column::Env.eq(env)).all(db.get()).await?)
 	}
 
-	pub async fn get_by_name(
-		db: &DatabaseConnection,
-		name: &str,
-	) -> Result<Option<Self>> {
+	pub async fn get_by_name(db: &Db, name: &str) -> Result<Option<Self>> {
 		Ok(Entity::find()
 			.filter(
 				Condition::all().add(
@@ -97,12 +92,12 @@ impl Model {
 						.equals(name.trim().to_lowercase()),
 				),
 			)
-			.one(db)
+			.one(db.get())
 			.await?)
 	}
 
 	pub async fn get_by_env_blockchain_and_chain_id(
-		db: &DatabaseConnection,
+		db: &Db,
 		env: Env,
 		blockchain: Blockchain,
 		chain_id: i64,
@@ -111,7 +106,7 @@ impl Model {
 			.filter(Column::Env.eq(env))
 			.filter(Column::Blockchain.eq(blockchain))
 			.filter(Column::ChainId.eq(chain_id))
-			.one(db)
+			.one(db.get())
 			.await?)
 	}
 }

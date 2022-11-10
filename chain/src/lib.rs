@@ -1,9 +1,8 @@
 use async_trait::async_trait;
 use eyre::Result;
-use sea_orm::entity::prelude::*;
 use std::sync::Arc;
 
-use barreleye_common::models::Network;
+use barreleye_common::{models::Network, Db};
 
 mod bitcoin;
 mod evm;
@@ -22,5 +21,5 @@ pub trait ChainTrait: Send + Sync {
 
 	fn get_rpc(&self) -> Option<String>;
 
-	async fn watch(&self, db: Arc<DatabaseConnection>) -> Result<()>;
+	async fn watch(&self, db: Arc<Db>) -> Result<()>;
 }

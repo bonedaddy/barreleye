@@ -7,7 +7,7 @@ use sea_orm::{
 	ActiveValue, QuerySelect,
 };
 
-use crate::utils;
+use crate::{utils, Db};
 
 // @TODO `https://github.com/SeaQL/sea-orm/issues/1068`
 pub type PrimaryId = i64;
@@ -48,59 +48,59 @@ pub trait BasicModel {
 	type ActiveModel: ActiveModelTrait + ActiveModelBehavior + Sized + Send;
 
     async fn create(
-		db: &DatabaseConnection,
+		db: &Db,
 		data: Self::ActiveModel,
 	) -> Result<<<<Self::ActiveModel as ActiveModelTrait>::Entity as EntityTrait>::PrimaryKey as
 	PrimaryKeyTrait>::ValueType>{
 		let insert_result =
 			<Self::ActiveModel as ActiveModelTrait>::Entity::insert(data)
-				.exec(db)
+				.exec(db.get())
 				.await?;
 
 		Ok(insert_result.last_insert_id)
 	}
 
     async fn create_many(
-		db: &DatabaseConnection,
+		db: &Db,
 		data: Vec<Self::ActiveModel>,
 	) -> Result<<<<Self::ActiveModel as ActiveModelTrait>::Entity as EntityTrait>::PrimaryKey as
 	PrimaryKeyTrait>::ValueType>{
 		let insert_result =
 			<Self::ActiveModel as ActiveModelTrait>::Entity::insert_many(data)
-				.exec(db)
+				.exec(db.get())
 				.await?;
 
 		Ok(insert_result.last_insert_id)
 	}
 
     async fn get(
-		db: &DatabaseConnection,
+		db: &Db,
 		primary_id: <<<Self::ActiveModel as ActiveModelTrait>::Entity as EntityTrait>::PrimaryKey as
 		PrimaryKeyTrait>::ValueType,
 	) -> Result<Option<<<Self::ActiveModel as ActiveModelTrait>::Entity as EntityTrait>::Model>, DbErr>{
 		<Self::ActiveModel as ActiveModelTrait>::Entity::find_by_id(primary_id)
-			.one(db)
+			.one(db.get())
 			.await
 	}
 
     async fn get_by_id(
-		db: &DatabaseConnection,
+		db: &Db,
 		id: &str,
 	) -> Result<Option<<<Self::ActiveModel as ActiveModelTrait>::Entity as EntityTrait>::Model>, DbErr>{
 		<Self::ActiveModel as ActiveModelTrait>::Entity::find()
 			.filter(Expr::col(Alias::new("id")).eq(id))
-			.one(db)
+			.one(db.get())
 			.await
 	}
 
     async fn get_all(
-		db: &DatabaseConnection,
+		db: &Db,
 	) -> Result<Vec<<<Self::ActiveModel as ActiveModelTrait>::Entity as EntityTrait>::Model>, DbErr>{
 		Self::get_all_where(db, vec![], None, None).await
 	}
 
     async fn get_all_where(
-		db: &DatabaseConnection,
+		db: &Db,
 		conditions: Vec<SimpleExpr>,
 		offset: Option<u64>,
 		limit: Option<u64>,
@@ -121,11 +121,11 @@ pub trait BasicModel {
 			q = q.limit(v);
 		}
 
-		q.all(db).await
+		q.all(db.get()).await
 	}
 
 	async fn update_by_id(
-		db: &DatabaseConnection,
+		db: &Db,
 		id: &str,
 		data: Self::ActiveModel,
 	) -> Result<bool, DbErr> {
@@ -134,14 +134,14 @@ pub trait BasicModel {
 				.col_expr(Alias::new("updated_at"), Expr::value(utils::now()))
 				.set(data)
 				.filter(Expr::col(Alias::new("id")).eq(id))
-				.exec(db)
+				.exec(db.get())
 				.await?;
 
 		Ok(res.rows_affected == 1)
 	}
 
 	async fn delete(
-		db: &DatabaseConnection,
+		db: &Db,
 		primary_id: <<<Self::ActiveModel as ActiveModelTrait>::Entity as EntityTrait>::PrimaryKey as
 		PrimaryKeyTrait>::ValueType,
 	) -> Result<bool, DbErr> {
@@ -149,33 +149,27 @@ pub trait BasicModel {
 			<Self::ActiveModel as ActiveModelTrait>::Entity::delete_by_id(
 				primary_id,
 			)
-			.exec(db)
+			.exec(db.get())
 			.await?;
 
 		Ok(res.rows_affected == 1)
 	}
 
-	async fn delete_by_id(
-		db: &DatabaseConnection,
-		id: &str,
-	) -> Result<bool, DbErr> {
+	async fn delete_by_id(db: &Db, id: &str) -> Result<bool, DbErr> {
 		let res =
 			<Self::ActiveModel as ActiveModelTrait>::Entity::delete_many()
 				.filter(Expr::col(Alias::new("id")).eq(id))
-				.exec(db)
+				.exec(db.get())
 				.await?;
 
 		Ok(res.rows_affected == 1)
 	}
 
-	async fn delete_by_ids(
-		db: &DatabaseConnection,
-		ids: Vec<String>,
-	) -> Result<u64, DbErr> {
+	async fn delete_by_ids(db: &Db, ids: Vec<String>) -> Result<u64, DbErr> {
 		let res =
 			<Self::ActiveModel as ActiveModelTrait>::Entity::delete_many()
 				.filter(Expr::col(Alias::new("id")).is_in(ids))
-				.exec(db)
+				.exec(db.get())
 				.await?;
 
 		Ok(res.rows_affected)

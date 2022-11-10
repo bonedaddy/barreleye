@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
 	models::{BasicModel, PrimaryId},
-	utils,
+	utils, Db,
 };
 
 #[derive(
@@ -45,13 +45,11 @@ impl Model {
 		ActiveModel { uuid: Set(uuid), ..Default::default() }
 	}
 
-	pub async fn get_last_leader(
-		db: &DatabaseConnection,
-	) -> Result<Option<Self>> {
+	pub async fn get_last_leader(db: &Db) -> Result<Option<Self>> {
 		Ok(Entity::find()
 			.filter(Column::UpdatedAt.gte(utils::ago_in_seconds(60)))
 			.order_by_desc(Column::UpdatedAt)
-			.one(db)
+			.one(db.get())
 			.await?)
 	}
 }

@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
 	models::{account, BasicModel, PrimaryId},
-	utils, IdPrefix,
+	utils, Db, IdPrefix,
 };
 
 #[derive(
@@ -69,12 +69,12 @@ impl Model {
 	}
 
 	pub async fn get_all_by_account_id(
-		db: &DatabaseConnection,
+		db: &Db,
 		account_id: PrimaryId,
 	) -> Result<Vec<Self>> {
 		Ok(Entity::find()
 			.filter(Column::AccountId.eq(account_id))
-			.all(db)
+			.all(db.get())
 			.await?)
 	}
 

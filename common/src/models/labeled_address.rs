@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
 	models::{label, BasicModel, PrimaryId},
-	utils, Address, IdPrefix,
+	utils, Address, Db, IdPrefix,
 };
 
 #[derive(
@@ -65,38 +65,38 @@ impl Model {
 	}
 
 	pub async fn get_all_by_label_ids(
-		db: &DatabaseConnection,
+		db: &Db,
 		label_ids: Vec<PrimaryId>,
 	) -> Result<Vec<Self>> {
 		Ok(Entity::find()
 			.filter(Column::LabelId.is_in(label_ids))
-			.all(db)
+			.all(db.get())
 			.await?)
 	}
 
 	pub async fn get_latest_by_label_id(
-		db: &DatabaseConnection,
+		db: &Db,
 		label_id: PrimaryId,
 	) -> Result<Option<Self>> {
 		Ok(Entity::find()
 			.filter(Column::LabelId.eq(label_id))
 			.order_by_desc(Column::CreatedAt)
-			.one(db)
+			.one(db.get())
 			.await?)
 	}
 
 	pub async fn get_by_address(
-		db: &DatabaseConnection,
+		db: &Db,
 		address: &str,
 	) -> Result<Option<Self>> {
 		Ok(Entity::find()
 			.filter(Column::Address.eq(address.to_lowercase()))
-			.one(db)
+			.one(db.get())
 			.await?)
 	}
 
 	pub async fn get_all_by_label_id_and_addresses(
-		db: &DatabaseConnection,
+		db: &Db,
 		label_id: PrimaryId,
 		addresses: Vec<String>,
 	) -> Result<Vec<Self>> {
@@ -106,7 +106,7 @@ impl Model {
 				Column::Address
 					.is_in(addresses.into_iter().map(|a| a.to_lowercase())),
 			)
-			.all(db)
+			.all(db.get())
 			.await?)
 	}
 }
