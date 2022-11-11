@@ -1,8 +1,5 @@
 use eyre::Result;
-use sea_orm::{
-	entity::{prelude::*, *},
-	QueryOrder,
-};
+use sea_orm::entity::{prelude::*, *};
 use sea_orm_migration::prelude::OnConflict;
 use serde::{Deserialize, Serialize};
 
@@ -89,17 +86,6 @@ impl Model {
 		Ok(Entity::find()
 			.filter(Column::LabelId.is_in(label_ids))
 			.all(db.get())
-			.await?)
-	}
-
-	pub async fn get_latest_by_label_id(
-		db: &Db,
-		label_id: PrimaryId,
-	) -> Result<Option<Self>> {
-		Ok(Entity::find()
-			.filter(Column::LabelId.eq(label_id))
-			.order_by_desc(Column::CreatedAt)
-			.one(db.get())
 			.await?)
 	}
 

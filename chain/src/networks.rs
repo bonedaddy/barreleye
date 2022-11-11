@@ -5,6 +5,7 @@ use itertools::{Either, Itertools};
 use std::{collections::HashMap, sync::Arc};
 use tokio::{
 	signal,
+	task::JoinHandle,
 	time::{sleep, Duration},
 };
 
@@ -96,24 +97,24 @@ impl Networks {
 	}
 
 	pub async fn watch(&self) {
-		let watch = async move {
+		let watch = async {
 			loop {
 				if self.app_state.is_leader() {
-					let mut futures = vec![];
-
-					for (_, chain) in self.map_network_id_to_chain.iter() {
-						let handler = tokio::spawn({
-							let c = chain.clone();
-							async move { c.process_blocks().await }
-						});
-
-						futures.push(handler);
-					}
+					let futures = self
+						.map_network_id_to_chain
+						.iter()
+						.map(|(_, chain)| {
+							tokio::spawn({
+								let c = chain.clone();
+								async move { c.process_blocks().await }
+							})
+						})
+						.collect::<Vec<JoinHandle<Result<_>>>>();
 
 					join_all(futures).await;
 				}
 
-				sleep(Duration::from_secs(5)).await;
+				sleep(Duration::from_secs(1)).await;
 			}
 		};
 

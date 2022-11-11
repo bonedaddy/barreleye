@@ -11,7 +11,7 @@ use tokio::{
 };
 
 use barreleye_common::{
-	models::{BasicModel, Label, LabeledAddress},
+	models::{BasicModel, Cache, CacheKey, Label, LabeledAddress},
 	utils, Address, AppState, LabelId,
 };
 
@@ -25,14 +25,16 @@ impl Lists {
 	}
 
 	pub async fn watch(&self) {
-		let watch = async move {
+		let watch = async {
 			loop {
-				if self.app_state.is_leader() {
+				let timeout = if self.app_state.is_leader() {
 					self.fetch_data().await.unwrap();
-				}
+					self.app_state.settings.hardcoded_lists_refresh_rate
+				} else {
+					1
+				};
 
-				let rr = self.app_state.settings.hardcoded_lists_refresh_rate;
-				sleep(Duration::from_secs(rr)).await;
+				sleep(Duration::from_secs(timeout)).await;
 			}
 		};
 
@@ -43,26 +45,23 @@ impl Lists {
 	}
 
 	async fn fetch_data(&self) -> Result<()> {
+		let stale_at = utils::ago_in_seconds(
+			self.app_state.settings.hardcoded_lists_refresh_rate,
+		);
+
 		let labels =
 			Label::get_all_enabled_and_hardcoded(&self.app_state.db).await?;
 
 		// skips labels that have been recently fetched
 		let mut label_ids = vec![];
 		for label in labels.iter() {
-			if let Some(la) = LabeledAddress::get_latest_by_label_id(
-				&self.app_state.db,
-				label.label_id,
-			)
-			.await?
-			{
-				if la.created_at <
-					utils::ago_in_seconds(
-						self.app_state.settings.hardcoded_lists_refresh_rate,
-					) {
-					label_ids.push(label.label_id);
+			let key = CacheKey::LabelFetched(label.label_id);
+			match Cache::get::<u8>(&self.app_state.db, key.into()).await? {
+				None => label_ids.push(label.label_id),
+				Some(hit) if hit.updated_at < stale_at => {
+					label_ids.push(label.label_id)
 				}
-			} else {
-				label_ids.push(label.label_id);
+				_ => {}
 			}
 		}
 		if label_ids.is_empty() {
@@ -102,6 +101,14 @@ impl Lists {
 				Ok(LabelId::Ofsi) => self.get_ofsi_addresses().await?,
 				_ => vec![],
 			};
+
+			// timestamp the request
+			Cache::set::<u8>(
+				&self.app_state.db,
+				CacheKey::LabelFetched(label.label_id).into(),
+				1,
+			)
+			.await?;
 
 			// add addresses that don't exist in db yet
 			let mut addresses_to_add = HashSet::new();
@@ -170,18 +177,9 @@ impl Lists {
 		url: &str,
 		regex: &str,
 	) -> Result<Vec<String>> {
-		let data = reqwest::get(url).await?.text().await?;
-
-		let addresses: Vec<String> = Regex::new(regex)?
-			.captures_iter(&data)
-			.filter_map(|cap| match (cap.get(1), cap.get(2)) {
-				(Some(_symbol), Some(address)) => {
-					Some(address.as_str().to_lowercase())
-				}
-				_ => None,
-			})
-			.collect();
-
-		Ok(addresses)
+		Ok(Regex::new(regex)?
+			.captures_iter(&reqwest::get(url).await?.text().await?)
+			.filter_map(|cap| cap.get(2).map(|v| v.as_str().to_lowercase()))
+			.collect::<Vec<String>>())
 	}
 }

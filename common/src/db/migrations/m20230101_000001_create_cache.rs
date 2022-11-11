@@ -10,24 +10,30 @@ impl MigrationTrait for Migration {
 		manager
 			.create_table(
 				Table::create()
-					.table(Leaders::Table)
+					.table(Cache::Table)
 					.if_not_exists()
 					.col(
-						ColumnDef::new(Leaders::LeaderId)
+						ColumnDef::new(Cache::CacheId)
 							.big_integer()
 							.not_null()
 							.auto_increment()
 							.primary_key(),
 					)
-					.col(ColumnDef::new(Leaders::Uuid).uuid().not_null())
 					.col(
-						ColumnDef::new(Leaders::UpdatedAt)
+						ColumnDef::new(Cache::Key)
+							.unique_key()
+							.string()
+							.not_null(),
+					)
+					.col(ColumnDef::new(Cache::Value).string().null())
+					.col(
+						ColumnDef::new(Cache::UpdatedAt)
 							.date_time()
 							.not_null()
 							.extra("DEFAULT CURRENT_TIMESTAMP".to_owned()),
 					)
 					.col(
-						ColumnDef::new(Leaders::CreatedAt)
+						ColumnDef::new(Cache::CreatedAt)
 							.date_time()
 							.not_null()
 							.extra("DEFAULT CURRENT_TIMESTAMP".to_owned()),
@@ -38,16 +44,17 @@ impl MigrationTrait for Migration {
 	}
 
 	async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-		manager.drop_table(Table::drop().table(Leaders::Table).to_owned()).await
+		manager.drop_table(Table::drop().table(Cache::Table).to_owned()).await
 	}
 }
 
 #[derive(Iden)]
-enum Leaders {
-	#[iden = "leaders"]
+enum Cache {
+	#[iden = "cache"]
 	Table,
-	LeaderId,
-	Uuid,
+	CacheId,
+	Key,
+	Value,
 	UpdatedAt,
 	CreatedAt,
 }

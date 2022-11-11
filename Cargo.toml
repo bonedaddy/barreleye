@@ -22,7 +22,7 @@ color-eyre = "0.6.2"
 eyre = "0.6.8"
 chrono =  "0.4.22"
 console = "0.15.1"
-clap = { version = "4.0.22", features = ["cargo"] }
+clap = { version = "4.0.23", features = ["cargo"] }
 fern = { version = "0.6.1", features = ["colored"] }
 
 barreleye-chain = { path = "./chain", version = "0.0.1" }

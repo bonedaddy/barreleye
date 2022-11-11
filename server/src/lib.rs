@@ -4,10 +4,11 @@ use tokio::{
 	signal,
 	time::{sleep, Duration},
 };
+use uuid::Uuid;
 
 use barreleye_chain::Networks;
 use barreleye_common::{
-	models::{BasicModel, Leader},
+	models::{Cache, CacheKey},
 	progress,
 	progress::Step,
 	utils, AppError, AppState, Clickhouse, Db, Env, Settings,
@@ -59,14 +60,6 @@ pub async fn start(env: Env) -> Result<()> {
 	let server = Server::new(app_state.clone());
 	let lists = Lists::new(app_state.clone());
 
-	Leader::truncate(
-		&app_state.db,
-		31_557_600 +
-			app_state.settings.warehouse.processing_frequency +
-			app_state.settings.warehouse.leader_promotion_timeout,
-	)
-	.await?;
-
 	let (server_done, watcher_done, lists_done, _) = tokio::join! {
 		tokio::spawn(async move {
 			server.start().await
@@ -94,34 +87,37 @@ pub async fn start(env: Env) -> Result<()> {
 }
 
 async fn leader_check(app_state: Arc<AppState>) -> Result<()> {
+	let frequency = app_state.settings.warehouse.processing_frequency;
+	let timeout = app_state.settings.warehouse.leader_promotion_timeout;
+
 	loop {
-		let frequency = app_state.settings.warehouse.processing_frequency;
-		let promotion_at = utils::ago_in_seconds(
-			app_state.settings.warehouse.leader_promotion_timeout,
+		let active_at = utils::ago_in_seconds(frequency + 1);
+		let promoted_at = utils::ago_in_seconds(timeout);
+
+		let check_in = Cache::set::<Uuid>(
+			&app_state.db,
+			CacheKey::Leader.into(),
+			app_state.uuid,
 		);
 
-		match Leader::get_active(&app_state.db, frequency + 1).await? {
-			Some(leader) if leader.uuid == app_state.uuid => {
-				Leader::check_in(&app_state.db, app_state.uuid).await?;
+		match Cache::get::<Uuid>(&app_state.db, CacheKey::Leader.into()).await?
+		{
+			None => {
+				check_in.await?;
+			}
+			Some(hit)
+				if hit.value == app_state.uuid &&
+					hit.updated_at >= active_at =>
+			{
+				check_in.await?;
 				app_state.set_is_leader(true);
 			}
-			None => {
-				let promote = Leader::create(
-					&app_state.db,
-					Leader::new_model(app_state.uuid),
-				);
-
-				match Leader::get_last(&app_state.db).await? {
-					Some(leader) if leader.updated_at < promotion_at => {
-						promote.await?;
-					}
-					None => {
-						promote.await?;
-					}
-					_ => {}
-				}
+			Some(hit) if hit.updated_at < promoted_at => {
+				check_in.await?;
 			}
-			_ => {}
+			_ => {
+				app_state.set_is_leader(false);
+			}
 		}
 
 		sleep(Duration::from_secs(frequency)).await
