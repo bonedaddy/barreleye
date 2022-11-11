@@ -2,15 +2,13 @@ use async_trait::async_trait;
 use eyre::Result;
 
 use barreleye_common::models::Network;
+pub use bitcoin::Bitcoin;
+pub use evm::Evm;
+pub use networks::Networks;
 
 mod bitcoin;
 mod evm;
-
-pub use bitcoin::Bitcoin;
-pub use evm::Evm;
-
-pub mod networks;
-pub use networks::Networks;
+mod networks;
 
 #[async_trait]
 pub trait ChainTrait: Send + Sync {

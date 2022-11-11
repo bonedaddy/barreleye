@@ -27,11 +27,12 @@ impl Lists {
 	pub async fn watch(&self) {
 		let watch = async move {
 			loop {
-				self.fetch_data().await.unwrap(); // @TODO handle properly
-				sleep(Duration::from_secs(
-					self.app_state.settings.hardcoded_lists_refresh_rate,
-				))
-				.await;
+				if self.app_state.is_leader() {
+					self.fetch_data().await.unwrap();
+				}
+
+				let rr = self.app_state.settings.hardcoded_lists_refresh_rate;
+				sleep(Duration::from_secs(rr)).await;
 			}
 		};
 

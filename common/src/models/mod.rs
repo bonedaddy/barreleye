@@ -8,30 +8,24 @@ use sea_orm::{
 };
 
 use crate::{utils, Db};
+pub use account::{Account, AccountActiveModel};
+pub use api_key::{ApiKey, ApiKeyActiveModel};
+pub use label::{Label, LabelActiveModel};
+pub use labeled_address::{LabeledAddress, LabeledAddressActiveModel};
+pub use leader::{Leader, LeaderActiveModel};
+pub use network::{Network, NetworkActiveModel};
+pub use transaction::{Transaction, TransactionActiveModel};
+
+pub mod account;
+pub mod api_key;
+pub mod label;
+pub mod labeled_address;
+pub mod leader;
+pub mod network;
+pub mod transaction;
 
 // @TODO `https://github.com/SeaQL/sea-orm/issues/1068`
 pub type PrimaryId = i64;
-
-pub mod account;
-pub use account::{Account, AccountActiveModel};
-
-pub mod api_key;
-pub use api_key::{ApiKey, ApiKeyActiveModel};
-
-pub mod label;
-pub use label::{Label, LabelActiveModel};
-
-pub mod labeled_address;
-pub use labeled_address::{LabeledAddress, LabeledAddressActiveModel};
-
-pub mod leader;
-pub use leader::{Leader, LeaderActiveModel};
-
-pub mod network;
-pub use network::{Network, NetworkActiveModel};
-
-pub mod transaction;
-pub use transaction::{Transaction, TransactionActiveModel};
 
 pub fn optional_set<T>(o: Option<T>) -> ActiveValue<T>
 where

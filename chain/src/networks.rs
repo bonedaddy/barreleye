@@ -10,10 +10,10 @@ use tokio::{
 
 use crate::{Bitcoin, ChainTrait, Evm};
 use barreleye_common::{
-	models::{BasicModel, Leader, Network, PrimaryId},
+	models::{Network, PrimaryId},
 	progress,
 	progress::Step,
-	utils, AppError, AppState, Blockchain,
+	AppError, AppState, Blockchain,
 };
 
 pub struct Networks {
@@ -95,63 +95,31 @@ impl Networks {
 		Ok(self)
 	}
 
-	pub async fn watch(&self) -> Result<()> {
-		Leader::truncate(
-			&self.app_state.db,
-			31_557_600 +
-				self.app_state.settings.warehouse.processing_frequency +
-				self.app_state.settings.warehouse.leader_promotion_timeout,
-		)
-		.await?;
-
-		tokio::select! {
-			_ = self.leader_check() => {},
-			_ = signal::ctrl_c() => {},
-		}
-
-		Ok(())
-	}
-
-	async fn leader_check(&self) -> Result<()> {
-		loop {
-			let frequency =
-				self.app_state.settings.warehouse.processing_frequency;
-			let promotion_at = utils::ago_in_seconds(
-				self.app_state.settings.warehouse.leader_promotion_timeout,
-			);
-
-			match Leader::get_active(&self.app_state.db, frequency + 1).await? {
-				Some(leader) if leader.uuid == self.app_state.uuid => {
-					Leader::check_in(&self.app_state.db, self.app_state.uuid)
-						.await?;
+	pub async fn watch(&self) {
+		let watch = async move {
+			loop {
+				if self.app_state.is_leader() {
+					let mut futures = vec![];
 
 					for (_, chain) in self.map_network_id_to_chain.iter() {
-						tokio::spawn({
-							let chain = chain.clone();
-							async move { chain.process_blocks().await }
+						let handler = tokio::spawn({
+							let c = chain.clone();
+							async move { c.process_blocks().await }
 						});
-					}
-				}
-				None => {
-					let promote = Leader::create(
-						&self.app_state.db,
-						Leader::new_model(self.app_state.uuid),
-					);
 
-					match Leader::get_last(&self.app_state.db).await? {
-						Some(leader) if leader.updated_at < promotion_at => {
-							promote.await?;
-						}
-						None => {
-							promote.await?;
-						}
-						_ => {}
+						futures.push(handler);
 					}
+
+					join_all(futures).await;
 				}
-				_ => {}
+
+				sleep(Duration::from_secs(5)).await;
 			}
+		};
 
-			sleep(Duration::from_secs(frequency)).await
+		tokio::select! {
+			_ = watch => {},
+			_ = signal::ctrl_c() => {},
 		}
 	}
 

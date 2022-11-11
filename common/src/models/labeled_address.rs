@@ -3,6 +3,7 @@ use sea_orm::{
 	entity::{prelude::*, *},
 	QueryOrder,
 };
+use sea_orm_migration::prelude::OnConflict;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -62,6 +63,23 @@ impl Model {
 			address: Set(address.to_string()),
 			..Default::default()
 		}
+	}
+
+	pub async fn create_many(
+		db: &Db,
+		data: Vec<ActiveModel>,
+	) -> Result<PrimaryId> {
+		let insert_result = Entity::insert_many(data)
+			.on_conflict(
+				OnConflict::columns([Column::LabelId, Column::Address])
+					// @TODO this should be a `.do_nothing()`, but: `https://github.com/SeaQL/sea-orm/issues/899`
+					.update_column(Column::LabeledAddressId)
+					.to_owned(),
+			)
+			.exec(db.get())
+			.await?;
+
+		Ok(insert_result.last_insert_id)
 	}
 
 	pub async fn get_all_by_label_ids(

@@ -2,30 +2,33 @@ use clap::{builder, ValueEnum};
 use derive_more::Display;
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
-use std::{str::FromStr, sync::Arc};
+use std::{
+	str::FromStr,
+	sync::{
+		atomic::{AtomicBool, Ordering},
+		Arc,
+	},
+};
 
-pub mod models;
-pub mod progress;
-pub mod utils;
-
-pub mod db;
-pub use db::Db;
-
-pub mod errors;
-pub use errors::AppError;
-
-pub mod address;
 pub use address::Address;
-
-pub mod warehouse;
+pub use db::Db;
+pub use errors::AppError;
+pub use settings::Settings;
 pub use warehouse::Clickhouse;
 
+pub mod address;
+pub mod db;
+pub mod errors;
+pub mod models;
+pub mod progress;
 pub mod settings;
-pub use settings::Settings;
+pub mod utils;
+pub mod warehouse;
 
 #[derive(Clone)]
 pub struct AppState {
 	pub uuid: Uuid,
+	is_leader: Arc<AtomicBool>,
 	pub settings: Arc<Settings>,
 	pub warehouse: Arc<Clickhouse>,
 	pub db: Arc<Db>,
@@ -39,7 +42,22 @@ impl AppState {
 		db: Arc<Db>,
 		env: Env,
 	) -> Self {
-		AppState { uuid: utils::new_uuid(), settings, warehouse, db, env }
+		AppState {
+			uuid: utils::new_uuid(),
+			is_leader: Arc::new(AtomicBool::new(false)),
+			settings,
+			warehouse,
+			db,
+			env,
+		}
+	}
+
+	pub fn is_leader(&self) -> bool {
+		self.is_leader.load(Ordering::SeqCst)
+	}
+
+	pub fn set_is_leader(&self, is_leader: bool) {
+		self.is_leader.store(is_leader, Ordering::SeqCst);
 	}
 }
 

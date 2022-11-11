@@ -3,10 +3,10 @@ use color_eyre::eyre::WrapErr;
 use eyre::Result;
 use std::env;
 
+use barreleye_common::Env;
+
 mod banner;
 mod log;
-
-use barreleye_common::Env;
 
 fn main() -> Result<()> {
 	log::setup()?;
