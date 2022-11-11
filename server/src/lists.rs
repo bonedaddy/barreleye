@@ -24,11 +24,11 @@ impl Lists {
 		Self { app_state }
 	}
 
-	pub async fn watch(&self) {
+	pub async fn watch(&self) -> Result<()> {
 		let watch = async {
 			loop {
 				let timeout = if self.app_state.is_leader() {
-					self.fetch_data().await.unwrap();
+					self.fetch_data().await?;
 					self.app_state.settings.hardcoded_lists_refresh_rate
 				} else {
 					1
@@ -39,8 +39,8 @@ impl Lists {
 		};
 
 		tokio::select! {
-			_ = watch => {},
-			_ = signal::ctrl_c() => {},
+			v = watch => v,
+			_ = signal::ctrl_c() => Ok(()),
 		}
 	}
 

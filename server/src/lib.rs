@@ -56,7 +56,7 @@ pub async fn start(env: Env) -> Result<()> {
 
 	let app_state = Arc::new(AppState::new(settings, warehouse, db, env));
 
-	let networks = Networks::new(app_state.clone()).connect().await?;
+	let mut networks = Networks::new(app_state.clone()).connect().await?;
 	let server = Server::new(app_state.clone());
 	let lists = Lists::new(app_state.clone());
 
@@ -81,9 +81,7 @@ pub async fn start(env: Env) -> Result<()> {
 		}),
 	};
 
-	server_done.and(watcher_done).and(lists_done)?;
-
-	Ok(())
+	server_done.and(watcher_done).and(lists_done)?
 }
 
 async fn leader_check(app_state: Arc<AppState>) -> Result<()> {

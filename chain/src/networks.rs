@@ -11,7 +11,7 @@ use tokio::{
 
 use crate::{Bitcoin, ChainTrait, Evm};
 use barreleye_common::{
-	models::{Network, PrimaryId},
+	models::{BasicModel, Network, PrimaryId},
 	progress,
 	progress::Step,
 	AppError, AppState, Blockchain,
@@ -19,12 +19,12 @@ use barreleye_common::{
 
 pub struct Networks {
 	app_state: Arc<AppState>,
-	map_network_id_to_chain: HashMap<PrimaryId, Arc<Box<dyn ChainTrait>>>,
+	networks_map: HashMap<PrimaryId, Arc<Box<dyn ChainTrait>>>,
 }
 
 impl Networks {
 	pub fn new(app_state: Arc<AppState>) -> Self {
-		Self { app_state, map_network_id_to_chain: HashMap::new() }
+		Self { app_state, networks_map: HashMap::new() }
 	}
 
 	pub async fn connect(mut self) -> Result<Self> {
@@ -50,15 +50,17 @@ impl Networks {
 					tokio::spawn({
 						let app_state = self.app_state.clone();
 						async move {
-							let boxed_chain: Box<dyn ChainTrait> =
-								match n.blockchain {
-									Blockchain::Bitcoin => Box::new(
-										Bitcoin::new(app_state, n, &pb).await?,
-									),
-									Blockchain::Evm => Box::new(
-										Evm::new(app_state, n, &pb).await?,
-									),
-								};
+							let boxed_chain: Box<dyn ChainTrait> = match n
+								.blockchain
+							{
+								Blockchain::Bitcoin => Box::new(
+									Bitcoin::new(app_state, n, Some(&pb))
+										.await?,
+								),
+								Blockchain::Evm => Box::new(
+									Evm::new(app_state, n, Some(&pb)).await?,
+								),
+							};
 
 							if let Some(rpc) = boxed_chain.get_rpc() {
 								pb.finish_with_message(format!(
@@ -74,7 +76,7 @@ impl Networks {
 				})
 				.collect::<Vec<_>>();
 
-		let (map_network_id_to_chain, failures): (HashMap<_, _>, Vec<_>) =
+		let (networks_map, failures): (HashMap<_, _>, Vec<_>) =
 			join_all(threads).await.into_iter().partition_map(|result| {
 				match result.unwrap() {
 					Ok(boxed_chain) => {
@@ -91,17 +93,54 @@ impl Networks {
 			});
 		}
 
-		self.map_network_id_to_chain = map_network_id_to_chain;
+		self.networks_map = networks_map;
 
 		Ok(self)
 	}
 
-	pub async fn watch(&self) {
+	pub async fn sync_networks(&mut self) -> Result<()> {
+		let all_networks = Network::get_all(&self.app_state.db).await?;
+
+		// add new networks
+		for n in all_networks
+			.iter()
+			.filter_map(|network| match self.get_chain(network.network_id) {
+				None => Some(network.clone()),
+				_ => None,
+			})
+			.collect::<Vec<Network>>()
+			.into_iter()
+		{
+			let app_state = self.app_state.clone();
+			self.networks_map.insert(
+				n.network_id,
+				Arc::new(match n.blockchain {
+					Blockchain::Bitcoin => {
+						Box::new(Bitcoin::new(app_state, n, None).await?)
+					}
+					Blockchain::Evm => {
+						Box::new(Evm::new(app_state, n, None).await?)
+					}
+				}),
+			);
+		}
+
+		// drop removed networks
+		let ids: Vec<PrimaryId> =
+			all_networks.iter().map(|n| n.network_id).collect();
+		self.networks_map.retain(|network_id, _| ids.contains(network_id));
+
+		Ok(())
+	}
+
+	pub async fn watch(&mut self) -> Result<()> {
 		let watch = async {
 			loop {
 				if self.app_state.is_leader() {
+					self.sync_networks().await?;
+
 					let futures = self
-						.map_network_id_to_chain
+						.networks_map
 						.iter()
 						.map(|(_, chain)| {
 							tokio::spawn({
@@ -119,8 +158,8 @@ impl Networks {
 		};
 
 		tokio::select! {
-			_ = watch => {},
-			_ = signal::ctrl_c() => {},
+			v = watch => v,
+			_ = signal::ctrl_c() => Ok(()),
 		}
 	}
 
@@ -129,28 +168,10 @@ impl Networks {
 		&self,
 		network_id: PrimaryId,
 	) -> Option<&Box<dyn ChainTrait>> {
-		if self.map_network_id_to_chain.contains_key(&network_id) {
-			Some(&self.map_network_id_to_chain[&network_id])
+		if self.networks_map.contains_key(&network_id) {
+			Some(&self.networks_map[&network_id])
 		} else {
 			None
 		}
-	}
-
-	#[allow(clippy::borrowed_box)]
-	pub fn get_by_blockchain_and_chain_id(
-		&self,
-		blockchain: Blockchain,
-		chain_id: u64,
-	) -> Option<&Box<dyn ChainTrait>> {
-		for (network_id, b) in self.map_network_id_to_chain.iter() {
-			let network = b.get_network();
-			if network.blockchain == blockchain &&
-				network.chain_id == chain_id as PrimaryId
-			{
-				return Some(&self.map_network_id_to_chain[network_id]);
-			}
-		}
-
-		None
 	}
 }

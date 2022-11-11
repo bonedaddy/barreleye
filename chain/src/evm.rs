@@ -18,10 +18,13 @@ impl Evm {
 	pub async fn new(
 		app_state: Arc<AppState>,
 		network: Network,
-		pb: &ProgressBar,
+		pb: Option<&ProgressBar>,
 	) -> Result<Self> {
 		let abort = |s: &str| {
-			pb.abandon();
+			if let Some(pb) = pb {
+				pb.abandon();
+			}
+
 			bail!(format!("{}: {}", network.name, s));
 		};
 
@@ -29,7 +32,9 @@ impl Evm {
 		let mut maybe_provider: Option<Provider<Http>> = None;
 
 		if network.rpc.is_empty() {
-			pb.set_message("trying rpc endpoints…");
+			if let Some(pb) = pb {
+				pb.set_message("trying rpc endpoints…");
+			}
 
 			let rpc_endpoints: Vec<String> =
 				serde_json::from_value(network.rpc_bootstraps.clone())?;
@@ -45,7 +50,9 @@ impl Evm {
 				}
 			}
 		} else {
-			pb.set_message("connecting to rpc…");
+			if let Some(pb) = pb {
+				pb.set_message("connecting to rpc…");
+			}
 
 			let rpc_endpoint = network.rpc.clone();
 			maybe_provider =
@@ -68,9 +75,12 @@ impl Evm {
 			return abort("Could not connect to any RPC endpoint.");
 		}
 
-		let provider = Arc::new(maybe_provider.unwrap());
-
-		Ok(Self { _app_state: app_state, network, rpc, _provider: provider })
+		Ok(Self {
+			_app_state: app_state,
+			network,
+			rpc,
+			_provider: Arc::new(maybe_provider.unwrap()),
+		})
 	}
 }
 

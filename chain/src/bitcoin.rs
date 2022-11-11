@@ -15,7 +15,7 @@ impl Bitcoin {
 	pub async fn new(
 		app_state: Arc<AppState>,
 		network: Network,
-		_pb: &ProgressBar,
+		_pb: Option<&ProgressBar>,
 	) -> Result<Self> {
 		Ok(Self { _app_state: app_state, network })
 	}

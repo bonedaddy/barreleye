@@ -9,9 +9,9 @@ use crate::{models::PrimaryId, utils, Db};
 
 #[derive(Display)]
 pub enum CacheKey {
-	#[display(fmt = "LEADER")]
+	#[display(fmt = "leader")]
 	Leader,
-	#[display(fmt = "LABEL_FETCHED_{}", "_0")]
+	#[display(fmt = "label_fetched_{}", "_0")]
 	LabelFetched(PrimaryId),
 }
 
