@@ -8,7 +8,7 @@ use tokio::{
 	time::{sleep, Duration},
 };
 
-use crate::{Bitcoin, ChainTrait, Evm, Solana};
+use crate::{Bitcoin, ChainTrait, Evm};
 use barreleye_common::{
 	models::{BasicModel, Leader, Network, PrimaryId},
 	progress,
@@ -56,9 +56,6 @@ impl Networks {
 									),
 									Blockchain::Evm => Box::new(
 										Evm::new(app_state, n, &pb).await?,
-									),
-									Blockchain::Solana => Box::new(
-										Solana::new(app_state, n, &pb).await?,
 									),
 								};
 

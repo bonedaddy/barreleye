@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 use sea_orm_migration::prelude::*;
 use serde_json::json;
+use std::time::Duration;
 
 use crate::{utils, Blockchain, Env, IdPrefix};
 
@@ -51,8 +52,8 @@ impl MigrationTrait for Migration {
 							.not_null(),
 					)
 					.col(
-						ColumnDef::new(Networks::ExpectedBlockTime)
-							.small_integer()
+						ColumnDef::new(Networks::BlockTimeMs)
+							.big_integer()
 							.not_null(),
 					)
 					.col(ColumnDef::new(Networks::Rpc).string().not_null())
@@ -83,9 +84,50 @@ impl MigrationTrait for Migration {
 						Networks::Env,
 						Networks::Blockchain,
 						Networks::ChainId,
-						Networks::ExpectedBlockTime,
+						Networks::BlockTimeMs,
 						Networks::Rpc,
 						Networks::RpcBootstraps,
+					])
+					.values_panic([
+						utils::unique_id(
+							IdPrefix::Network,
+							"bitcoin_localhost",
+						)
+						.into(),
+						"Bitcoin Localhost".into(),
+						"Bitcoin".into(),
+						Env::Localhost.into(),
+						Blockchain::Bitcoin.into(),
+						1.into(),
+						(Duration::from_secs(10 * 60).as_millis() as u64)
+							.into(),
+						"http://127.0.0.1:8333".into(),
+						json!([]).into(),
+					])
+					.values_panic([
+						utils::unique_id(IdPrefix::Network, "bitcoin_testnet")
+							.into(),
+						"Bitcoin Testnet".into(),
+						"Bitcoin".into(),
+						Env::Testnet.into(),
+						Blockchain::Bitcoin.into(),
+						1.into(),
+						(Duration::from_secs(10 * 60).as_millis() as u64)
+							.into(),
+						"".into(),
+						json!(["https://btc.getblock.io/testnet/",]).into(),
+					])
+					.values_panic([
+						utils::unique_id(IdPrefix::Network, "bitcoin").into(),
+						"Bitcoin".into(),
+						"Bitcoin".into(),
+						Env::Mainnet.into(),
+						Blockchain::Bitcoin.into(),
+						1.into(),
+						(Duration::from_secs(10 * 60).as_millis() as u64)
+							.into(),
+						"".into(),
+						json!(["https://btc.getblock.io/mainnet/",]).into(),
 					])
 					.values_panic([
 						utils::unique_id(
@@ -98,25 +140,9 @@ impl MigrationTrait for Migration {
 						Env::Localhost.into(),
 						Blockchain::Evm.into(),
 						1.into(),
-						12.into(),
+						(Duration::from_secs(12).as_millis() as u64).into(),
 						"http://127.0.0.1:8545".into(),
 						json!([]).into(),
-					])
-					.values_panic([
-						utils::unique_id(IdPrefix::Network, "ethereum").into(),
-						"Ethereum".into(),
-						"Ethereum".into(),
-						Env::Mainnet.into(),
-						Blockchain::Evm.into(),
-						1.into(),
-						12.into(),
-						"".into(),
-						json!([
-							"https://cloudflare-eth.com",
-							"https://rpc.ankr.com/eth",
-							"https://rpc.flashbots.net",
-						])
-						.into(),
 					])
 					.values_panic([
 						utils::unique_id(IdPrefix::Network, "ethereum_goerli")
@@ -126,7 +152,7 @@ impl MigrationTrait for Migration {
 						Env::Testnet.into(),
 						Blockchain::Evm.into(),
 						5.into(),
-						12.into(),
+						(Duration::from_secs(12).as_millis() as u64).into(),
 						"".into(),
 						json!([
 							"https://rpc.ankr.com/eth_goerli",
@@ -135,34 +161,18 @@ impl MigrationTrait for Migration {
 						.into(),
 					])
 					.values_panic([
-						utils::unique_id(IdPrefix::Network, "polygon").into(),
-						"Polygon".into(),
-						"Polygon".into(),
+						utils::unique_id(IdPrefix::Network, "ethereum").into(),
+						"Ethereum".into(),
+						"Ethereum".into(),
 						Env::Mainnet.into(),
 						Blockchain::Evm.into(),
-						137.into(),
-						2.into(),
+						1.into(),
+						(Duration::from_secs(12).as_millis() as u64).into(),
 						"".into(),
 						json!([
-							"https://rpc-mainnet.matic.network",
-							"https://rpc.ankr.com/polygon",
-							"https://polygon-bor.publicnode.com",
-						])
-						.into(),
-					])
-					.values_panic([
-						utils::unique_id(IdPrefix::Network, "polygon_mumbai")
-							.into(),
-						"Polygon Mumbai".into(),
-						"Polygon".into(),
-						Env::Testnet.into(),
-						Blockchain::Evm.into(),
-						80001.into(),
-						2.into(),
-						"".into(),
-						json!([
-							"https://rpc.ankr.com/polygon_mumbai",
-							"https://polygontestapi.terminet.io/rpc",
+							"https://cloudflare-eth.com",
+							"https://rpc.ankr.com/eth",
+							"https://rpc.flashbots.net",
 						])
 						.into(),
 					])
@@ -194,7 +204,7 @@ enum Networks {
 	Env,
 	Blockchain,
 	ChainId,
-	ExpectedBlockTime,
+	BlockTimeMs,
 	Rpc,
 	RpcBootstraps,
 	UpdatedAt,

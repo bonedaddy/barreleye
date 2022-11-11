@@ -28,7 +28,7 @@ pub struct Model {
 	pub env: Env,
 	pub blockchain: Blockchain,
 	pub chain_id: i64,
-	pub expected_block_time: i16,
+	pub block_time_ms: i64,
 	pub rpc: String,
 	pub rpc_bootstraps: Json,
 	#[sea_orm(nullable)]
@@ -62,7 +62,7 @@ impl Model {
 		env: Env,
 		blockchain: Blockchain,
 		chain_id: i64,
-		expected_block_time: i16,
+		block_time_ms: i64,
 		rpc: &str,
 		rpc_bootstraps: Vec<String>,
 	) -> ActiveModel {
@@ -73,7 +73,7 @@ impl Model {
 			env: Set(env),
 			blockchain: Set(blockchain),
 			chain_id: Set(chain_id),
-			expected_block_time: Set(expected_block_time),
+			block_time_ms: Set(block_time_ms),
 			rpc: Set(rpc.to_string()),
 			rpc_bootstraps: Set(json!(rpc_bootstraps)),
 			..Default::default()

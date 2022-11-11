@@ -19,7 +19,7 @@ fn main() -> Result<()> {
 		.arg_required_else_help(true)
 		.subcommand(
 			Command::new("server")
-				.about("Start the insights server")
+				.about("Start the server")
 				.arg(
 					arg!(--env <ENV> "Network types to load")
 						.value_parser(value_parser!(Env)),
@@ -34,7 +34,8 @@ fn main() -> Result<()> {
 			let skip_ascii: bool = *opts.get_one("plain").unwrap_or(&false);
 
 			banner::show(env, skip_ascii)?;
-			barreleye_server::start(env).wrap_err("Could not start server")?;
+			barreleye_server::start(env)
+				.wrap_err("Could not start the server")?;
 		}
 		_ => unreachable!("No command found"),
 	}

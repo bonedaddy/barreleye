@@ -123,9 +123,10 @@ impl ValueEnum for Env {
 )]
 #[sea_orm(rs_type = "i16", db_type = "SmallInteger")]
 pub enum Blockchain {
+	#[serde(rename = "bitcoin")]
 	Bitcoin = 1,
+	#[serde(rename = "evm")]
 	Evm = 2,
-	Solana = 3,
 }
 
 #[derive(Serialize, Deserialize)]

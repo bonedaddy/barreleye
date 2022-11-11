@@ -5,11 +5,9 @@ use barreleye_common::models::Network;
 
 mod bitcoin;
 mod evm;
-mod solana;
 
 pub use bitcoin::Bitcoin;
 pub use evm::Evm;
-pub use solana::Solana;
 
 pub mod networks;
 pub use networks::Networks;

@@ -16,7 +16,7 @@ pub struct Payload {
 	env: Env,
 	blockchain: Blockchain,
 	chain_id: u64,
-	expected_block_time: u16,
+	block_time_ms: u64,
 	rpc: String,
 	rpc_bootstraps: Vec<String>,
 }
@@ -58,7 +58,7 @@ pub async fn handler(
 			payload.env,
 			payload.blockchain,
 			payload.chain_id as i64,
-			payload.expected_block_time as i16,
+			payload.block_time_ms as i64,
 			&payload.rpc,
 			payload.rpc_bootstraps,
 		),

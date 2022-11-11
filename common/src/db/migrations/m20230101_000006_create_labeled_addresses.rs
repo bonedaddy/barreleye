@@ -58,6 +58,19 @@ impl MigrationTrait for Migration {
 					)
 					.to_owned(),
 			)
+			.await?;
+
+		manager
+			.create_index(
+				Index::create()
+					.if_not_exists()
+					.name("ux_labeled_addresses_label_id_address")
+					.table(LabeledAddresses::Table)
+					.unique()
+					.col(LabeledAddresses::LabelId)
+					.col(LabeledAddresses::Address)
+					.to_owned(),
+			)
 			.await
 	}
 
