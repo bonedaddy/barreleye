@@ -7,7 +7,7 @@ use axum::{
 	BoxError, Router, Server as AxumServer,
 };
 use console::style;
-use eyre::{bail, Report, Result};
+use eyre::{Report, Result};
 use hyper::server::{accept::Accept, conn::AddrIncoming};
 use log::info;
 use signal::unix::SignalKind;
@@ -138,36 +138,52 @@ impl Server {
 			settings.server.ip_v4.parse()?,
 			settings.server.port,
 		);
+
 		if settings.server.ip_v6.is_empty() {
 			progress::show(Step::Ready(style(ipv4).bold().to_string())).await;
-			AxumServer::bind(&ipv4)
-				.serve(app.into_make_service())
-				.with_graceful_shutdown(Self::shutdown_signal())
-				.await?;
+			match AxumServer::try_bind(&ipv4) {
+				Err(e) => progress::quit(AppError::ServerStartup {
+					url: ipv4.to_string(),
+					error: e.message().to_string(),
+				}),
+				Ok(server) => {
+					self.app_state.set_is_ready();
+					server
+						.serve(app.into_make_service())
+						.with_graceful_shutdown(Self::shutdown_signal())
+						.await?
+				}
+			}
 		} else {
 			let ipv6 = SocketAddr::new(
 				settings.server.ip_v6.parse()?,
 				settings.server.port,
 			);
 
-			let listeners = CombinedIncoming {
-				a: AddrIncoming::bind(&ipv4)
-					.or_else(|e| bail!(e.into_cause().unwrap()))?,
-				b: AddrIncoming::bind(&ipv6)
-					.or_else(|e| bail!(e.into_cause().unwrap()))?,
-			};
+			match (AddrIncoming::bind(&ipv4), AddrIncoming::bind(&ipv6)) {
+				(Err(e), _) => progress::quit(AppError::ServerStartup {
+					url: ipv4.to_string(),
+					error: e.message().to_string(),
+				}),
+				(_, Err(e)) => progress::quit(AppError::ServerStartup {
+					url: ipv6.to_string(),
+					error: e.message().to_string(),
+				}),
+				(Ok(a), Ok(b)) => {
+					progress::show(Step::Ready(format!(
+						"{} & {}",
+						style(ipv4).bold(),
+						style(ipv6).bold()
+					)))
+					.await;
 
-			progress::show(Step::Ready(format!(
-				"{} & {}",
-				style(ipv4).bold(),
-				style(ipv6).bold()
-			)))
-			.await;
-
-			AxumServer::builder(listeners)
-				.serve(app.into_make_service())
-				.with_graceful_shutdown(Self::shutdown_signal())
-				.await?;
+					self.app_state.set_is_ready();
+					AxumServer::builder(CombinedIncoming { a, b })
+						.serve(app.into_make_service())
+						.with_graceful_shutdown(Self::shutdown_signal())
+						.await?;
+				}
+			}
 		}
 
 		Ok(())

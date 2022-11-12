@@ -138,7 +138,7 @@ impl Networks {
 	pub async fn watch(&mut self) -> Result<()> {
 		let watch = async {
 			loop {
-				if self.app_state.is_leader() {
+				if self.app_state.is_ready() && self.app_state.is_leader() {
 					self.sync_networks().await?;
 
 					let futures = self
@@ -153,9 +153,9 @@ impl Networks {
 						.collect::<Vec<JoinHandle<Result<_>>>>();
 
 					join_all(futures).await;
+				} else {
+					sleep(Duration::from_secs(1)).await;
 				}
-
-				sleep(Duration::from_secs(1)).await;
 			}
 		};
 

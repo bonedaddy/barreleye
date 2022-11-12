@@ -27,8 +27,9 @@ pub mod warehouse;
 
 #[derive(Clone)]
 pub struct AppState {
-	pub uuid: Uuid,
+	is_ready: Arc<AtomicBool>,
 	is_leader: Arc<AtomicBool>,
+	pub uuid: Uuid,
 	pub settings: Arc<Settings>,
 	pub warehouse: Arc<Warehouse>,
 	pub db: Arc<Db>,
@@ -43,13 +44,22 @@ impl AppState {
 		env: Env,
 	) -> Self {
 		AppState {
-			uuid: utils::new_uuid(),
+			is_ready: Arc::new(AtomicBool::new(false)),
 			is_leader: Arc::new(AtomicBool::new(false)),
+			uuid: utils::new_uuid(),
 			settings,
 			warehouse,
 			db,
 			env,
 		}
+	}
+
+	pub fn is_ready(&self) -> bool {
+		self.is_ready.load(Ordering::SeqCst)
+	}
+
+	pub fn set_is_ready(&self) {
+		self.is_ready.store(true, Ordering::SeqCst);
 	}
 
 	pub fn is_leader(&self) -> bool {

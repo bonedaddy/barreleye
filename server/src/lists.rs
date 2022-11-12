@@ -27,7 +27,9 @@ impl Lists {
 	pub async fn watch(&self) -> Result<()> {
 		let watch = async {
 			loop {
-				let timeout = if self.app_state.is_leader() {
+				let timeout = if self.app_state.is_ready() &&
+					self.app_state.is_leader()
+				{
 					self.fetch_data().await?;
 					self.app_state.settings.hardcoded_lists_refresh_rate
 				} else {

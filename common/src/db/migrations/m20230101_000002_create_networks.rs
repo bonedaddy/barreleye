@@ -89,11 +89,7 @@ impl MigrationTrait for Migration {
 						Networks::RpcBootstraps,
 					])
 					.values_panic([
-						utils::unique_id(
-							IdPrefix::Network,
-							"bitcoin_localhost",
-						)
-						.into(),
+						utils::new_unique_id(IdPrefix::Network).into(),
 						"Bitcoin Localhost".into(),
 						"Bitcoin".into(),
 						Env::Localhost.into(),
@@ -105,8 +101,7 @@ impl MigrationTrait for Migration {
 						json!([]).into(),
 					])
 					.values_panic([
-						utils::unique_id(IdPrefix::Network, "bitcoin_testnet")
-							.into(),
+						utils::new_unique_id(IdPrefix::Network).into(),
 						"Bitcoin Testnet".into(),
 						"Bitcoin".into(),
 						Env::Testnet.into(),
@@ -118,7 +113,7 @@ impl MigrationTrait for Migration {
 						json!(["https://btc.getblock.io/testnet/",]).into(),
 					])
 					.values_panic([
-						utils::unique_id(IdPrefix::Network, "bitcoin").into(),
+						utils::new_unique_id(IdPrefix::Network).into(),
 						"Bitcoin".into(),
 						"Bitcoin".into(),
 						Env::Mainnet.into(),
@@ -130,11 +125,7 @@ impl MigrationTrait for Migration {
 						json!(["https://btc.getblock.io/mainnet/",]).into(),
 					])
 					.values_panic([
-						utils::unique_id(
-							IdPrefix::Network,
-							"ethereum_localhost",
-						)
-						.into(),
+						utils::new_unique_id(IdPrefix::Network).into(),
 						"Ethereum Localhost".into(),
 						"Ethereum".into(),
 						Env::Localhost.into(),
@@ -145,8 +136,7 @@ impl MigrationTrait for Migration {
 						json!([]).into(),
 					])
 					.values_panic([
-						utils::unique_id(IdPrefix::Network, "ethereum_goerli")
-							.into(),
+						utils::new_unique_id(IdPrefix::Network).into(),
 						"Ethereum Goerli".into(),
 						"Ethereum".into(),
 						Env::Testnet.into(),
@@ -161,7 +151,7 @@ impl MigrationTrait for Migration {
 						.into(),
 					])
 					.values_panic([
-						utils::unique_id(IdPrefix::Network, "ethereum").into(),
+						utils::new_unique_id(IdPrefix::Network).into(),
 						"Ethereum".into(),
 						"Ethereum".into(),
 						Env::Mainnet.into(),
@@ -177,7 +167,7 @@ impl MigrationTrait for Migration {
 						.into(),
 					])
 					.on_conflict(
-						OnConflict::columns([Networks::Id])
+						OnConflict::columns([Networks::Name])
 							.do_nothing()
 							.to_owned(),
 					)

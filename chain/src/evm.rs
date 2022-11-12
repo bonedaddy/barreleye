@@ -68,7 +68,7 @@ impl Evm {
 					}
 					_ => {
 						return abort(&format!(
-					"Could not connect to RPC endpoint at `{rpc_endpoint}`."
+					"Could not connect to RPC endpoint @ `{rpc_endpoint}`."
 				))
 					}
 				};
