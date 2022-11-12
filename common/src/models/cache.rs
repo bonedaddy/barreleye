@@ -13,6 +13,8 @@ pub enum CacheKey {
 	Leader,
 	#[display(fmt = "label_fetched_{}", "_0")]
 	LabelFetched(PrimaryId),
+	#[display(fmt = "last_saved_block_{}", "_0")]
+	LastSavedBlock(u64),
 }
 
 impl From<CacheKey> for String {

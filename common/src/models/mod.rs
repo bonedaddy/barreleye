@@ -14,7 +14,7 @@ pub use cache::{Cache, CacheKey};
 pub use label::{Label, LabelActiveModel};
 pub use labeled_address::{LabeledAddress, LabeledAddressActiveModel};
 pub use network::{Network, NetworkActiveModel};
-pub use transaction::{Transaction, TransactionActiveModel};
+pub use transaction::Transaction;
 
 pub mod account;
 pub mod api_key;

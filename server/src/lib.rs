@@ -11,7 +11,7 @@ use barreleye_common::{
 	models::{Cache, CacheKey},
 	progress,
 	progress::Step,
-	utils, AppError, AppState, Clickhouse, Db, Env, Settings,
+	utils, AppError, AppState, Db, Env, Settings, Warehouse,
 };
 use errors::ServerError;
 use lists::Lists;
@@ -31,14 +31,16 @@ pub async fn start(env: Env) -> Result<()> {
 	let settings = Arc::new(Settings::new()?);
 
 	let warehouse = Arc::new(
-		Clickhouse::new(settings.clone())
+		Warehouse::new(settings.clone())
 			.await
-			.map_err(|_| {
+			.map_err(|url| {
 				progress::quit(AppError::WarehouseConnection {
-					url: settings.warehouse.clickhouse.url.clone(),
+					url: url.to_string(),
 				});
 			})
-			.unwrap(),
+			.unwrap()
+			.run_migrations()
+			.await?,
 	);
 
 	let db = Arc::new(

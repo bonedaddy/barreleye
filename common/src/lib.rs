@@ -14,7 +14,7 @@ pub use address::Address;
 pub use db::Db;
 pub use errors::AppError;
 pub use settings::Settings;
-pub use warehouse::Clickhouse;
+pub use warehouse::Warehouse;
 
 pub mod address;
 pub mod db;
@@ -30,7 +30,7 @@ pub struct AppState {
 	pub uuid: Uuid,
 	is_leader: Arc<AtomicBool>,
 	pub settings: Arc<Settings>,
-	pub warehouse: Arc<Clickhouse>,
+	pub warehouse: Arc<Warehouse>,
 	pub db: Arc<Db>,
 	pub env: Env,
 }
@@ -38,7 +38,7 @@ pub struct AppState {
 impl AppState {
 	pub fn new(
 		settings: Arc<Settings>,
-		warehouse: Arc<Clickhouse>,
+		warehouse: Arc<Warehouse>,
 		db: Arc<Db>,
 		env: Env,
 	) -> Self {
@@ -109,8 +109,11 @@ impl FromStr for LabelId {
 )]
 #[sea_orm(rs_type = "i16", db_type = "SmallInteger")]
 pub enum Env {
+	#[serde(rename = "localhost")]
 	Localhost = 1,
+	#[serde(rename = "testnet")]
 	Testnet = 2,
+	#[serde(rename = "mainnet")]
 	Mainnet = 3,
 }
 

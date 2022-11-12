@@ -20,6 +20,7 @@ url = "2.3.1"
 console = "0.15.2"
 exitcode = "1.1.2"
 ethers = "1.0.0"
+clickhouse = { version = "0.11.0", features = ["uuid"] }
 clap = { version = "4.0.23", features = ["cargo"] }
 uuid = { version = "1.2.1", features = ["v4", "fast-rng"] }
 reqwest = { version = "0.11.12", features = ["json", "rustls-tls"] }

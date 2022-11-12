@@ -1,17 +1,20 @@
 use async_trait::async_trait;
-use ethers::prelude::*;
+use ethers::{abi::AbiEncode, prelude::*};
 use eyre::{bail, Result};
 use indicatif::ProgressBar;
 use std::sync::Arc;
 
 use crate::ChainTrait;
-use barreleye_common::{models::Network, AppState};
+use barreleye_common::{
+	models::{Cache, CacheKey, Network, Transaction},
+	AppState,
+};
 
 pub struct Evm {
-	_app_state: Arc<AppState>,
+	app_state: Arc<AppState>,
 	network: Network,
 	rpc: Option<String>,
-	_provider: Arc<Provider<Http>>,
+	provider: Arc<Provider<Http>>,
 }
 
 impl Evm {
@@ -76,10 +79,10 @@ impl Evm {
 		}
 
 		Ok(Self {
-			_app_state: app_state,
+			app_state,
 			network,
 			rpc,
-			_provider: Arc::new(maybe_provider.unwrap()),
+			provider: Arc::new(maybe_provider.unwrap()),
 		})
 	}
 }
@@ -95,7 +98,73 @@ impl ChainTrait for Evm {
 	}
 
 	async fn process_blocks(&self) -> Result<()> {
-		// println!("processing blocks at {}…", self.network.id); // @TODO
+		let cache_key =
+			CacheKey::LastSavedBlock(self.network.network_id as u64)
+				.to_string();
+
+		let block_height = {
+			match Cache::get::<u64>(&self.app_state.db, cache_key.clone())
+				.await?
+			{
+				Some(hit) => hit.value,
+				_ => Transaction::get_latest_inserted_block(
+					&self.app_state.warehouse,
+					self.network.network_id,
+				)
+				.await?
+				.unwrap_or(0),
+			}
+		};
+
+		let mut txns = vec![];
+		let up_to_block_height = block_height + 5;
+
+		for i in (block_height + 1)..=up_to_block_height {
+			if let Some(block) = self.provider.get_block_with_txs(i).await? {
+				if block.number.is_some() {
+					for tx in block.transactions.iter() {
+						// skip if contract creation (for now)
+						if tx.to.is_none() {
+							continue;
+						}
+
+						// skip if contract call (for now)
+						if !self
+							.provider
+							.get_code(tx.to.unwrap(), None)
+							.await?
+							.is_empty()
+						{
+							continue;
+						}
+
+						// skip if no asset transfer (for now)
+						if tx.value.is_zero() {
+							continue;
+						}
+
+						// add tx
+						txns.push(Transaction::new(
+							self.network.network_id,
+							i,
+							tx.hash.encode_hex(),
+							tx.from.into(),
+							tx.to.unwrap().into(),
+							None,
+							tx.value.to_string(),
+						));
+					}
+				}
+			}
+		}
+
+		if !txns.is_empty() {
+			Transaction::create_many(&self.app_state.warehouse, txns).await?;
+		}
+
+		Cache::set::<u64>(&self.app_state.db, cache_key, up_to_block_height)
+			.await?;
+
 		Ok(())
 	}
 }

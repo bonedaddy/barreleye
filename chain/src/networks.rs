@@ -11,7 +11,7 @@ use tokio::{
 
 use crate::{Bitcoin, ChainTrait, Evm};
 use barreleye_common::{
-	models::{BasicModel, Network, PrimaryId},
+	models::{Network, PrimaryId},
 	progress,
 	progress::Step,
 	AppError, AppState, Blockchain,
@@ -99,7 +99,9 @@ impl Networks {
 	}
 
 	pub async fn sync_networks(&mut self) -> Result<()> {
-		let all_networks = Network::get_all(&self.app_state.db).await?;
+		let all_networks =
+			Network::get_all_by_env(&self.app_state.db, self.app_state.env)
+				.await?;
 
 		// add new networks
 		for n in all_networks
