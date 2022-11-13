@@ -6,7 +6,7 @@ use bitcoin::{
 use bitcoincore_rpc::{Auth, Client, RpcApi};
 use eyre::{bail, Result};
 use indicatif::ProgressBar;
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 use url::Url;
 
 use crate::{ChainTrait, IndexTransactionV1};
@@ -165,8 +165,7 @@ impl Bitcoin {
 			return Ok(None);
 		}
 
-		// get all inputs
-		let input: Vec<(Address, u64)> = tx
+		let all_inputs: Vec<(Address, u64)> = tx
 			.input
 			.iter()
 			.filter_map(|txin| match txin.previous_output.txid.is_empty() {
@@ -194,8 +193,7 @@ impl Bitcoin {
 			})
 			.collect();
 
-		// get all outputs
-		let output: Vec<(Address, u64)> = tx
+		let all_outputs: Vec<(Address, u64)> = tx
 			.output
 			.iter()
 			.filter_map(|txout| {
@@ -208,8 +206,30 @@ impl Bitcoin {
 			})
 			.collect();
 
+		let get_unique_addresses = move |pair: Vec<(Address, u64)>| {
+			let mut m = HashMap::<String, u64>::new();
+
+			for p in pair.into_iter() {
+				let (address, value) = p;
+				let address_key = address.to_string();
+
+				let initial_value = if m.contains_key(&address_key) {
+					m[&address_key]
+				} else {
+					0
+				};
+
+				m.insert(address_key, initial_value + value);
+			}
+
+			m
+		};
+
+		let input_map = get_unique_addresses(all_inputs);
+		let output_map = get_unique_addresses(all_outputs);
+
 		// @TODO
-		println!("in: {:?}, out: {:?}", input, output);
+		println!("in: {:?}, out: {:?}", input_map, output_map);
 
 		Ok(None)
 	}
