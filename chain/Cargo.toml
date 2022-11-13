@@ -15,6 +15,7 @@ tokio = { version = "1.21.2", features = ["full"] }
 indicatif = "0.17.1"
 itertools = "0.10.5"
 url = "2.3.1"
+bitcoin = "0.29.2"
 bitcoincore-rpc = "0.16.0"
 reqwest = { version = "0.11.12", features = ["json", "rustls-tls"] }
 

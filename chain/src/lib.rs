@@ -1,8 +1,8 @@
 use async_trait::async_trait;
 use eyre::Result;
 
+pub use crate::bitcoin::Bitcoin;
 use barreleye_common::models::Network;
-pub use bitcoin::Bitcoin;
 pub use evm::Evm;
 pub use networks::Networks;
 
@@ -15,4 +15,11 @@ pub trait ChainTrait: Send + Sync {
 	fn get_network(&self) -> Network;
 	fn get_rpc(&self) -> Option<String>;
 	async fn process_blocks(&self) -> Result<()>;
+}
+
+pub struct IndexTransactionV1 {
+	hash: String,
+	from: String,
+	to: String,
+	value: String,
 }

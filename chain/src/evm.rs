@@ -1,10 +1,12 @@
 use async_trait::async_trait;
-use ethers::{abi::AbiEncode, prelude::*};
+use ethers::{
+	abi::AbiEncode, prelude::*, types::Transaction as EvmTransaction,
+};
 use eyre::{bail, Result};
 use indicatif::ProgressBar;
 use std::sync::Arc;
 
-use crate::ChainTrait;
+use crate::{ChainTrait, IndexTransactionV1};
 use barreleye_common::{
 	models::{Cache, CacheKey, Network, Transaction},
 	utils, AppState,
@@ -91,7 +93,7 @@ impl ChainTrait for Evm {
 			CacheKey::LastSavedBlock(self.network.network_id as u64)
 				.to_string();
 
-		let block_height = {
+		let last_indexed_block_height = {
 			match Cache::get::<u64>(&self.app_state.db, cache_key.clone())
 				.await?
 			{
@@ -105,45 +107,30 @@ impl ChainTrait for Evm {
 			}
 		};
 
+		let from_block_height = last_indexed_block_height + 1;
+		let to_block_height = last_indexed_block_height + 5;
+
 		let mut txns = vec![];
-		let up_to_block_height = block_height + 5;
-
-		for i in (block_height + 1)..=up_to_block_height {
-			if let Some(block) = self.provider.get_block_with_txs(i).await? {
-				if block.number.is_some() {
-					for tx in block.transactions.iter() {
-						// skip if contract creation (for now)
-						if tx.to.is_none() {
-							continue;
-						}
-
-						// skip if contract call (for now)
-						if !self
-							.provider
-							.get_code(tx.to.unwrap(), None)
-							.await?
-							.is_empty()
+		for block_height in from_block_height..=to_block_height {
+			match self.provider.get_block_with_txs(block_height).await? {
+				Some(block) if block.number.is_some() => {
+					for tx in block.transactions.into_iter() {
+						if let Some(tx) =
+							self.process_transaction_v1(tx).await?
 						{
-							continue;
+							txns.push(Transaction::new(
+								self.network.network_id,
+								block_height,
+								tx.hash,
+								tx.from.into(),
+								tx.to.into(),
+								None,
+								tx.value,
+							));
 						}
-
-						// skip if no asset transfer (for now)
-						if tx.value.is_zero() {
-							continue;
-						}
-
-						// add tx
-						txns.push(Transaction::new(
-							self.network.network_id,
-							i,
-							tx.hash.encode_hex(),
-							tx.from.into(),
-							tx.to.unwrap().into(),
-							None,
-							tx.value.to_string(),
-						));
 					}
 				}
+				_ => {}
 			}
 		}
 
@@ -151,9 +138,45 @@ impl ChainTrait for Evm {
 			Transaction::create_many(&self.app_state.warehouse, txns).await?;
 		}
 
-		Cache::set::<u64>(&self.app_state.db, cache_key, up_to_block_height)
+		Cache::set::<u64>(&self.app_state.db, cache_key, to_block_height)
 			.await?;
 
 		Ok(())
+	}
+}
+
+impl Evm {
+	// v1 tracks only eoa-to-eoa transfer of non-zero ether
+	async fn process_transaction_v1(
+		&self,
+		tx: EvmTransaction,
+	) -> Result<Option<IndexTransactionV1>> {
+		// skip if no asset transfer
+		if tx.value.is_zero() {
+			return Ok(None);
+		}
+
+		// skip if contract deploy call
+		if tx.to.is_none() {
+			return Ok(None);
+		}
+
+		// skip if contract fn call
+		let to = tx.to.unwrap();
+		if !self.provider.get_code(to, None).await?.is_empty() {
+			return Ok(None);
+		}
+
+		// skip if contract is sending funds
+		if !self.provider.get_code(tx.from, None).await?.is_empty() {
+			return Ok(None);
+		}
+
+		Ok(Some(IndexTransactionV1 {
+			hash: tx.hash.encode_hex(),
+			from: ethers::utils::to_checksum(&tx.from, None),
+			to: ethers::utils::to_checksum(&to, None),
+			value: tx.value.to_string(),
+		}))
 	}
 }
