@@ -151,6 +151,11 @@ impl Evm {
 		&self,
 		tx: EvmTransaction,
 	) -> Result<Option<IndexTransactionV1>> {
+		// skip if pending
+		if tx.block_hash.is_none() {
+			return Ok(None);
+		}
+
 		// skip if no asset transfer
 		if tx.value.is_zero() {
 			return Ok(None);
@@ -163,12 +168,13 @@ impl Evm {
 
 		// skip if contract fn call
 		let to = tx.to.unwrap();
-		if !self.provider.get_code(to, None).await?.is_empty() {
+		let block_id = BlockId::Hash(tx.block_hash.unwrap());
+		if !self.provider.get_code(to, Some(block_id)).await?.is_empty() {
 			return Ok(None);
 		}
 
 		// skip if contract is sending funds
-		if !self.provider.get_code(tx.from, None).await?.is_empty() {
+		if !self.provider.get_code(tx.from, Some(block_id)).await?.is_empty() {
 			return Ok(None);
 		}
 
