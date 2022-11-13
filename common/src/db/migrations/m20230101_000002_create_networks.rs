@@ -97,7 +97,7 @@ impl MigrationTrait for Migration {
 						1.into(),
 						(Duration::from_secs(10 * 60).as_millis() as u64)
 							.into(),
-						"http://127.0.0.1:8333".into(),
+						"http://127.0.0.1:8332".into(),
 						json!([]).into(),
 					])
 					.values_panic([

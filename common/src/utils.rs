@@ -1,5 +1,6 @@
 use chrono::{offset::Utc, Duration, NaiveDateTime};
 use nanoid::nanoid;
+use url::Url;
 use uuid::Uuid;
 
 use crate::IdPrefix;
@@ -32,4 +33,17 @@ pub fn now() -> NaiveDateTime {
 
 pub fn ago_in_seconds(secs: u64) -> NaiveDateTime {
 	now() - Duration::seconds(secs as i64)
+}
+
+pub fn with_masked_auth(url: &str) -> String {
+	match Url::parse(url) {
+		Ok(mut parsed_url) => {
+			if parsed_url.password().is_some() {
+				parsed_url.set_password(Some("***")).ok();
+			}
+
+			parsed_url.to_string()
+		}
+		_ => url.to_string(),
+	}
 }

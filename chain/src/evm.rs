@@ -7,7 +7,7 @@ use std::sync::Arc;
 use crate::ChainTrait;
 use barreleye_common::{
 	models::{Cache, CacheKey, Network, Transaction},
-	AppState,
+	utils, AppState,
 };
 
 pub struct Evm {
@@ -23,59 +23,48 @@ impl Evm {
 		network: Network,
 		pb: Option<&ProgressBar>,
 	) -> Result<Self> {
-		let abort = |s: &str| {
+		let mut rpc: Option<String> = None;
+		let mut maybe_provider: Option<Provider<Http>> = None;
+
+		let mut rpc_endpoints = vec![];
+
+		let (message_trying, message_failed) = if network.rpc.is_empty() {
+			rpc_endpoints =
+				serde_json::from_value(network.rpc_bootstraps.clone())?;
+			(
+				"trying rpc endpoints…".to_string(),
+				"Could not connect to any RPC endpoint.".to_string(),
+			)
+		} else {
+			rpc_endpoints.push(network.rpc.clone());
+			(
+				"connecting to rpc…".to_string(),
+				format!(
+					"Could not connect to RPC endpoint @ `{}`.",
+					utils::with_masked_auth(&network.rpc)
+				),
+			)
+		};
+
+		if let Some(pb) = pb {
+			pb.set_message(message_trying);
+		}
+
+		for url in rpc_endpoints.into_iter() {
+			if let Ok(provider) = Provider::<Http>::try_from(url.clone()) {
+				if provider.get_block_number().await.is_ok() {
+					rpc = Some(url);
+					maybe_provider = Some(provider);
+				}
+			}
+		}
+
+		if maybe_provider.is_none() {
 			if let Some(pb) = pb {
 				pb.abandon();
 			}
 
-			bail!(format!("{}: {}", network.name, s));
-		};
-
-		let mut rpc: Option<String> = None;
-		let mut maybe_provider: Option<Provider<Http>> = None;
-
-		if network.rpc.is_empty() {
-			if let Some(pb) = pb {
-				pb.set_message("trying rpc endpoints…");
-			}
-
-			let rpc_endpoints: Vec<String> =
-				serde_json::from_value(network.rpc_bootstraps.clone())?;
-
-			for rpc_endpoint in rpc_endpoints.into_iter() {
-				if let Ok(provider) =
-					Provider::<Http>::try_from(rpc_endpoint.clone())
-				{
-					if provider.get_block_number().await.is_ok() {
-						rpc = Some(rpc_endpoint);
-						maybe_provider = Some(provider);
-					}
-				}
-			}
-		} else {
-			if let Some(pb) = pb {
-				pb.set_message("connecting to rpc…");
-			}
-
-			let rpc_endpoint = network.rpc.clone();
-			maybe_provider =
-				match Provider::<Http>::try_from(rpc_endpoint.clone()) {
-					Ok(provider)
-						if provider.get_block_number().await.is_ok() =>
-					{
-						rpc = Some(rpc_endpoint);
-						Some(provider)
-					}
-					_ => {
-						return abort(&format!(
-					"Could not connect to RPC endpoint @ `{rpc_endpoint}`."
-				))
-					}
-				};
-		}
-
-		if maybe_provider.is_none() {
-			return abort("Could not connect to any RPC endpoint.");
+			bail!(format!("{}: {}", network.name, message_failed));
 		}
 
 		Ok(Self {

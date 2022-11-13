@@ -14,7 +14,7 @@ use barreleye_common::{
 	models::{Network, PrimaryId},
 	progress,
 	progress::Step,
-	AppError, AppState, Blockchain,
+	utils, AppError, AppState, Blockchain,
 };
 
 pub struct Networks {
@@ -64,7 +64,8 @@ impl Networks {
 
 							if let Some(rpc) = boxed_chain.get_rpc() {
 								pb.finish_with_message(format!(
-									"connected to {rpc}"
+									"connected to {}",
+									utils::with_masked_auth(&rpc)
 								));
 							} else {
 								pb.finish_with_message("could not connect");
