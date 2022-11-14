@@ -9,9 +9,9 @@ use indicatif::ProgressBar;
 use std::{collections::HashMap, sync::Arc};
 use url::Url;
 
-use crate::{ChainTrait, IndexTransactionV1};
+use crate::{ChainTrait, IndexTransferV1};
 use barreleye_common::{
-	models::{Cache, CacheKey, Network, Transaction},
+	models::{Cache, CacheKey, Network, Transfer},
 	utils, AppState,
 };
 
@@ -106,49 +106,46 @@ impl ChainTrait for Bitcoin {
 			CacheKey::LastSavedBlock(self.network.network_id as u64)
 				.to_string();
 
-		let last_indexed_block_height = {
+		let block_height = {
 			match Cache::get::<u64>(&self.app_state.db, cache_key.clone())
 				.await?
 			{
 				Some(hit) => hit.value,
-				_ => Transaction::get_latest_inserted_block(
+				_ => Transfer::get_block_height(
 					&self.app_state.warehouse,
 					self.network.network_id,
 				)
 				.await?
 				.unwrap_or(0),
 			}
-		};
-
-		let from_block_height = last_indexed_block_height + 1;
-		let to_block_height = last_indexed_block_height + 5;
+		} + 1;
 
 		let mut txns = vec![];
-		for block_height in from_block_height..=to_block_height {
-			let block_hash = self.client.get_block_hash(block_height)?;
-			let block = self.client.get_block(&block_hash)?;
 
-			for tx in block.txdata.into_iter() {
-				if let Some(tx) = self.process_transaction_v1(tx).await? {
-					txns.push(Transaction::new(
-						self.network.network_id,
-						block_height,
-						tx.hash,
-						tx.from.into(),
-						tx.to.into(),
-						None,
-						tx.value,
-					));
-				}
+		let block_hash = self.client.get_block_hash(block_height)?;
+		let block = self.client.get_block(&block_hash)?;
+
+		for tx in block.txdata.into_iter() {
+			for transfer in self.process_transaction_v1(tx).await? {
+				txns.push(Transfer::new(
+					self.network.network_id,
+					block_height,
+					block_hash.to_string(),
+					transfer.tx_hash,
+					transfer.from_address.into(),
+					transfer.to_address.into(),
+					None,
+					transfer.amount,
+					transfer.batch_amount,
+				));
 			}
 		}
 
 		if !txns.is_empty() {
-			Transaction::create_many(&self.app_state.warehouse, txns).await?;
+			Transfer::create_many(&self.app_state.warehouse, txns).await?;
 		}
 
-		Cache::set::<u64>(&self.app_state.db, cache_key, to_block_height)
-			.await?;
+		Cache::set::<u64>(&self.app_state.db, cache_key, block_height).await?;
 
 		Ok(())
 	}
@@ -159,10 +156,12 @@ impl Bitcoin {
 	async fn process_transaction_v1(
 		&self,
 		tx: BitcoinTransaction,
-	) -> Result<Option<IndexTransactionV1>> {
+	) -> Result<Vec<IndexTransferV1>> {
+		let mut ret = vec![];
+
 		// skip if coinbase tx
 		if tx.is_coin_base() {
-			return Ok(None);
+			return Ok(ret);
 		}
 
 		let all_inputs: Vec<(Address, u64)> = tx
@@ -226,11 +225,26 @@ impl Bitcoin {
 		};
 
 		let input_map = get_unique_addresses(all_inputs);
+		let input_total: u64 = input_map.iter().map(|(_, v)| v).sum();
+
 		let output_map = get_unique_addresses(all_outputs);
+		let output_total: u64 = output_map.iter().map(|(_, v)| v).sum();
 
-		// @TODO
-		println!("in: {:?}, out: {:?}", input_map, output_map);
+		for input in input_map.iter() {
+			for output in output_map.iter() {
+				ret.push(IndexTransferV1 {
+					tx_hash: tx.txid().as_hash().to_string(),
+					from_address: input.0.clone(),
+					to_address: output.0.clone(),
+					amount: ((*input.1 as f64 / input_total as f64) *
+						*output.1 as f64)
+						.round()
+						.to_string(),
+					batch_amount: output_total.to_string(),
+				})
+			}
+		}
 
-		Ok(None)
+		Ok(ret)
 	}
 }

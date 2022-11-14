@@ -84,7 +84,7 @@ pub enum IdPrefix {
 	#[display(fmt = "lab_adr")]
 	LabeledAddress,
 	#[display(fmt = "txn")]
-	Transaction,
+	Transfer,
 }
 
 #[derive(Display, Debug, PartialEq, Eq)]

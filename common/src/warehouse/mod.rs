@@ -37,18 +37,20 @@ impl Warehouse {
 
 		self.clickhouse.client.query(&format!(
 			r#"
-			CREATE TABLE IF NOT EXISTS {}.transactions (
+			CREATE TABLE IF NOT EXISTS {}.transfers (
 			  uuid UUID,
 			  network_id UInt64,
-			  block UInt64,
+			  block_height UInt64,
+			  block_hash String,
 			  tx_hash String,
 			  from_address String,
 			  to_address String,
 			  asset_address String,
 			  amount String,
+			  batch_amount String,
 			  created_at DateTime
-			) ENGINE = ReplacingMergeTree()
-			ORDER BY (network_id, block, tx_hash, from_address, to_address, asset_address, amount)
+			) ENGINE = ReplacingMergeTree
+			ORDER BY (network_id, block_height, block_hash, tx_hash, from_address, to_address, asset_address, amount, batch_amount)
 			PARTITION BY toYYYYMM(created_at);
 			"#,
 			self.db_name

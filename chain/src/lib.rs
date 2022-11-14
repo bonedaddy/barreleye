@@ -17,9 +17,11 @@ pub trait ChainTrait: Send + Sync {
 	async fn process_blocks(&self) -> Result<()>;
 }
 
-pub struct IndexTransactionV1 {
-	hash: String,
-	from: String,
-	to: String,
-	value: String,
+#[derive(Debug)]
+pub struct IndexTransferV1 {
+	tx_hash: String,
+	from_address: String,
+	to_address: String,
+	amount: String,
+	batch_amount: String,
 }

@@ -14,7 +14,7 @@ pub use cache::{Cache, CacheKey};
 pub use label::{Label, LabelActiveModel};
 pub use labeled_address::{LabeledAddress, LabeledAddressActiveModel};
 pub use network::{Network, NetworkActiveModel};
-pub use transaction::Transaction;
+pub use transfer::Transfer;
 
 pub mod account;
 pub mod api_key;
@@ -22,7 +22,7 @@ pub mod cache;
 pub mod label;
 pub mod labeled_address;
 pub mod network;
-pub mod transaction;
+pub mod transfer;
 
 // @TODO `https://github.com/SeaQL/sea-orm/issues/1068`
 pub type PrimaryId = i64;
