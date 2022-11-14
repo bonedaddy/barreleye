@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use bitcoin::{
 	blockdata::transaction::Transaction as BitcoinTransaction,
-	util::address::Address,
+	util::address::Address, Network as BitcoinNetwork,
 };
 use bitcoincore_rpc::{Auth, Client, RpcApi};
 use eyre::{bail, Result};
@@ -158,6 +158,9 @@ impl Bitcoin {
 		tx: BitcoinTransaction,
 	) -> Result<Vec<IndexTransferV1>> {
 		let mut ret = vec![];
+		let bitcoin_network =
+			BitcoinNetwork::from_magic(self.network.chain_id as u32)
+				.unwrap_or(BitcoinNetwork::Bitcoin);
 
 		// skip if coinbase tx
 		if tx.is_coin_base() {
@@ -181,7 +184,7 @@ impl Bitcoin {
 
 						Address::from_script(
 							&txout.script_pubkey,
-							bitcoin::Network::Bitcoin,
+							bitcoin_network,
 						)
 						.ok()
 						.map(|a| (a, txout.value))
@@ -196,12 +199,9 @@ impl Bitcoin {
 			.output
 			.iter()
 			.filter_map(|txout| {
-				Address::from_script(
-					&txout.script_pubkey,
-					bitcoin::Network::Bitcoin,
-				)
-				.ok()
-				.map(|a| (a, txout.value))
+				Address::from_script(&txout.script_pubkey, bitcoin_network)
+					.ok()
+					.map(|a| (a, txout.value))
 			})
 			.collect();
 

@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use bitcoin::Network as BitcoinNetwork;
 use sea_orm_migration::prelude::*;
 use serde_json::json;
 use std::time::Duration;
@@ -94,7 +95,7 @@ impl MigrationTrait for Migration {
 						"Bitcoin".into(),
 						Env::Localhost.into(),
 						Blockchain::Bitcoin.into(),
-						1.into(),
+						BitcoinNetwork::Regtest.magic().into(),
 						(Duration::from_secs(10 * 60).as_millis() as u64)
 							.into(),
 						"http://127.0.0.1:8332".into(),
@@ -106,7 +107,7 @@ impl MigrationTrait for Migration {
 						"Bitcoin".into(),
 						Env::Testnet.into(),
 						Blockchain::Bitcoin.into(),
-						1.into(),
+						BitcoinNetwork::Testnet.magic().into(),
 						(Duration::from_secs(10 * 60).as_millis() as u64)
 							.into(),
 						"".into(),
@@ -118,7 +119,7 @@ impl MigrationTrait for Migration {
 						"Bitcoin".into(),
 						Env::Mainnet.into(),
 						Blockchain::Bitcoin.into(),
-						1.into(),
+						BitcoinNetwork::Bitcoin.magic().into(),
 						(Duration::from_secs(10 * 60).as_millis() as u64)
 							.into(),
 						"".into(),
