@@ -1,12 +1,13 @@
 use config::{Config, Environment, File, FileFormat};
+use directories::BaseDirs;
 use eyre::Result;
 use serde::Deserialize;
-use std::{fs, fs::OpenOptions};
+use std::{fs, fs::OpenOptions, path::PathBuf};
 use url::Url;
 
 use crate::{db::Dialect as DatabaseDialect, errors::AppError, progress};
 
-pub static DEFAULT_SETTINGS_FILENAME: &str = "settings.toml";
+pub static DEFAULT_SETTINGS_FILENAME: &str = "barreleye.toml";
 pub static DEFAULT_SETTINGS_CONTENT: &str = r#"
 hardcoded_lists_refresh_rate = 3600 # in seconds
 
@@ -108,13 +109,26 @@ impl Settings {
 		}
 
 		// builder settings
-		let s = Config::builder()
-			.add_source(File::new(DEFAULT_SETTINGS_FILENAME, FileFormat::Toml))
-			.add_source(Environment::with_prefix("BARRELEYE"))
-			.build()?;
+		let mut s = Config::builder().add_source(
+			File::new(DEFAULT_SETTINGS_FILENAME, FileFormat::Toml)
+				.required(false),
+		);
+
+		if let Some(dir) = BaseDirs::new() {
+			s = s.add_source(
+				File::from(
+					PathBuf::from(dir.config_dir())
+						.join("barreleye")
+						.join(DEFAULT_SETTINGS_FILENAME),
+				)
+				.required(false),
+			);
+		}
+
+		s = s.add_source(Environment::with_prefix("BARRELEYE"));
 
 		// try to create a struct
-		let settings: Settings = s.try_deserialize()?;
+		let settings: Settings = s.build()?.try_deserialize()?;
 
 		// test for common errors
 		if Url::parse(&settings.warehouse.clickhouse.url).is_err() {

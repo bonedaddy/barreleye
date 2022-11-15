@@ -12,7 +12,7 @@ use url::Url;
 
 use crate::ChainTrait;
 use barreleye_common::{
-	models::{Cache, CacheKey, Network, Transfer},
+	models::{Config, ConfigKey, Network, Transfer},
 	utils, AppState,
 };
 
@@ -102,30 +102,26 @@ impl ChainTrait for Bitcoin {
 		self.rpc.clone()
 	}
 
-	async fn process_blocks(&self) -> Result<()> {
-		let cache_key =
-			CacheKey::LastSavedBlock(self.network.network_id as u64)
-				.to_string();
+	async fn get_block_height(&self) -> Result<u64> {
+		Ok(self.client.get_block_count()?)
+	}
 
-		let block_height = {
-			match Cache::get::<u64>(&self.app_state.db, cache_key.clone())
-				.await?
-			{
-				Some(hit) => hit.value,
-				_ => Transfer::get_block_height(
-					&self.app_state.warehouse,
-					self.network.network_id,
-				)
-				.await?
-				.unwrap_or(0),
-			}
-		} + 1;
+	async fn get_last_processed_block(&self) -> Result<u64> {
+		Ok(Transfer::get_block_height(
+			&self.app_state.warehouse,
+			self.network.network_id,
+		)
+		.await?
+		.unwrap_or(0))
+	}
 
-		let mut transfers = vec![];
+	async fn process_blocks(&self, last_saved_block: u64) -> Result<()> {
+		let block_height = last_saved_block + 1;
 
 		let block_hash = self.client.get_block_hash(block_height)?;
 		let block = self.client.get_block(&block_hash)?;
 
+		let mut transfers = vec![];
 		for tx in block.txdata.into_iter() {
 			for transfer in self
 				.process_transaction_v1(
@@ -143,9 +139,12 @@ impl ChainTrait for Bitcoin {
 			Transfer::create_many(&self.app_state.warehouse, transfers).await?;
 		}
 
-		Cache::set::<u64>(&self.app_state.db, cache_key, block_height).await?;
-
-		Ok(())
+		Config::set::<u64>(
+			&self.app_state.db,
+			ConfigKey::LastSavedBlock(self.network.network_id as u64),
+			block_height,
+		)
+		.await
 	}
 }
 

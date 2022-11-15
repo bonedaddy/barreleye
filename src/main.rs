@@ -1,4 +1,4 @@
-use clap::{arg, command, value_parser, Command};
+use clap::{arg, command, value_parser};
 use color_eyre::eyre::WrapErr;
 use eyre::Result;
 use std::env;
@@ -15,30 +15,30 @@ fn main() -> Result<()> {
 		.author("Barreleye")
 		.version(env!("CARGO_PKG_VERSION"))
 		.propagate_version(true)
-		.subcommand_required(true)
-		.arg_required_else_help(true)
-		.subcommand(
-			Command::new("server")
-				.about("Start the server")
-				.arg(
-					arg!(--env <ENV> "Network types to load")
-						.value_parser(value_parser!(Env)),
-				)
-				.arg(arg!(-p --plain "No ASCII banner")),
+		.arg(
+			arg!(-e --env <ENV> "Network types to connect to")
+				.value_parser(value_parser!(Env)),
 		)
+		.arg(arg!(--indexer "Run only indexer, without the server"))
+		.arg(arg!(--server "Run only server, without the indexer"))
+		.arg(arg!(-p --plain "No ASCII banner"))
 		.get_matches();
 
-	match matches.subcommand() {
-		Some(("server", opts)) => {
-			let env: Env = *opts.get_one("env").unwrap_or(&Env::Mainnet);
-			let skip_ascii: bool = *opts.get_one("plain").unwrap_or(&false);
+	let env: Env = *matches.get_one("env").unwrap_or(&Env::Mainnet);
+	let skip_ascii: bool = *matches.get_one("plain").unwrap_or(&false);
 
-			banner::show(env, skip_ascii)?;
-			barreleye_server::start(env)
-				.wrap_err("Could not start the server")?;
-		}
-		_ => unreachable!("No command found"),
-	}
+	let (is_indexer, is_server) = match (
+		*matches.get_one("indexer").unwrap_or(&false),
+		*matches.get_one("server").unwrap_or(&false),
+	) {
+		(true, _) => (true, false),
+		(_, true) => (false, true),
+		_ => (true, true),
+	};
+
+	banner::show(env, is_indexer, is_server, skip_ascii)?;
+	barreleye_server::start(env, is_indexer, is_server)
+		.wrap_err("Could not start the server")?;
 
 	Ok(())
 }

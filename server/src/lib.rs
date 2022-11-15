@@ -8,7 +8,7 @@ use uuid::Uuid;
 
 use barreleye_chain::Networks;
 use barreleye_common::{
-	models::{Cache, CacheKey},
+	models::{Config, ConfigKey},
 	progress,
 	progress::Step,
 	utils, AppError, AppState, Db, Env, Settings, Warehouse,
@@ -25,7 +25,7 @@ mod server;
 pub type ServerResult<T> = Result<T, ServerError>;
 
 #[tokio::main]
-pub async fn start(env: Env) -> Result<()> {
+pub async fn start(env: Env, is_indexer: bool, is_server: bool) -> Result<()> {
 	progress::show(Step::Setup).await;
 
 	let settings = Arc::new(Settings::new()?);
@@ -56,21 +56,38 @@ pub async fn start(env: Env) -> Result<()> {
 			.await?,
 	);
 
-	let app_state = Arc::new(AppState::new(settings, warehouse, db, env));
+	let app_state = Arc::new(AppState::new(
+		settings, warehouse, db, env, is_indexer, is_server,
+	));
 
 	let mut networks = Networks::new(app_state.clone()).connect().await?;
 	let server = Server::new(app_state.clone());
 	let lists = Lists::new(app_state.clone());
 
 	let (server_done, watcher_done, lists_done, _) = tokio::join! {
-		tokio::spawn(async move {
-			server.start().await
+		tokio::spawn({
+			let app_state = app_state.clone();
+			async move {
+				match is_server {
+					true => server.start().await,
+					_ => {
+						app_state.set_is_ready();
+						Ok(())
+					}
+				}
+			}
 		}),
 		tokio::spawn(async move {
-			networks.watch().await
+			match is_indexer {
+				true => networks.watch().await,
+				_ => Ok(())
+			}
 		}),
 		tokio::spawn(async move {
-			lists.watch().await
+			match is_indexer {
+				true => lists.watch().await,
+				_ => Ok(())
+			}
 		}),
 		tokio::spawn({
 			let app_state = app_state.clone();
@@ -94,14 +111,13 @@ async fn leader_check(app_state: Arc<AppState>) -> Result<()> {
 		let active_at = utils::ago_in_seconds(frequency + 1);
 		let promoted_at = utils::ago_in_seconds(timeout);
 
-		let check_in = Cache::set::<Uuid>(
+		let check_in = Config::set::<Uuid>(
 			&app_state.db,
-			CacheKey::Leader.into(),
+			ConfigKey::Leader,
 			app_state.uuid,
 		);
 
-		match Cache::get::<Uuid>(&app_state.db, CacheKey::Leader.into()).await?
-		{
+		match Config::get::<Uuid>(&app_state.db, ConfigKey::Leader).await? {
 			None => {
 				check_in.await?;
 			}

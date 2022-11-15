@@ -28,13 +28,15 @@ pub mod warehouse;
 
 #[derive(Clone)]
 pub struct AppState {
-	is_ready: Arc<AtomicBool>,
-	is_leader: Arc<AtomicBool>,
 	pub uuid: Uuid,
 	pub settings: Arc<Settings>,
 	pub warehouse: Arc<Warehouse>,
 	pub db: Arc<Db>,
 	pub env: Env,
+	pub is_indexer: bool,
+	pub is_server: bool,
+	is_ready: Arc<AtomicBool>,
+	is_leader: Arc<AtomicBool>,
 }
 
 impl AppState {
@@ -43,8 +45,12 @@ impl AppState {
 		warehouse: Arc<Warehouse>,
 		db: Arc<Db>,
 		env: Env,
+		is_indexer: bool,
+		is_server: bool,
 	) -> Self {
 		AppState {
+			is_indexer,
+			is_server,
 			is_ready: Arc::new(AtomicBool::new(false)),
 			is_leader: Arc::new(AtomicBool::new(false)),
 			uuid: utils::new_uuid(),

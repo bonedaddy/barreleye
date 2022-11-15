@@ -11,7 +11,7 @@ use tokio::{
 };
 
 use barreleye_common::{
-	models::{BasicModel, Cache, CacheKey, Label, LabeledAddress},
+	models::{BasicModel, Config, ConfigKey, Label, LabeledAddress},
 	utils, Address, AppState, LabelId,
 };
 
@@ -57,8 +57,12 @@ impl Lists {
 		// skips labels that have been recently fetched
 		let mut label_ids = vec![];
 		for label in labels.iter() {
-			let key = CacheKey::LabelFetched(label.label_id);
-			match Cache::get::<u8>(&self.app_state.db, key.into()).await? {
+			match Config::get::<u8>(
+				&self.app_state.db,
+				ConfigKey::LabelFetched(label.label_id),
+			)
+			.await?
+			{
 				None => label_ids.push(label.label_id),
 				Some(hit) if hit.updated_at < stale_at => {
 					label_ids.push(label.label_id)
@@ -105,9 +109,9 @@ impl Lists {
 			};
 
 			// timestamp the request
-			Cache::set::<u8>(
+			Config::set::<u8>(
 				&self.app_state.db,
-				CacheKey::LabelFetched(label.label_id).into(),
+				ConfigKey::LabelFetched(label.label_id),
 				1,
 			)
 			.await?;

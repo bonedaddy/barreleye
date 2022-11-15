@@ -9,7 +9,7 @@ use std::sync::Arc;
 
 use crate::ChainTrait;
 use barreleye_common::{
-	models::{Cache, CacheKey, Network, Transfer},
+	models::{Config, ConfigKey, Network, Transfer},
 	utils, AppState,
 };
 
@@ -89,27 +89,23 @@ impl ChainTrait for Evm {
 		self.rpc.clone()
 	}
 
-	async fn process_blocks(&self) -> Result<()> {
-		let cache_key =
-			CacheKey::LastSavedBlock(self.network.network_id as u64)
-				.to_string();
+	async fn get_block_height(&self) -> Result<u64> {
+		Ok(self.provider.get_block_number().await?.as_u64())
+	}
 
-		let block_height = {
-			match Cache::get::<u64>(&self.app_state.db, cache_key.clone())
-				.await?
-			{
-				Some(hit) => hit.value,
-				_ => Transfer::get_block_height(
-					&self.app_state.warehouse,
-					self.network.network_id,
-				)
-				.await?
-				.unwrap_or(0),
-			}
-		} + 1;
+	async fn get_last_processed_block(&self) -> Result<u64> {
+		Ok(Transfer::get_block_height(
+			&self.app_state.warehouse,
+			self.network.network_id,
+		)
+		.await?
+		.unwrap_or(0))
+	}
+
+	async fn process_blocks(&self, last_saved_block: u64) -> Result<()> {
+		let block_height = last_saved_block + 1;
 
 		let mut transfers = vec![];
-
 		match self.provider.get_block_with_txs(block_height).await? {
 			Some(block) if block.number.is_some() => {
 				for tx in block.transactions.into_iter() {
@@ -132,9 +128,12 @@ impl ChainTrait for Evm {
 			Transfer::create_many(&self.app_state.warehouse, transfers).await?;
 		}
 
-		Cache::set::<u64>(&self.app_state.db, cache_key, block_height).await?;
-
-		Ok(())
+		Config::set::<u64>(
+			&self.app_state.db,
+			ConfigKey::LastSavedBlock(self.network.network_id as u64),
+			block_height,
+		)
+		.await
 	}
 }
 

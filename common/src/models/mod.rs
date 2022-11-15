@@ -7,10 +7,10 @@ use sea_orm::{
 	ActiveValue, QuerySelect,
 };
 
+pub use self::config::{Config, ConfigKey};
 use crate::{utils, Db};
 pub use account::{Account, AccountActiveModel};
 pub use api_key::{ApiKey, ApiKeyActiveModel};
-pub use cache::{Cache, CacheKey};
 pub use label::{Label, LabelActiveModel};
 pub use labeled_address::{LabeledAddress, LabeledAddressActiveModel};
 pub use network::{Network, NetworkActiveModel};
@@ -18,7 +18,7 @@ pub use transfer::Transfer;
 
 pub mod account;
 pub mod api_key;
-pub mod cache;
+pub mod config;
 pub mod label;
 pub mod labeled_address;
 pub mod network;

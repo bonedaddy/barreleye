@@ -7,31 +7,33 @@ use serde_json::json;
 
 use crate::{models::PrimaryId, utils, Db};
 
-#[derive(Display)]
-pub enum CacheKey {
+#[derive(Display, Clone)]
+pub enum ConfigKey {
 	#[display(fmt = "leader")]
 	Leader,
 	#[display(fmt = "label_fetched_{}", "_0")]
 	LabelFetched(PrimaryId),
 	#[display(fmt = "last_saved_block_{}", "_0")]
 	LastSavedBlock(u64),
+	#[display(fmt = "block_height_{}", "_0")]
+	BlockHeight(u64),
 }
 
-impl From<CacheKey> for String {
-	fn from(cache_key: CacheKey) -> String {
-		cache_key.to_string()
+impl From<ConfigKey> for String {
+	fn from(config_key: ConfigKey) -> String {
+		config_key.to_string()
 	}
 }
 
 #[derive(
 	Clone, Debug, PartialEq, Eq, Serialize, Deserialize, DeriveEntityModel,
 )]
-#[sea_orm(table_name = "cache")]
+#[sea_orm(table_name = "configs")]
 #[serde(rename_all = "camelCase")]
 pub struct Model {
 	#[sea_orm(primary_key)]
 	#[serde(skip_serializing, skip_deserializing)]
-	pub cache_id: PrimaryId,
+	pub config_id: PrimaryId,
 	pub key: String,
 	pub value: String,
 	#[serde(skip_serializing)]
@@ -45,8 +47,8 @@ pub struct Value<T: for<'a> Deserialize<'a>> {
 	pub created_at: DateTime,
 }
 
-pub use ActiveModel as CacheActiveModel;
-pub use Model as Cache;
+pub use ActiveModel as ConfigActiveModel;
+pub use Model as Config;
 
 #[derive(Copy, Clone, Debug, EnumIter)]
 pub enum Relation {}
@@ -60,12 +62,12 @@ impl RelationTrait for Relation {
 impl ActiveModelBehavior for ActiveModel {}
 
 impl Model {
-	pub async fn set<T>(db: &Db, key: String, value: T) -> Result<PrimaryId>
+	pub async fn set<T>(db: &Db, key: ConfigKey, value: T) -> Result<()>
 	where
 		T: Serialize,
 	{
-		let insert_result = Entity::insert(ActiveModel {
-			key: Set(key),
+		Entity::insert(ActiveModel {
+			key: Set(key.to_string()),
 			value: Set(json!(value).to_string()),
 			updated_at: Set(utils::now()),
 			..Default::default()
@@ -78,19 +80,21 @@ impl Model {
 		.exec(db.get())
 		.await?;
 
-		Ok(insert_result.last_insert_id)
+		Ok(())
 	}
 
-	pub async fn get<T>(db: &Db, key: String) -> Result<Option<Value<T>>>
+	pub async fn get<T>(db: &Db, key: ConfigKey) -> Result<Option<Value<T>>>
 	where
 		T: for<'a> Deserialize<'a>,
 	{
-		Ok(Entity::find().filter(Column::Key.eq(key)).one(db.get()).await?.map(
-			|m| Value {
+		Ok(Entity::find()
+			.filter(Column::Key.eq(key.to_string()))
+			.one(db.get())
+			.await?
+			.map(|m| Value {
 				value: serde_json::from_str(&m.value).unwrap(),
 				updated_at: m.updated_at,
 				created_at: m.created_at,
-			},
-		))
+			}))
 	}
 }

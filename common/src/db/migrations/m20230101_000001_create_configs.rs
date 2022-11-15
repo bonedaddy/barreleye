@@ -10,30 +10,30 @@ impl MigrationTrait for Migration {
 		manager
 			.create_table(
 				Table::create()
-					.table(Cache::Table)
+					.table(Config::Table)
 					.if_not_exists()
 					.col(
-						ColumnDef::new(Cache::CacheId)
+						ColumnDef::new(Config::ConfigId)
 							.big_integer()
 							.not_null()
 							.auto_increment()
 							.primary_key(),
 					)
 					.col(
-						ColumnDef::new(Cache::Key)
+						ColumnDef::new(Config::Key)
 							.unique_key()
 							.string()
 							.not_null(),
 					)
-					.col(ColumnDef::new(Cache::Value).string().null())
+					.col(ColumnDef::new(Config::Value).string().null())
 					.col(
-						ColumnDef::new(Cache::UpdatedAt)
+						ColumnDef::new(Config::UpdatedAt)
 							.date_time()
 							.not_null()
 							.extra("DEFAULT CURRENT_TIMESTAMP".to_owned()),
 					)
 					.col(
-						ColumnDef::new(Cache::CreatedAt)
+						ColumnDef::new(Config::CreatedAt)
 							.date_time()
 							.not_null()
 							.extra("DEFAULT CURRENT_TIMESTAMP".to_owned()),
@@ -44,15 +44,15 @@ impl MigrationTrait for Migration {
 	}
 
 	async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-		manager.drop_table(Table::drop().table(Cache::Table).to_owned()).await
+		manager.drop_table(Table::drop().table(Config::Table).to_owned()).await
 	}
 }
 
 #[derive(Iden)]
-enum Cache {
-	#[iden = "cache"]
+enum Config {
+	#[iden = "configs"]
 	Table,
-	CacheId,
+	ConfigId,
 	Key,
 	Value,
 	UpdatedAt,
