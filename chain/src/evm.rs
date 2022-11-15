@@ -4,9 +4,10 @@ use ethers::{
 };
 use eyre::{bail, Result};
 use indicatif::ProgressBar;
+use primitive_types::U256;
 use std::sync::Arc;
 
-use crate::{ChainTrait, IndexTransferV1};
+use crate::ChainTrait;
 use barreleye_common::{
 	models::{Cache, CacheKey, Network, Transfer},
 	utils, AppState,
@@ -107,31 +108,28 @@ impl ChainTrait for Evm {
 			}
 		} + 1;
 
-		let mut txns = vec![];
+		let mut transfers = vec![];
 
 		match self.provider.get_block_with_txs(block_height).await? {
 			Some(block) if block.number.is_some() => {
 				for tx in block.transactions.into_iter() {
-					for transfer in self.process_transaction_v1(tx).await? {
-						txns.push(Transfer::new(
-							self.network.network_id,
+					for transfer in self
+						.process_transaction_v1(
 							block_height,
 							block.hash.unwrap().encode_hex(),
-							transfer.tx_hash,
-							transfer.from_address.into(),
-							transfer.to_address.into(),
-							None,
-							transfer.amount,
-							transfer.batch_amount,
-						));
+							tx,
+						)
+						.await?
+					{
+						transfers.push(transfer);
 					}
 				}
 			}
 			_ => {}
 		}
 
-		if !txns.is_empty() {
-			Transfer::create_many(&self.app_state.warehouse, txns).await?;
+		if !transfers.is_empty() {
+			Transfer::create_many(&self.app_state.warehouse, transfers).await?;
 		}
 
 		Cache::set::<u64>(&self.app_state.db, cache_key, block_height).await?;
@@ -144,8 +142,10 @@ impl Evm {
 	// v1 tracks only eoa-to-eoa transfer of non-zero ether
 	async fn process_transaction_v1(
 		&self,
+		block_height: u64,
+		block_hash: String,
 		tx: EvmTransaction,
-	) -> Result<Vec<IndexTransferV1>> {
+	) -> Result<Vec<Transfer>> {
 		let mut ret = vec![];
 
 		// skip if pending
@@ -175,13 +175,17 @@ impl Evm {
 			return Ok(ret);
 		}
 
-		ret.push(IndexTransferV1 {
-			tx_hash: tx.hash.encode_hex(),
-			from_address: ethers::utils::to_checksum(&tx.from, None),
-			to_address: ethers::utils::to_checksum(&to, None),
-			amount: tx.value.to_string(),
-			batch_amount: tx.value.to_string(),
-		});
+		ret.push(Transfer::new(
+			self.network.network_id,
+			block_height,
+			block_hash,
+			tx.hash.encode_hex(),
+			ethers::utils::to_checksum(&tx.from, None).into(),
+			ethers::utils::to_checksum(&to, None).into(),
+			None,
+			U256::from_str_radix(&tx.value.to_string(), 10)?,
+			U256::from_str_radix(&tx.value.to_string(), 10)?,
+		));
 
 		Ok(ret)
 	}

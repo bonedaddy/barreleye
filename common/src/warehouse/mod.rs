@@ -46,8 +46,8 @@ impl Warehouse {
 			  from_address String,
 			  to_address String,
 			  asset_address String,
-			  amount String,
-			  batch_amount String,
+			  amount UInt256,
+			  batch_amount UInt256,
 			  created_at DateTime
 			) ENGINE = ReplacingMergeTree
 			ORDER BY (network_id, block_height, block_hash, tx_hash, from_address, to_address, asset_address, amount, batch_amount)

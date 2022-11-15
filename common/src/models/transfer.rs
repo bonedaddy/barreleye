@@ -1,9 +1,10 @@
 use clickhouse::Row;
 use eyre::Result;
+use primitive_types::U256;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{models::PrimaryId, utils, warehouse::Warehouse, Address};
+use crate::{models::PrimaryId, u256, utils, warehouse::Warehouse, Address};
 
 static TABLE: &str = "transfers";
 
@@ -18,8 +19,10 @@ pub struct Model {
 	pub from_address: String,
 	pub to_address: String,
 	pub asset_address: String,
-	pub amount: String,       // @TODO no support for U256 yet
-	pub batch_amount: String, // @TODO no support for U256 yet
+	#[serde(with = "u256")]
+	pub amount: U256,
+	#[serde(with = "u256")]
+	pub batch_amount: U256,
 	pub created_at: u32,
 }
 
@@ -34,8 +37,8 @@ impl Model {
 		from_address: Address,
 		to_address: Address,
 		asset_address: Option<Address>,
-		amount: String,
-		batch_amount: String,
+		amount: U256,
+		batch_amount: U256,
 	) -> Self {
 		Self {
 			uuid: utils::new_uuid(),

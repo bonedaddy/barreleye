@@ -22,6 +22,7 @@ pub mod errors;
 pub mod models;
 pub mod progress;
 pub mod settings;
+pub mod u256;
 pub mod utils;
 pub mod warehouse;
 
@@ -83,8 +84,6 @@ pub enum IdPrefix {
 	Label,
 	#[display(fmt = "lab_adr")]
 	LabeledAddress,
-	#[display(fmt = "txn")]
-	Transfer,
 }
 
 #[derive(Display, Debug, PartialEq, Eq)]

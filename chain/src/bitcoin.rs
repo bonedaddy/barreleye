@@ -6,10 +6,11 @@ use bitcoin::{
 use bitcoincore_rpc::{Auth, Client, RpcApi};
 use eyre::{bail, Result};
 use indicatif::ProgressBar;
+use primitive_types::U256;
 use std::{collections::HashMap, sync::Arc};
 use url::Url;
 
-use crate::{ChainTrait, IndexTransferV1};
+use crate::ChainTrait;
 use barreleye_common::{
 	models::{Cache, CacheKey, Network, Transfer},
 	utils, AppState,
@@ -120,29 +121,26 @@ impl ChainTrait for Bitcoin {
 			}
 		} + 1;
 
-		let mut txns = vec![];
+		let mut transfers = vec![];
 
 		let block_hash = self.client.get_block_hash(block_height)?;
 		let block = self.client.get_block(&block_hash)?;
 
 		for tx in block.txdata.into_iter() {
-			for transfer in self.process_transaction_v1(tx).await? {
-				txns.push(Transfer::new(
-					self.network.network_id,
+			for transfer in self
+				.process_transaction_v1(
 					block_height,
 					block_hash.to_string(),
-					transfer.tx_hash,
-					transfer.from_address.into(),
-					transfer.to_address.into(),
-					None,
-					transfer.amount,
-					transfer.batch_amount,
-				));
+					tx,
+				)
+				.await?
+			{
+				transfers.push(transfer);
 			}
 		}
 
-		if !txns.is_empty() {
-			Transfer::create_many(&self.app_state.warehouse, txns).await?;
+		if !transfers.is_empty() {
+			Transfer::create_many(&self.app_state.warehouse, transfers).await?;
 		}
 
 		Cache::set::<u64>(&self.app_state.db, cache_key, block_height).await?;
@@ -155,9 +153,12 @@ impl Bitcoin {
 	// v1 tracks only address-to-address transfer of non-zero bitcoin
 	async fn process_transaction_v1(
 		&self,
+		block_height: u64,
+		block_hash: String,
 		tx: BitcoinTransaction,
-	) -> Result<Vec<IndexTransferV1>> {
+	) -> Result<Vec<Transfer>> {
 		let mut ret = vec![];
+
 		let bitcoin_network =
 			BitcoinNetwork::from_magic(self.network.chain_id as u32)
 				.unwrap_or(BitcoinNetwork::Bitcoin);
@@ -232,16 +233,21 @@ impl Bitcoin {
 
 		for input in input_map.iter() {
 			for output in output_map.iter() {
-				ret.push(IndexTransferV1 {
-					tx_hash: tx.txid().as_hash().to_string(),
-					from_address: input.0.clone(),
-					to_address: output.0.clone(),
-					amount: ((*input.1 as f64 / input_total as f64) *
-						*output.1 as f64)
-						.round()
-						.to_string(),
-					batch_amount: output_total.to_string(),
-				})
+				let amount = ((*input.1 as f64 / input_total as f64) *
+					*output.1 as f64)
+					.round();
+
+				ret.push(Transfer::new(
+					self.network.network_id,
+					block_height,
+					block_hash.clone(),
+					tx.txid().as_hash().to_string(),
+					input.0.clone().into(),
+					output.0.clone().into(),
+					None,
+					U256::from_str_radix(&amount.to_string(), 10)?,
+					U256::from_str_radix(&output_total.to_string(), 10)?,
+				));
 			}
 		}
 

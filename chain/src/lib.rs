@@ -16,12 +16,3 @@ pub trait ChainTrait: Send + Sync {
 	fn get_rpc(&self) -> Option<String>;
 	async fn process_blocks(&self) -> Result<()>;
 }
-
-#[derive(Debug)]
-pub struct IndexTransferV1 {
-	tx_hash: String,
-	from_address: String,
-	to_address: String,
-	amount: String,
-	batch_amount: String,
-}
