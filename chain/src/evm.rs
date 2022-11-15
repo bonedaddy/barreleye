@@ -162,9 +162,19 @@ impl Evm {
 		if tx.to.is_none() {
 			return Ok(ret);
 		}
+		let to = tx.to.unwrap();
+
+		// skip if burning
+		if to.is_zero() {
+			return Ok(ret);
+		}
+
+		// skip if sending to self
+		if tx.from == to {
+			return Ok(ret);
+		}
 
 		// skip if contract fn call
-		let to = tx.to.unwrap();
 		let block_id = BlockId::Hash(tx.block_hash.unwrap());
 		if !self.provider.get_code(to, Some(block_id)).await?.is_empty() {
 			return Ok(ret);

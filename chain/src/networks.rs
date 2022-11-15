@@ -171,10 +171,9 @@ impl Networks {
 		&self,
 		network_id: PrimaryId,
 	) -> Option<&Box<dyn ChainTrait>> {
-		if self.networks_map.contains_key(&network_id) {
-			Some(&self.networks_map[&network_id])
-		} else {
-			None
+		match self.networks_map.contains_key(&network_id) {
+			true => Some(&self.networks_map[&network_id]),
+			_ => None,
 		}
 	}
 }

@@ -233,21 +233,24 @@ impl Bitcoin {
 
 		for input in input_map.iter() {
 			for output in output_map.iter() {
-				let amount = ((*input.1 as f64 / input_total as f64) *
-					*output.1 as f64)
-					.round();
+				let (from, to) = (input.0.clone(), output.0.clone());
+				if from != to {
+					let amount = ((*input.1 as f64 / input_total as f64) *
+						*output.1 as f64)
+						.round();
 
-				ret.push(Transfer::new(
-					self.network.network_id,
-					block_height,
-					block_hash.clone(),
-					tx.txid().as_hash().to_string(),
-					input.0.clone().into(),
-					output.0.clone().into(),
-					None,
-					U256::from_str_radix(&amount.to_string(), 10)?,
-					U256::from_str_radix(&output_total.to_string(), 10)?,
-				));
+					ret.push(Transfer::new(
+						self.network.network_id,
+						block_height,
+						block_hash.clone(),
+						tx.txid().as_hash().to_string(),
+						from.into(),
+						to.into(),
+						None,
+						U256::from_str_radix(&amount.to_string(), 10)?,
+						U256::from_str_radix(&output_total.to_string(), 10)?,
+					));
+				}
 			}
 		}
 
