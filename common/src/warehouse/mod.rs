@@ -1,6 +1,6 @@
 use clickhouse::Client as ClickhouseClient;
 use derive_more::Display;
-use eyre::Result;
+use eyre::{Result, WrapErr};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -18,6 +18,7 @@ pub struct Clickhouse {
 }
 
 pub struct Warehouse {
+	url_without_database: String,
 	db_name: String,
 	clickhouse: Clickhouse,
 }
@@ -28,6 +29,7 @@ impl Warehouse {
 			utils::without_pathname(&settings.dsn.clickhouse);
 
 		Ok(Self {
+			url_without_database: url_without_database.clone(),
 			db_name: db_name.clone(),
 			clickhouse: Clickhouse {
 				client: ClickhouseClient::default()
@@ -45,7 +47,8 @@ impl Warehouse {
 				self.db_name
 			))
 			.execute()
-			.await?;
+			.await
+			.wrap_err(self.url_without_database.clone())?;
 
 		self.clickhouse.client.query(&format!(
 			r#"
@@ -66,7 +69,7 @@ impl Warehouse {
 			PARTITION BY toYYYYMM(created_at);
 			"#,
 			self.db_name
-		)).execute().await?;
+		)).execute().await.wrap_err(self.url_without_database.clone())?;
 
 		Ok(self)
 	}

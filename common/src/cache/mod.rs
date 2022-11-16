@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use derive_more::Display;
-use eyre::Result;
+use eyre::{Result, WrapErr};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::json;
 use std::sync::Arc;
@@ -43,9 +43,13 @@ pub struct Cache {
 
 impl Cache {
 	pub async fn new(settings: Arc<Settings>) -> Result<Self> {
+		let rocksdb_url = settings.dsn.rocksdb.clone();
+
 		Ok(Self {
 			cache: match settings.cache.driver {
-				Driver::RocksDB => Box::new(RocksDb::new(settings).await?),
+				Driver::RocksDB => Box::new(
+					RocksDb::new(settings).await.wrap_err(rocksdb_url)?,
+				),
 			},
 		})
 	}

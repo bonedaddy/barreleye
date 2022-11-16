@@ -33,21 +33,22 @@ pub async fn start(env: Env, is_indexer: bool, is_server: bool) -> Result<()> {
 	let warehouse = Arc::new(
 		Warehouse::new(settings.clone())
 			.await
+			.unwrap()
+			.run_migrations()
+			.await
 			.map_err(|url| {
-				progress::quit(AppError::WarehouseConnection {
+				progress::quit(AppError::ServiceConnection {
 					url: url.to_string(),
 				});
 			})
-			.unwrap()
-			.run_migrations()
-			.await?,
+			.unwrap(),
 	);
 
 	let db = Arc::new(
 		Db::new(settings.clone())
 			.await
 			.map_err(|url| {
-				progress::quit(AppError::DatabaseConnection {
+				progress::quit(AppError::ServiceConnection {
 					url: url.to_string(),
 				});
 			})
@@ -60,7 +61,7 @@ pub async fn start(env: Env, is_indexer: bool, is_server: bool) -> Result<()> {
 		Cache::new(settings.clone())
 			.await
 			.map_err(|url| {
-				progress::quit(AppError::CacheConnection {
+				progress::quit(AppError::ServiceConnection {
 					url: url.to_string(),
 				});
 			})
