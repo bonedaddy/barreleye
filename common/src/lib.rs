@@ -11,12 +11,14 @@ use std::{
 };
 
 pub use address::Address;
+pub use cache::Cache;
 pub use db::Db;
 pub use errors::AppError;
 pub use settings::Settings;
 pub use warehouse::Warehouse;
 
 pub mod address;
+pub mod cache;
 pub mod db;
 pub mod errors;
 pub mod models;
@@ -30,8 +32,9 @@ pub mod warehouse;
 pub struct AppState {
 	pub uuid: Uuid,
 	pub settings: Arc<Settings>,
-	pub warehouse: Arc<Warehouse>,
+	pub cache: Arc<Cache>,
 	pub db: Arc<Db>,
+	pub warehouse: Arc<Warehouse>,
 	pub env: Env,
 	pub is_indexer: bool,
 	pub is_server: bool,
@@ -42,8 +45,9 @@ pub struct AppState {
 impl AppState {
 	pub fn new(
 		settings: Arc<Settings>,
-		warehouse: Arc<Warehouse>,
+		cache: Arc<Cache>,
 		db: Arc<Db>,
+		warehouse: Arc<Warehouse>,
 		env: Env,
 		is_indexer: bool,
 		is_server: bool,
@@ -55,8 +59,9 @@ impl AppState {
 			is_leader: Arc::new(AtomicBool::new(false)),
 			uuid: utils::new_uuid(),
 			settings,
-			warehouse,
+			cache,
 			db,
+			warehouse,
 			env,
 		}
 	}

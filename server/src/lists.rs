@@ -31,7 +31,7 @@ impl Lists {
 					self.app_state.is_leader()
 				{
 					self.fetch_data().await?;
-					self.app_state.settings.hardcoded_lists_refresh_rate
+					self.app_state.settings.sdn_refresh_rate
 				} else {
 					1
 				};
@@ -47,9 +47,8 @@ impl Lists {
 	}
 
 	async fn fetch_data(&self) -> Result<()> {
-		let stale_at = utils::ago_in_seconds(
-			self.app_state.settings.hardcoded_lists_refresh_rate,
-		);
+		let stale_at =
+			utils::ago_in_seconds(self.app_state.settings.sdn_refresh_rate);
 
 		let labels =
 			Label::get_all_enabled_and_hardcoded(&self.app_state.db).await?;

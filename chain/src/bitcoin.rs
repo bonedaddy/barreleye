@@ -1,17 +1,18 @@
 use async_trait::async_trait;
 use bitcoin::{
 	blockdata::transaction::Transaction as BitcoinTransaction,
-	util::address::Address, Network as BitcoinNetwork,
+	hash_types::Txid, util::address::Address, Network as BitcoinNetwork,
 };
 use bitcoincore_rpc::{Auth, Client, RpcApi};
 use eyre::{bail, Result};
 use indicatif::ProgressBar;
 use primitive_types::U256;
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, str::FromStr, sync::Arc};
 use url::Url;
 
 use crate::ChainTrait;
 use barreleye_common::{
+	cache::CacheKey,
 	models::{Config, ConfigKey, Network, Transfer},
 	utils, AppState,
 };
@@ -21,6 +22,7 @@ pub struct Bitcoin {
 	network: Network,
 	rpc: Option<String>,
 	client: Arc<Client>,
+	bitcoin_network: BitcoinNetwork,
 }
 
 impl Bitcoin {
@@ -83,11 +85,16 @@ impl Bitcoin {
 			bail!(format!("{}: {}", network.name, message_failed));
 		}
 
+		let bitcoin_network =
+			BitcoinNetwork::from_magic(network.chain_id as u32)
+				.unwrap_or(BitcoinNetwork::Bitcoin);
+
 		Ok(Self {
 			app_state,
 			network,
 			rpc,
 			client: Arc::new(maybe_client.unwrap()),
+			bitcoin_network,
 		})
 	}
 }
@@ -158,52 +165,25 @@ impl Bitcoin {
 	) -> Result<Vec<Transfer>> {
 		let mut ret = vec![];
 
-		let bitcoin_network =
-			BitcoinNetwork::from_magic(self.network.chain_id as u32)
-				.unwrap_or(BitcoinNetwork::Bitcoin);
+		// index outputs for quicker lookup later (even if coinbase tx)
+		let all_outputs = self.index_transaction_outputs(&tx).await?;
 
 		// skip if coinbase tx
 		if tx.is_coin_base() {
 			return Ok(ret);
 		}
 
-		let all_inputs: Vec<(Address, u64)> = tx
-			.input
-			.iter()
-			.filter_map(|txin| match txin.previous_output.txid.is_empty() {
-				true => None,
-				_ => {
-					let tx = self
-						.client
-						.get_raw_transaction(&txin.previous_output.txid, None)
-						.unwrap();
+		let mut all_inputs = vec![];
+		for txin in tx.input.iter() {
+			let (txid, vout) =
+				(txin.previous_output.txid, txin.previous_output.vout);
 
-					let vout = txin.previous_output.vout as usize;
-					if vout < tx.output.len() {
-						let txout = &tx.output[vout];
-
-						Address::from_script(
-							&txout.script_pubkey,
-							bitcoin_network,
-						)
-						.ok()
-						.map(|a| (a, txout.value))
-					} else {
-						None
-					}
+			if !txid.is_empty() {
+				if let Some((a, v)) = self.get_utxo(txid, vout).await? {
+					all_inputs.push((a, v))
 				}
-			})
-			.collect();
-
-		let all_outputs: Vec<(Address, u64)> = tx
-			.output
-			.iter()
-			.filter_map(|txout| {
-				Address::from_script(&txout.script_pubkey, bitcoin_network)
-					.ok()
-					.map(|a| (a, txout.value))
-			})
-			.collect();
+			}
+		}
 
 		let get_unique_addresses = move |pair: Vec<(Address, u64)>| {
 			let mut m = HashMap::<String, u64>::new();
@@ -212,10 +192,9 @@ impl Bitcoin {
 				let (address, value) = p;
 				let address_key = address.to_string();
 
-				let initial_value = if m.contains_key(&address_key) {
-					m[&address_key]
-				} else {
-					0
+				let initial_value = match m.contains_key(&address_key) {
+					true => m[&address_key],
+					_ => 0,
 				};
 
 				m.insert(address_key, initial_value + value);
@@ -252,6 +231,79 @@ impl Bitcoin {
 				}
 			}
 		}
+
+		Ok(ret)
+	}
+
+	async fn index_transaction_outputs(
+		&self,
+		tx: &BitcoinTransaction,
+	) -> Result<Vec<(Address, u64)>> {
+		let mut ret = vec![];
+
+		for (i, txout) in tx.output.iter().enumerate() {
+			let s = &txout.script_pubkey;
+			let b = self.bitcoin_network;
+
+			if let Ok(a) = Address::from_script(s, b) {
+				let cache_key = CacheKey::BitcoinTxIndex(
+					self.network.network_id as u64,
+					tx.txid().as_hash().to_string(),
+					i as u32,
+				);
+
+				let v = txout.value;
+				let cache_value = (a.to_string(), v);
+
+				self.app_state
+					.cache
+					.set::<(String, u64)>(cache_key, cache_value)
+					.await?;
+
+				ret.push((a, v));
+			}
+		}
+
+		Ok(ret)
+	}
+
+	async fn get_utxo(
+		&self,
+		txid: Txid,
+		vout: u32,
+	) -> Result<Option<(Address, u64)>> {
+		let cache_key = CacheKey::BitcoinTxIndex(
+			self.network.network_id as u64,
+			txid.as_hash().to_string(),
+			vout,
+		);
+
+		let ret = match self
+			.app_state
+			.cache
+			.get::<(String, u64)>(cache_key.clone())
+			.await?
+		{
+			Some((a, v)) => {
+				self.app_state.cache.delete(cache_key.clone()).await?;
+				Some((Address::from_str(&a)?, v))
+			}
+			_ => {
+				let tx = self.client.get_raw_transaction(&txid, None)?;
+				if vout < tx.output.len() as u32 {
+					let txout = &tx.output[vout as usize];
+
+					Address::from_script(
+						&txout.script_pubkey,
+						self.bitcoin_network,
+					)
+					.ok()
+					.map(|a| (a, txout.value))
+				} else {
+					None
+				}
+			}
+		};
 
 		Ok(ret)
 	}

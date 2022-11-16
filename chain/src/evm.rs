@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 use ethers::{
 	abi::AbiEncode, prelude::*, types::Transaction as EvmTransaction,
+	utils as ethers_utils,
 };
 use eyre::{bail, Result};
 use indicatif::ProgressBar;
@@ -9,6 +10,7 @@ use std::sync::Arc;
 
 use crate::ChainTrait;
 use barreleye_common::{
+	cache::CacheKey,
 	models::{Config, ConfigKey, Network, Transfer},
 	utils, AppState,
 };
@@ -174,13 +176,12 @@ impl Evm {
 		}
 
 		// skip if contract fn call
-		let block_id = BlockId::Hash(tx.block_hash.unwrap());
-		if !self.provider.get_code(to, Some(block_id)).await?.is_empty() {
+		if self.is_smart_contract(&to).await? {
 			return Ok(ret);
 		}
 
 		// skip if contract is sending funds
-		if !self.provider.get_code(tx.from, Some(block_id)).await?.is_empty() {
+		if self.is_smart_contract(&tx.from).await? {
 			return Ok(ret);
 		}
 
@@ -189,13 +190,35 @@ impl Evm {
 			block_height,
 			block_hash,
 			tx.hash.encode_hex(),
-			ethers::utils::to_checksum(&tx.from, None).into(),
-			ethers::utils::to_checksum(&to, None).into(),
+			ethers_utils::to_checksum(&tx.from, None).into(),
+			ethers_utils::to_checksum(&to, None).into(),
 			None,
 			U256::from_str_radix(&tx.value.to_string(), 10)?,
 			U256::from_str_radix(&tx.value.to_string(), 10)?,
 		));
 
 		Ok(ret)
+	}
+
+	async fn is_smart_contract(&self, address: &H160) -> Result<bool> {
+		let cache_key = CacheKey::EvmSmartContract(
+			self.network.network_id as u64,
+			ethers_utils::to_checksum(address, None),
+		);
+
+		Ok(match self.app_state.cache.get::<bool>(cache_key.clone()).await? {
+			Some(v) => v,
+			_ => {
+				let is_smart_contract =
+					!self.provider.get_code(*address, None).await?.is_empty();
+
+				self.app_state
+					.cache
+					.set::<bool>(cache_key, is_smart_contract)
+					.await?;
+
+				is_smart_contract
+			}
+		})
 	}
 }

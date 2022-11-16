@@ -5,44 +5,55 @@ use serde::Deserialize;
 use std::{fs, fs::OpenOptions, path::PathBuf};
 use url::Url;
 
-use crate::{db::Dialect as DatabaseDialect, errors::AppError, progress};
+use crate::{
+	cache::Driver as CacheDriver, db::Driver as DatabaseDriver,
+	errors::AppError, progress, warehouse::Driver as WarehouseDriver,
+};
 
 pub static DEFAULT_SETTINGS_FILENAME: &str = "barreleye.toml";
 pub static DEFAULT_SETTINGS_CONTENT: &str = r#"
-hardcoded_lists_refresh_rate = 3600 # in seconds
+sdn_refresh_rate = 3600 # in seconds
+leader_ping = 5 # in seconds
+leader_promotion = 15 # in seconds
 
 [server]
 ip_v4 = "0.0.0.0"
-ip_v6 = "" # "::"
+ip_v6 = "::"
 port = 22775
 
-[warehouse]
-dialect = "clickhouse"
-name = "barreleye"
-processing_frequency = 5 # in seconds
-leader_promotion_timeout = 15 # in seconds
-
-[warehouse.clickhouse]
-url = "http://localhost:8123"
+[cache]
+driver = "rocksdb"
 
 [database]
-dialect = "sqlite"
-name = "barreleye"
+driver = "sqlite" # or "postgres" or "mysql"
 min_connections = 5
 max_connections = 100
 connect_timeout = 8
 idle_timeout = 8
 max_lifetime = 8
 
-[database.sqlite]
-url = "sqlite://data.db?mode=rwc"
+[warehouse]
+driver = "clickhouse"
 
-[database.postgres]
-url = "" # eg: "postgres://USERNAME[:PASSWORD]@localhost:5432"
-
-[database.mysql]
-url = "" # eg: "mysql://USERNAME[:PASSWORD]@localhost:3306"
+[dsn]
+rocksdb = "rocksdb://barreleye_cache"
+sqlite = "sqlite://barreleye_database?mode=rwc"
+postgres = "" # eg: "postgres://USERNAME[:PASSWORD]@localhost:5432/database"
+mysql = "" # eg: "mysql://USERNAME[:PASSWORD]@localhost:3306/database"
+clickhouse = "" # eg: "http://USERNAME[:PASSWORD]@localhost:8123/database"
 "#;
+
+#[derive(Debug, Deserialize)]
+pub struct Settings {
+	pub sdn_refresh_rate: u64,
+	pub leader_ping: u64,
+	pub leader_promotion: u64,
+	pub server: Server,
+	pub cache: Cache,
+	pub database: Database,
+	pub warehouse: Warehouse,
+	pub dsn: Dsn,
+}
 
 #[derive(Debug, Deserialize)]
 pub struct Server {
@@ -52,45 +63,32 @@ pub struct Server {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct Dsn {
-	pub url: String,
-}
-
-#[derive(Debug, Deserialize)]
-pub enum WarehouseDialect {
-	#[serde(rename = "clickhouse")]
-	Clickhouse,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct Warehouse {
-	pub dialect: WarehouseDialect,
-	pub name: String,
-	pub processing_frequency: u64,
-	pub leader_promotion_timeout: u64,
-	pub clickhouse: Dsn,
+pub struct Cache {
+	pub driver: CacheDriver,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct Database {
-	pub dialect: DatabaseDialect,
-	pub name: String,
+	pub driver: DatabaseDriver,
 	pub min_connections: u32,
 	pub max_connections: u32,
 	pub connect_timeout: u64,
 	pub idle_timeout: u64,
 	pub max_lifetime: u64,
-	pub sqlite: Dsn,
-	pub postgres: Dsn,
-	pub mysql: Dsn,
 }
 
 #[derive(Debug, Deserialize)]
-pub struct Settings {
-	pub hardcoded_lists_refresh_rate: u64,
-	pub server: Server,
-	pub warehouse: Warehouse,
-	pub database: Database,
+pub struct Warehouse {
+	pub driver: WarehouseDriver,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Dsn {
+	pub rocksdb: String,
+	pub sqlite: String,
+	pub postgres: String,
+	pub mysql: String,
+	pub clickhouse: String,
 }
 
 impl Settings {
@@ -131,31 +129,27 @@ impl Settings {
 		let settings: Settings = s.build()?.try_deserialize()?;
 
 		// test for common errors
-		if Url::parse(&settings.warehouse.clickhouse.url).is_err() {
+		if Url::parse(&settings.dsn.clickhouse).is_err() {
 			progress::quit(AppError::InvalidSetting {
-				key: "warehouse.clickhouse.url".to_string(),
-				value: settings.warehouse.clickhouse.url.clone(),
+				key: "dsn.clickhouse".to_string(),
+				value: settings.dsn.clickhouse.clone(),
 			});
 		}
 
-		let backend_url = match settings.database.dialect {
-			DatabaseDialect::SQLite => settings.database.sqlite.url.clone(),
-			DatabaseDialect::PostgreSQL => {
-				settings.database.postgres.url.clone()
-			}
-			DatabaseDialect::MySQL => settings.database.mysql.url.clone(),
+		let backend_url = match settings.database.driver {
+			DatabaseDriver::SQLite => settings.dsn.sqlite.clone(),
+			DatabaseDriver::PostgreSQL => settings.dsn.postgres.clone(),
+			DatabaseDriver::MySQL => settings.dsn.mysql.clone(),
 		};
 		if Url::parse(&backend_url).is_err() {
 			progress::quit(AppError::InvalidSetting {
-				key: format!("database.{}.url", settings.database.dialect),
+				key: format!("dsn.{}", settings.database.driver),
 				value: backend_url,
 			});
 		}
 
-		if settings.warehouse.processing_frequency * 2 >=
-			settings.warehouse.leader_promotion_timeout
-		{
-			progress::quit(AppError::InvalidPromotionTimeout);
+		if settings.leader_ping * 2 >= settings.leader_promotion {
+			progress::quit(AppError::InvalidLeaderConfigs);
 		}
 
 		Ok(settings)

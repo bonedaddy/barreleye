@@ -8,10 +8,13 @@ use sea_orm::{
 use serde::{Deserialize, Serialize};
 use std::{sync::Arc, time::Duration};
 
-use crate::{progress, progress::Step, Settings};
+use crate::{progress, progress::Step, utils, Settings};
+use migrations::{Migrator, MigratorTrait};
+
+mod migrations;
 
 #[derive(Display, Debug, Serialize, Deserialize)]
-pub enum Dialect {
+pub enum Driver {
 	#[display(fmt = "sqlite")]
 	#[serde(rename = "sqlite")]
 	SQLite,
@@ -25,19 +28,16 @@ pub enum Dialect {
 	MySQL,
 }
 
-mod migrations;
-use migrations::{Migrator, MigratorTrait};
-
 pub struct Db {
 	db: DatabaseConnection,
 }
 
 impl Db {
 	pub async fn new(settings: Arc<Settings>) -> Result<Self> {
-		let url = match settings.database.dialect {
-			Dialect::SQLite => settings.database.sqlite.url.clone(),
-			Dialect::PostgreSQL => settings.database.postgres.url.clone(),
-			Dialect::MySQL => settings.database.mysql.url.clone(),
+		let url = match settings.database.driver {
+			Driver::SQLite => settings.dsn.sqlite.clone(),
+			Driver::PostgreSQL => settings.dsn.postgres.clone(),
+			Driver::MySQL => settings.dsn.mysql.clone(),
 		};
 
 		let with_options = |url: String| -> ConnectOptions {
@@ -46,8 +46,8 @@ impl Db {
 			// @TODO for sqlite, max out at 1 connection otherwise
 			// writes are not guaranteed to be executed serially
 			let (min_connections, max_connections) =
-				match settings.database.dialect {
-					Dialect::SQLite => (1, 1),
+				match settings.database.driver {
+					Driver::SQLite => (1, 1),
 					_ => (
 						settings.database.min_connections,
 						settings.database.max_connections,
@@ -71,11 +71,13 @@ impl Db {
 			opt
 		};
 
-		let db_name = settings.database.name.clone();
-		let url_with_database = format!("{url}/{db_name}");
-		let conn = Database::connect(with_options(url.clone()))
-			.await
-			.wrap_err(url.clone())?;
+		let (url_without_database, db_name) = utils::without_pathname(&url);
+		let url_with_database = url;
+
+		let conn =
+			Database::connect(with_options(url_without_database.clone()))
+				.await
+				.wrap_err(url_without_database.clone())?;
 
 		let db = match conn.get_database_backend() {
 			DbBackend::MySql => {
@@ -84,16 +86,16 @@ impl Db {
 					format!("CREATE DATABASE IF NOT EXISTS `{db_name}`;"),
 				))
 				.await
-				.wrap_err(url.clone())?;
+				.wrap_err(url_without_database.clone())?;
 
-				Database::connect(with_options(url_with_database))
+				Database::connect(with_options(url_with_database.clone()))
 					.await
-					.wrap_err(url.clone())?
+					.wrap_err(url_with_database.clone())?
 			}
 			DbBackend::Postgres => {
 				let result = conn
 					.execute(Statement::from_string(DbBackend::Postgres, format!("SELECT datname FROM pg_catalog.pg_database WHERE datname='{db_name}';")))
-					.await.wrap_err(url.clone())?;
+					.await.wrap_err(url_without_database.clone())?;
 
 				if result.rows_affected() == 0 {
 					conn.execute(Statement::from_string(
@@ -101,12 +103,12 @@ impl Db {
 						format!(r#"CREATE DATABASE "{db_name}";"#),
 					))
 					.await
-					.wrap_err(url.clone())?;
+					.wrap_err(url_without_database.clone())?;
 				}
 
-				Database::connect(with_options(url_with_database))
+				Database::connect(with_options(url_with_database.clone()))
 					.await
-					.wrap_err(url.clone())?
+					.wrap_err(url_with_database.clone())?
 			}
 			DbBackend::Sqlite => conn,
 		};

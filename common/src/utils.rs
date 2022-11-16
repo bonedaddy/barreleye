@@ -47,3 +47,87 @@ pub fn with_masked_auth(url: &str) -> String {
 		_ => url.to_string(),
 	}
 }
+
+pub fn without_pathname(url: &str) -> (String, String) {
+	match Url::parse(url) {
+		Ok(mut parsed_url) => {
+			let path = parsed_url.path().trim_matches('/').to_string();
+			parsed_url.set_path("");
+
+			(parsed_url.to_string(), path)
+		}
+		_ => (url.to_string(), "".to_string()),
+	}
+}
+
+pub fn get_db_path(url: &str) -> String {
+	if let Ok(parsed_url) = Url::parse(url) {
+		if let Some(host) = parsed_url.host() {
+			return host.to_string();
+		} else {
+			return parsed_url.path().trim_end_matches('/').to_string();
+		}
+	}
+
+	"".to_string()
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use std::collections::HashMap;
+
+	#[test]
+	fn test_with_masked_auth() {
+		let data = HashMap::from([
+			("", ""),
+			("http://test.com/", "http://test.com/"),
+			("http://username@test.com/", "http://username@test.com/"),
+			(
+				"http://username:password@test.com/",
+				"http://username:***@test.com/",
+			),
+		]);
+
+		for (from, to) in data.into_iter() {
+			assert_eq!(with_masked_auth(&from), to,)
+		}
+	}
+
+	#[test]
+	fn test_without_pathname() {
+		let data = HashMap::from([
+			("", ("", "")),
+			("http://test.com/pathname", ("http://test.com/", "pathname")),
+			(
+				"http://username@test.com/pathname",
+				("http://username@test.com/", "pathname"),
+			),
+			(
+				"http://username:password@test.com/pathname",
+				("http://username:password@test.com/", "pathname"),
+			),
+		]);
+
+		for (from, (to, pathname)) in data.into_iter() {
+			assert_eq!(
+				without_pathname(&from),
+				(to.to_string(), pathname.to_string())
+			)
+		}
+	}
+
+	#[test]
+	fn test_get_db_path() {
+		let data = HashMap::from([
+			("", ""),
+			("protocol://test", "test"),
+			("protocol:///test", "/test"),
+			("protocol:///test?params", "/test"),
+		]);
+
+		for (from, path) in data.into_iter() {
+			assert_eq!(get_db_path(&from), path.to_string())
+		}
+	}
+}

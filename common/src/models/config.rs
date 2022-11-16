@@ -7,7 +7,7 @@ use serde_json::json;
 
 use crate::{models::PrimaryId, utils, Db};
 
-#[derive(Display, Clone)]
+#[derive(Display, Debug, Clone)]
 pub enum ConfigKey {
 	#[display(fmt = "leader")]
 	Leader,

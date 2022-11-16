@@ -17,11 +17,12 @@ pub enum AppError {
 	#[display(fmt = "Could not connect to the database @ `{url}`.")]
 	DatabaseConnection { url: String },
 
+	#[display(fmt = "Could not connect to the cache @ `{url}`.")]
+	CacheConnection { url: String },
+
 	#[display(fmt = "Could not complete network setup:\n{error}")]
 	NetworkFailure { error: String },
 
-	#[display(
-		fmt = "Promotion timeout should be at least 2x processing frequency."
-	)]
-	InvalidPromotionTimeout,
+	#[display(fmt = "Leader promotion should be at least 2x leader ping.")]
+	InvalidLeaderConfigs,
 }

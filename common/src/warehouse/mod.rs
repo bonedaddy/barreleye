@@ -1,8 +1,17 @@
 use clickhouse::Client as ClickhouseClient;
+use derive_more::Display;
 use eyre::Result;
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-use crate::Settings;
+use crate::{utils, Settings};
+
+#[derive(Display, Debug, Serialize, Deserialize)]
+pub enum Driver {
+	#[display(fmt = "clickhouse")]
+	#[serde(rename = "clickhouse")]
+	Clickhouse,
+}
 
 pub struct Clickhouse {
 	client: ClickhouseClient,
@@ -15,12 +24,15 @@ pub struct Warehouse {
 
 impl Warehouse {
 	pub async fn new(settings: Arc<Settings>) -> Result<Self> {
+		let (url_without_database, db_name) =
+			utils::without_pathname(&settings.dsn.clickhouse);
+
 		Ok(Self {
-			db_name: settings.warehouse.name.clone(),
+			db_name: db_name.clone(),
 			clickhouse: Clickhouse {
 				client: ClickhouseClient::default()
-					.with_url(settings.warehouse.clickhouse.url.clone())
-					.with_database(settings.warehouse.name.clone()),
+					.with_url(url_without_database)
+					.with_database(db_name),
 			},
 		})
 	}

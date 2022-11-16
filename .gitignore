@@ -1,5 +1,6 @@
-target
+barreleye.toml
 **/*.rs.bk
 .env*.local
-**/*.db
-barreleye.toml
+target
+barreleye_cache
+barreleye_database

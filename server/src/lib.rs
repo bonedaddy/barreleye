@@ -11,7 +11,7 @@ use barreleye_common::{
 	models::{Config, ConfigKey},
 	progress,
 	progress::Step,
-	utils, AppError, AppState, Db, Env, Settings, Warehouse,
+	utils, AppError, AppState, Cache, Db, Env, Settings, Warehouse,
 };
 use errors::ServerError;
 use lists::Lists;
@@ -56,8 +56,19 @@ pub async fn start(env: Env, is_indexer: bool, is_server: bool) -> Result<()> {
 			.await?,
 	);
 
+	let cache = Arc::new(
+		Cache::new(settings.clone())
+			.await
+			.map_err(|url| {
+				progress::quit(AppError::CacheConnection {
+					url: url.to_string(),
+				});
+			})
+			.unwrap(),
+	);
+
 	let app_state = Arc::new(AppState::new(
-		settings, warehouse, db, env, is_indexer, is_server,
+		settings, cache, db, warehouse, env, is_indexer, is_server,
 	));
 
 	let mut networks = Networks::new(app_state.clone()).connect().await?;
@@ -104,12 +115,12 @@ pub async fn start(env: Env, is_indexer: bool, is_server: bool) -> Result<()> {
 }
 
 async fn leader_check(app_state: Arc<AppState>) -> Result<()> {
-	let frequency = app_state.settings.warehouse.processing_frequency;
-	let timeout = app_state.settings.warehouse.leader_promotion_timeout;
+	let leader_ping = app_state.settings.leader_ping;
+	let leader_promotion = app_state.settings.leader_promotion;
 
 	loop {
-		let active_at = utils::ago_in_seconds(frequency + 1);
-		let promoted_at = utils::ago_in_seconds(timeout);
+		let active_at = utils::ago_in_seconds(leader_ping + 1);
+		let promoted_at = utils::ago_in_seconds(leader_promotion);
 
 		let check_in = Config::set::<Uuid>(
 			&app_state.db,
@@ -136,6 +147,6 @@ async fn leader_check(app_state: Arc<AppState>) -> Result<()> {
 			}
 		}
 
-		sleep(Duration::from_secs(frequency)).await
+		sleep(Duration::from_secs(leader_ping)).await
 	}
 }
