@@ -38,6 +38,7 @@ pub async fn start(env: Env, is_indexer: bool, is_server: bool) -> Result<()> {
 			.await
 			.map_err(|url| {
 				progress::quit(AppError::ServiceConnection {
+					service: settings.warehouse.driver.to_string(),
 					url: url.to_string(),
 				});
 			})
@@ -49,6 +50,7 @@ pub async fn start(env: Env, is_indexer: bool, is_server: bool) -> Result<()> {
 			.await
 			.map_err(|url| {
 				progress::quit(AppError::ServiceConnection {
+					service: settings.database.driver.to_string(),
 					url: url.to_string(),
 				});
 			})
@@ -62,6 +64,7 @@ pub async fn start(env: Env, is_indexer: bool, is_server: bool) -> Result<()> {
 			.await
 			.map_err(|url| {
 				progress::quit(AppError::ServiceConnection {
+					service: settings.cache.driver.to_string(),
 					url: url.to_string(),
 				});
 			})
@@ -91,22 +94,31 @@ pub async fn start(env: Env, is_indexer: bool, is_server: bool) -> Result<()> {
 		}),
 		tokio::spawn(async move {
 			match is_indexer {
-				true => networks.watch().await,
+				true => tokio::select! {
+					v = networks.watch() => v,
+					_ = signal::ctrl_c() => Ok(()),
+				},
 				_ => Ok(())
 			}
 		}),
 		tokio::spawn(async move {
 			match is_indexer {
-				true => lists.watch().await,
+				true => tokio::select! {
+					v = lists.watch() => v,
+					_ = signal::ctrl_c() => Ok(()),
+				},
 				_ => Ok(())
 			}
 		}),
 		tokio::spawn({
 			let app_state = app_state.clone();
 			async move {
-				tokio::select! {
-					_ = leader_check(app_state) => {},
-					_ = signal::ctrl_c() => {},
+				match is_indexer {
+					true => tokio::select! {
+						v = leader_check(app_state) => v,
+						_ = signal::ctrl_c() => Ok(()),
+					},
+					_ => Ok(())
 				}
 			}
 		}),

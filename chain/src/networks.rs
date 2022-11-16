@@ -1,12 +1,10 @@
+use console::style;
 use eyre::{ErrReport, Result};
 use futures::future::join_all;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use itertools::{Either, Itertools};
 use std::{collections::HashMap, sync::Arc};
-use tokio::{
-	signal,
-	time::{sleep, Duration},
-};
+use tokio::time::{sleep, Duration};
 
 use crate::{Bitcoin, ChainTrait, Evm};
 use barreleye_common::{
@@ -134,73 +132,79 @@ impl Networks {
 	}
 
 	pub async fn watch(&mut self) -> Result<()> {
-		let watch = async {
-			loop {
-				if self.app_state.is_ready() && self.app_state.is_leader() {
-					self.sync_networks().await?;
+		'watching: loop {
+			if self.app_state.is_ready() && self.app_state.is_leader() {
+				self.sync_networks().await?;
 
-					let mut futures = vec![];
+				let mut futures = vec![];
 
-					for (network_id, chain) in self.networks_map.iter() {
-						let last_saved_block = match Config::get::<u64>(
+				for (network_id, chain) in self.networks_map.iter() {
+					let last_saved_block = match Config::get::<u64>(
+						&self.app_state.db,
+						ConfigKey::LastSavedBlock(*network_id as u64),
+					)
+					.await?
+					{
+						Some(hit) => hit.value,
+						_ => chain.get_last_processed_block().await?,
+					};
+
+					let block_height = {
+						let config_key =
+							ConfigKey::BlockHeight(*network_id as u64);
+
+						match Config::get::<u64>(
 							&self.app_state.db,
-							ConfigKey::LastSavedBlock(*network_id as u64),
+							config_key.clone(),
 						)
 						.await?
 						{
-							Some(hit) => hit.value,
-							_ => chain.get_last_processed_block().await?,
-						};
-
-						let block_height = {
-							let config_key =
-								ConfigKey::BlockHeight(*network_id as u64);
-
-							match Config::get::<u64>(
-								&self.app_state.db,
-								config_key.clone(),
-							)
-							.await?
-							{
-								Some(hit) if hit.value > last_saved_block => {
-									hit.value
-								}
-								_ => {
-									let block_height =
-										chain.get_block_height().await?;
-
-									Config::set::<u64>(
-										&self.app_state.db,
-										config_key,
-										block_height,
-									)
-									.await?;
-
-									block_height
-								}
+							Some(hit) if hit.value > last_saved_block => {
+								hit.value
 							}
-						};
+							_ => {
+								let block_height =
+									chain.get_block_height().await?;
 
-						if last_saved_block < block_height {
-							futures.push(tokio::spawn({
-								let c = chain.clone();
-								async move {
-									c.process_blocks(last_saved_block).await
-								}
-							}));
+								Config::set::<u64>(
+									&self.app_state.db,
+									config_key,
+									block_height,
+								)
+								.await?;
+
+								block_height
+							}
 						}
+					};
+
+					if last_saved_block < block_height {
+						futures.push(tokio::spawn({
+							let c = chain.clone();
+							async move {
+								let block_height =
+									c.process_blocks(last_saved_block).await?;
+
+								println!(
+									"{}: processed block {}",
+									style(c.get_network().name).yellow(),
+									style(block_height).bold()
+								);
+
+								Ok::<_, ErrReport>(block_height)
+							}
+						}));
 					}
-
-					join_all(futures).await;
-				} else {
-					sleep(Duration::from_secs(1)).await;
 				}
-			}
-		};
 
-		tokio::select! {
-			v = watch => v,
-			_ = signal::ctrl_c() => Ok(()),
+				for result in join_all(futures).await.into_iter() {
+					if let Err(e) = result {
+						break 'watching Err(e.into());
+					}
+				}
+			} else {
+				sleep(Duration::from_secs(1)).await;
+			}
 		}
 	}
 }

@@ -8,7 +8,7 @@ use crate::{utils, Settings};
 
 #[derive(Display, Debug, Serialize, Deserialize)]
 pub enum Driver {
-	#[display(fmt = "clickhouse")]
+	#[display(fmt = "Clickhouse")]
 	#[serde(rename = "clickhouse")]
 	Clickhouse,
 }

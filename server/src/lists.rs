@@ -5,10 +5,7 @@ use std::{
 	str::FromStr,
 	sync::Arc,
 };
-use tokio::{
-	signal,
-	time::{sleep, Duration},
-};
+use tokio::time::{sleep, Duration};
 
 use barreleye_common::{
 	models::{BasicModel, Config, ConfigKey, Label, LabeledAddress},
@@ -25,24 +22,17 @@ impl Lists {
 	}
 
 	pub async fn watch(&self) -> Result<()> {
-		let watch = async {
-			loop {
-				let timeout = if self.app_state.is_ready() &&
-					self.app_state.is_leader()
-				{
-					self.fetch_data().await?;
-					self.app_state.settings.sdn_refresh_rate
-				} else {
-					1
+		loop {
+			let timeout =
+				match self.app_state.is_ready() && self.app_state.is_leader() {
+					true => {
+						self.fetch_data().await?;
+						self.app_state.settings.sdn_refresh_rate
+					}
+					_ => 1,
 				};
 
-				sleep(Duration::from_secs(timeout)).await;
-			}
-		};
-
-		tokio::select! {
-			v = watch => v,
-			_ = signal::ctrl_c() => Ok(()),
+			sleep(Duration::from_secs(timeout)).await;
 		}
 	}
 

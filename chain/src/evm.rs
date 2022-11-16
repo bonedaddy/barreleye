@@ -104,7 +104,7 @@ impl ChainTrait for Evm {
 		.unwrap_or(0))
 	}
 
-	async fn process_blocks(&self, last_saved_block: u64) -> Result<()> {
+	async fn process_blocks(&self, last_saved_block: u64) -> Result<u64> {
 		let block_height = last_saved_block + 1;
 
 		let mut transfers = vec![];
@@ -135,7 +135,9 @@ impl ChainTrait for Evm {
 			ConfigKey::LastSavedBlock(self.network.network_id as u64),
 			block_height,
 		)
-		.await
+		.await?;
+
+		Ok(block_height)
 	}
 }
 

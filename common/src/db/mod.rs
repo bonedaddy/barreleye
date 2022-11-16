@@ -15,15 +15,15 @@ mod migrations;
 
 #[derive(Display, Debug, Serialize, Deserialize)]
 pub enum Driver {
-	#[display(fmt = "sqlite")]
+	#[display(fmt = "SQLite")]
 	#[serde(rename = "sqlite")]
 	SQLite,
 
-	#[display(fmt = "postgres")]
+	#[display(fmt = "PostgreSQL")]
 	#[serde(rename = "postgres")]
 	PostgreSQL,
 
-	#[display(fmt = "mysql")]
+	#[display(fmt = "MySQL")]
 	#[serde(rename = "mysql")]
 	MySQL,
 }

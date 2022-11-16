@@ -299,6 +299,7 @@ dependencies = [
  "barreleye-common",
  "bitcoin",
  "bitcoincore-rpc",
+ "console 0.15.2",
  "ethers",
  "eyre",
  "futures",

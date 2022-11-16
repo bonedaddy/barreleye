@@ -16,5 +16,5 @@ pub trait ChainTrait: Send + Sync {
 	fn get_rpc(&self) -> Option<String>;
 	async fn get_block_height(&self) -> Result<u64>;
 	async fn get_last_processed_block(&self) -> Result<u64>;
-	async fn process_blocks(&self, last_saved_block: u64) -> Result<()>;
+	async fn process_blocks(&self, last_saved_block: u64) -> Result<u64>;
 }

@@ -11,8 +11,8 @@ pub enum AppError {
 	#[display(fmt = "Invalid setting for `{key}`: `{value}`.")]
 	InvalidSetting { key: String, value: String },
 
-	#[display(fmt = "Could not connect to `{url}`.")]
-	ServiceConnection { url: String },
+	#[display(fmt = "Could not connect to {service} @ `{url}`.")]
+	ServiceConnection { service: String, url: String },
 
 	#[display(fmt = "Could not complete network setup:\n{error}")]
 	NetworkFailure { error: String },

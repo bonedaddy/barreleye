@@ -122,7 +122,7 @@ impl ChainTrait for Bitcoin {
 		.unwrap_or(0))
 	}
 
-	async fn process_blocks(&self, last_saved_block: u64) -> Result<()> {
+	async fn process_blocks(&self, last_saved_block: u64) -> Result<u64> {
 		let block_height = last_saved_block + 1;
 
 		let block_hash = self.client.get_block_hash(block_height)?;
@@ -151,7 +151,9 @@ impl ChainTrait for Bitcoin {
 			ConfigKey::LastSavedBlock(self.network.network_id as u64),
 			block_height,
 		)
-		.await
+		.await?;
+
+		Ok(block_height)
 	}
 }
 
