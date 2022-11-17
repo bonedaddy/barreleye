@@ -23,7 +23,7 @@ impl From<CacheKey> for String {
 	}
 }
 
-#[derive(Display, Debug, Serialize, Deserialize)]
+#[derive(Display, Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub enum Driver {
 	#[display(fmt = "RocksDB")]
 	#[serde(rename = "rocksdb")]

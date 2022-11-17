@@ -13,7 +13,7 @@ use migrations::{Migrator, MigratorTrait};
 
 mod migrations;
 
-#[derive(Display, Debug, Serialize, Deserialize)]
+#[derive(Display, Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub enum Driver {
 	#[display(fmt = "SQLite")]
 	#[serde(rename = "sqlite")]
@@ -34,7 +34,7 @@ pub struct Db {
 
 impl Db {
 	pub async fn new(settings: Arc<Settings>) -> Result<Self> {
-		let url = match settings.database.driver {
+		let url = match settings.db.driver {
 			Driver::SQLite => settings.dsn.sqlite.clone(),
 			Driver::PostgreSQL => settings.dsn.postgres.clone(),
 			Driver::MySQL => settings.dsn.mysql.clone(),
@@ -45,26 +45,18 @@ impl Db {
 
 			// @TODO for sqlite, max out at 1 connection otherwise
 			// writes are not guaranteed to be executed serially
-			let (min_connections, max_connections) =
-				match settings.database.driver {
-					Driver::SQLite => (1, 1),
-					_ => (
-						settings.database.min_connections,
-						settings.database.max_connections,
-					),
-				};
+			let (min_connections, max_connections) = match settings.db.driver {
+				Driver::SQLite => (1, 1),
+				_ => (settings.db.min_connections, settings.db.max_connections),
+			};
 
 			opt.max_connections(max_connections)
 				.min_connections(min_connections)
 				.connect_timeout(Duration::from_secs(
-					settings.database.connect_timeout,
+					settings.db.connect_timeout,
 				))
-				.idle_timeout(Duration::from_secs(
-					settings.database.idle_timeout,
-				))
-				.max_lifetime(Duration::from_secs(
-					settings.database.max_lifetime,
-				))
+				.idle_timeout(Duration::from_secs(settings.db.idle_timeout))
+				.max_lifetime(Duration::from_secs(settings.db.max_lifetime))
 				.sqlx_logging(false)
 				.sqlx_logging_level(LevelFilter::Warn);
 

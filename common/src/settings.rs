@@ -7,7 +7,7 @@ use url::Url;
 
 use crate::{
 	cache::Driver as CacheDriver, db::Driver as DatabaseDriver,
-	errors::AppError, progress, warehouse::Driver as WarehouseDriver,
+	errors::AppError, progress, utils, warehouse::Driver as WarehouseDriver,
 };
 
 pub static DEFAULT_SETTINGS_FILENAME: &str = "barreleye.toml";
@@ -24,7 +24,7 @@ port = 22775
 [cache]
 driver = "rocksdb"
 
-[database]
+[db]
 driver = "sqlite" # or "postgres" or "mysql"
 min_connections = 5
 max_connections = 100
@@ -50,7 +50,7 @@ pub struct Settings {
 	pub leader_promotion: u64,
 	pub server: Server,
 	pub cache: Cache,
-	pub database: Database,
+	pub db: Db,
 	pub warehouse: Warehouse,
 	pub dsn: Dsn,
 }
@@ -68,7 +68,7 @@ pub struct Cache {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct Database {
+pub struct Db {
 	pub driver: DatabaseDriver,
 	pub min_connections: u32,
 	pub max_connections: u32,
@@ -128,26 +128,40 @@ impl Settings {
 		// try to create a struct
 		let settings: Settings = s.build()?.try_deserialize()?;
 
-		// test for common errors
-		if Url::parse(&settings.dsn.clickhouse).is_err() {
+		// test: dsn for cache
+		if settings.cache.driver == CacheDriver::RocksDB &&
+			utils::get_db_path(&settings.dsn.rocksdb).is_empty()
+		{
+			progress::quit(AppError::InvalidSetting {
+				key: "dsn.rocksdb".to_string(),
+				value: settings.dsn.rocksdb.clone(),
+			});
+		}
+
+		// test: dsn for warehouse
+		if settings.warehouse.driver == WarehouseDriver::Clickhouse &&
+			Url::parse(&settings.dsn.clickhouse).is_err()
+		{
 			progress::quit(AppError::InvalidSetting {
 				key: "dsn.clickhouse".to_string(),
 				value: settings.dsn.clickhouse.clone(),
 			});
 		}
 
-		let backend_url = match settings.database.driver {
+		// test: dsn for db
+		let db_url = match settings.db.driver {
 			DatabaseDriver::SQLite => settings.dsn.sqlite.clone(),
 			DatabaseDriver::PostgreSQL => settings.dsn.postgres.clone(),
 			DatabaseDriver::MySQL => settings.dsn.mysql.clone(),
 		};
-		if Url::parse(&backend_url).is_err() {
+		if Url::parse(&db_url).is_err() {
 			progress::quit(AppError::InvalidSetting {
-				key: format!("dsn.{}", settings.database.driver),
-				value: backend_url,
+				key: format!("dsn.{}", settings.db.driver),
+				value: db_url,
 			});
 		}
 
+		// test: leader settings
 		if settings.leader_ping * 2 >= settings.leader_promotion {
 			progress::quit(AppError::InvalidLeaderConfigs);
 		}

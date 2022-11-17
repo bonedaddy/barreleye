@@ -30,6 +30,18 @@ pub async fn start(env: Env, is_indexer: bool, is_server: bool) -> Result<()> {
 
 	let settings = Arc::new(Settings::new()?);
 
+	let cache = Arc::new(
+		Cache::new(settings.clone())
+			.await
+			.map_err(|url| {
+				progress::quit(AppError::ServiceConnection {
+					service: settings.cache.driver.to_string(),
+					url: url.to_string(),
+				});
+			})
+			.unwrap(),
+	);
+
 	let warehouse = Arc::new(
 		Warehouse::new(settings.clone())
 			.await
@@ -50,25 +62,13 @@ pub async fn start(env: Env, is_indexer: bool, is_server: bool) -> Result<()> {
 			.await
 			.map_err(|url| {
 				progress::quit(AppError::ServiceConnection {
-					service: settings.database.driver.to_string(),
+					service: settings.db.driver.to_string(),
 					url: url.to_string(),
 				});
 			})
 			.unwrap()
 			.run_migrations()
 			.await?,
-	);
-
-	let cache = Arc::new(
-		Cache::new(settings.clone())
-			.await
-			.map_err(|url| {
-				progress::quit(AppError::ServiceConnection {
-					service: settings.cache.driver.to_string(),
-					url: url.to_string(),
-				});
-			})
-			.unwrap(),
 	);
 
 	let app_state = Arc::new(AppState::new(

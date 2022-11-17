@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use crate::{utils, Settings};
 
-#[derive(Display, Debug, Serialize, Deserialize)]
+#[derive(Display, Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub enum Driver {
 	#[display(fmt = "Clickhouse")]
 	#[serde(rename = "clickhouse")]
