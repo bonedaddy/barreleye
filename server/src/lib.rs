@@ -79,7 +79,7 @@ pub async fn start(env: Env, is_indexer: bool, is_server: bool) -> Result<()> {
 	let server = Server::new(app_state.clone());
 	let lists = Lists::new(app_state.clone());
 
-	let (server_done, watcher_done, lists_done, _) = tokio::join! {
+	let (server_done, watcher_done, lists_done, _, _) = tokio::join! {
 		tokio::spawn({
 			let app_state = app_state.clone();
 			async move {
@@ -122,6 +122,10 @@ pub async fn start(env: Env, is_indexer: bool, is_server: bool) -> Result<()> {
 				}
 			}
 		}),
+		tokio::spawn(async {
+			signal::ctrl_c().await.ok();
+			println!("\nSIGINT received; bye 👋");
+		}),
 	};
 
 	server_done.and(watcher_done).and(lists_done)?
@@ -130,6 +134,10 @@ pub async fn start(env: Env, is_indexer: bool, is_server: bool) -> Result<()> {
 async fn leader_check(app_state: Arc<AppState>) -> Result<()> {
 	let leader_ping = app_state.settings.leader_ping;
 	let leader_promotion = app_state.settings.leader_promotion;
+
+	if app_state.is_indexer && !app_state.is_server {
+		progress::show(Step::IndexerReady).await;
+	}
 
 	loop {
 		let active_at = utils::ago_in_seconds(leader_ping + 1);

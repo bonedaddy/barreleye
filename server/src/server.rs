@@ -9,7 +9,6 @@ use axum::{
 use console::style;
 use eyre::{Report, Result};
 use hyper::server::{accept::Accept, conn::AddrIncoming};
-use log::info;
 use signal::unix::SignalKind;
 use std::{
 	net::SocketAddr,
@@ -139,8 +138,18 @@ impl Server {
 			settings.server.port,
 		);
 
+		let show_progress = |addr: &str| {
+			progress::show(
+				match self.app_state.is_indexer && self.app_state.is_server {
+					true => Step::Ready(addr.to_string()),
+					_ => Step::ServerReady(addr.to_string()),
+				},
+			)
+		};
+
 		if settings.server.ip_v6.is_empty() {
-			progress::show(Step::Ready(style(ipv4).bold().to_string())).await;
+			show_progress(&style(ipv4).bold().to_string()).await;
+
 			match AxumServer::try_bind(&ipv4) {
 				Err(e) => progress::quit(AppError::ServerStartup {
 					url: ipv4.to_string(),
@@ -170,11 +179,11 @@ impl Server {
 					error: e.message().to_string(),
 				}),
 				(Ok(a), Ok(b)) => {
-					progress::show(Step::Ready(format!(
+					show_progress(&format!(
 						"{} & {}",
 						style(ipv4).bold(),
 						style(ipv6).bold()
-					)))
+					))
 					.await;
 
 					self.app_state.set_is_ready();
@@ -213,8 +222,5 @@ impl Server {
 			_ = ctrl_c => {},
 			_ = terminate => {},
 		}
-
-		info!("");
-		info!("SIGINT received; bye 👋");
 	}
 }

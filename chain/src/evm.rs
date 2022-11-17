@@ -6,12 +6,16 @@ use ethers::{
 use eyre::{bail, Result};
 use indicatif::ProgressBar;
 use primitive_types::U256;
-use std::sync::Arc;
+use std::sync::{
+	atomic::{AtomicBool, Ordering},
+	Arc,
+};
+use tokio::sync::mpsc::{Receiver, Sender};
 
 use crate::ChainTrait;
 use barreleye_common::{
 	cache::CacheKey,
-	models::{Config, ConfigKey, Network, Transfer},
+	models::{Config, ConfigKey, Network, PrimaryId, Transfer},
 	utils, AppState,
 };
 
@@ -104,38 +108,56 @@ impl ChainTrait for Evm {
 		.unwrap_or(0))
 	}
 
-	async fn process_blocks(&self, last_saved_block: u64) -> Result<u64> {
-		let block_height = last_saved_block + 1;
+	async fn process_blocks(
+		&self,
+		last_saved_block: u64,
+		should_keep_going: Arc<AtomicBool>,
+		i_am_done: Sender<PrimaryId>,
+		mut receipt: Receiver<()>,
+	) -> Result<u64> {
+		let mut already_notified = false;
+		let mut block_height = last_saved_block;
 
-		let mut transfers = vec![];
-		match self.provider.get_block_with_txs(block_height).await? {
-			Some(block) if block.number.is_some() => {
-				for tx in block.transactions.into_iter() {
-					for transfer in self
-						.process_transaction_v1(
-							block_height,
-							block.hash.unwrap().encode_hex(),
-							tx,
-						)
-						.await?
-					{
-						transfers.push(transfer);
+		while should_keep_going.load(Ordering::SeqCst) {
+			block_height += 1;
+
+			let mut transfers = vec![];
+			match self.provider.get_block_with_txs(block_height).await? {
+				Some(block) if block.number.is_some() => {
+					for tx in block.transactions.into_iter() {
+						let block_hash = block.hash.unwrap().encode_hex();
+						for transfer in self
+							.process_transaction_v1(
+								block_height,
+								block_hash,
+								tx,
+							)
+							.await?
+						{
+							transfers.push(transfer);
+						}
 					}
 				}
+				_ => {}
 			}
-			_ => {}
-		}
 
-		if !transfers.is_empty() {
-			Transfer::create_many(&self.app_state.warehouse, transfers).await?;
-		}
+			if !transfers.is_empty() {
+				Transfer::create_many(&self.app_state.warehouse, transfers)
+					.await?;
+			}
 
-		Config::set::<u64>(
-			&self.app_state.db,
-			ConfigKey::LastSavedBlock(self.network.network_id as u64),
-			block_height,
-		)
-		.await?;
+			Config::set::<u64>(
+				&self.app_state.db,
+				ConfigKey::LastSavedBlock(self.network.network_id as u64),
+				block_height,
+			)
+			.await?;
+
+			if !already_notified {
+				i_am_done.send(self.network.network_id).await?;
+				already_notified = receipt.recv().await.is_some();
+			}
+		}
 
 		Ok(block_height)
 	}

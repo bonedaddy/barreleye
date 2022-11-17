@@ -3,8 +3,17 @@ use eyre::{ErrReport, Result};
 use futures::future::join_all;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use itertools::{Either, Itertools};
-use std::{collections::HashMap, sync::Arc};
-use tokio::time::{sleep, Duration};
+use std::{
+	collections::HashMap,
+	sync::{
+		atomic::{AtomicBool, Ordering},
+		Arc,
+	},
+};
+use tokio::{
+	sync::{mpsc, mpsc::Sender},
+	time::{sleep, Duration},
+};
 
 use crate::{Bitcoin, ChainTrait, Evm};
 use barreleye_common::{
@@ -132,21 +141,27 @@ impl Networks {
 	}
 
 	pub async fn watch(&mut self) -> Result<()> {
+		let mut last_sync_at = utils::now();
+
 		'watching: loop {
 			if self.app_state.is_ready() && self.app_state.is_leader() {
-				self.sync_networks().await?;
+				if utils::ago_in_seconds(5) > last_sync_at {
+					last_sync_at = utils::now();
+					self.sync_networks().await?;
+				}
 
-				let mut futures = vec![];
-
+				let mut network_ids = HashMap::new();
 				for (network_id, chain) in self.networks_map.iter() {
-					let last_saved_block = match Config::get::<u64>(
-						&self.app_state.db,
-						ConfigKey::LastSavedBlock(*network_id as u64),
-					)
-					.await?
-					{
-						Some(hit) => hit.value,
-						_ => chain.get_last_processed_block().await?,
+					let last_saved_block = {
+						let config_key =
+							ConfigKey::LastSavedBlock(*network_id as u64);
+
+						match Config::get::<u64>(&self.app_state.db, config_key)
+							.await?
+						{
+							Some(hit) => hit.value,
+							_ => chain.get_last_processed_block().await?,
+						}
 					};
 
 					let block_height = {
@@ -179,28 +194,73 @@ impl Networks {
 					};
 
 					if last_saved_block < block_height {
-						futures.push(tokio::spawn({
-							let c = chain.clone();
-							async move {
-								let block_height =
-									c.process_blocks(last_saved_block).await?;
-
-								println!(
-									"{}: processed block {}",
-									style(c.get_network().name).yellow(),
-									style(block_height).bold()
-								);
-
-								Ok::<_, ErrReport>(block_height)
-							}
-						}));
+						network_ids.insert(network_id, last_saved_block);
 					}
 				}
 
-				for result in join_all(futures).await.into_iter() {
-					if let Err(e) = result {
-						break 'watching Err(e.into());
-					}
+				let mut futures = vec![];
+				let (i_am_done, mut is_done) = mpsc::channel(network_ids.len());
+				let should_keep_going = Arc::new(AtomicBool::new(true));
+				let mut receipts = HashMap::<PrimaryId, Sender<()>>::new();
+
+				for (network_id, last_saved_block) in
+					network_ids.clone().into_iter()
+				{
+					let (rtx, receipt) = mpsc::channel(1);
+					receipts.insert(*network_id, rtx);
+
+					futures.push(tokio::spawn({
+						let chain = self.networks_map[network_id].clone();
+						let i_am_done = i_am_done.clone();
+						let should_keep_going = should_keep_going.clone();
+
+						async move {
+							let block_height = chain
+								.process_blocks(
+									last_saved_block,
+									should_keep_going,
+									i_am_done,
+									receipt,
+								)
+								.await?;
+
+							println!(
+								"{} @ block {}…",
+								style(chain.get_network().name).yellow(),
+								style(block_height).bold()
+							);
+
+							Ok::<_, ErrReport>(block_height)
+						}
+					}));
+				}
+
+				let result = tokio::select! {
+					_ = async {
+						while let Some(network_id) = is_done.recv().await {
+							network_ids.remove(&network_id);
+							if network_ids.is_empty() {
+								should_keep_going.store(false, Ordering::SeqCst);
+							}
+
+							receipts[&network_id].send(()).await?;
+						}
+
+						Ok::<_, ErrReport>(())
+					} => Ok(()),
+					v = join_all(futures) => {
+						for result in v.into_iter() {
+							if let Err(e) = result {
+								return Err(e.into());
+							}
+						}
+
+						Ok(())
+					},
+				};
+
+				if result.is_err() {
+					break 'watching result;
 				}
 			} else {
 				sleep(Duration::from_secs(1)).await;

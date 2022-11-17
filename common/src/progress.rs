@@ -14,6 +14,8 @@ pub enum Step {
 	Migrations,
 	Networks,
 	Ready(String),
+	IndexerReady,
+	ServerReady(String),
 }
 
 pub async fn show(step: Step) {
@@ -30,7 +32,13 @@ pub async fn show(step: Step) {
 		Step::Setup => out(1, SETUP, "Checking setup…"),
 		Step::Migrations => out(2, MIGRATIONS, "Running migrations…"),
 		Step::Networks => out(3, NETWORKS, "Pinging networks…"),
-		Step::Ready(addr) => out(4, READY, &format!("Listening on {addr}…")),
+		Step::Ready(addr) => {
+			out(4, READY, &format!("Indexing & listening on {addr}…"))
+		}
+		Step::IndexerReady => out(4, READY, "Indexing…"),
+		Step::ServerReady(addr) => {
+			out(4, READY, &format!("Listening on {addr}…"))
+		}
 	}
 }
 
