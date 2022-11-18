@@ -9,7 +9,6 @@ use indicatif::ProgressBar;
 use primitive_types::U256;
 use std::{
 	collections::HashMap,
-	str::FromStr,
 	sync::{
 		atomic::{AtomicBool, Ordering},
 		Arc,
@@ -212,7 +211,7 @@ impl Bitcoin {
 			}
 		}
 
-		let get_unique_addresses = move |pair: Vec<(Address, u64)>| {
+		let get_unique_addresses = move |pair: Vec<(String, u64)>| {
 			let mut m = HashMap::<String, u64>::new();
 
 			for p in pair.into_iter() {
@@ -265,14 +264,11 @@ impl Bitcoin {
 	async fn index_transaction_outputs(
 		&self,
 		tx: &BitcoinTransaction,
-	) -> Result<Vec<(Address, u64)>> {
+	) -> Result<Vec<(String, u64)>> {
 		let mut ret = vec![];
 
 		for (i, txout) in tx.output.iter().enumerate() {
-			let s = &txout.script_pubkey;
-			let b = self.bitcoin_network;
-
-			if let Ok(a) = Address::from_script(s, b) {
+			if let Some(a) = self.get_address(tx, i as u32)? {
 				let cache_key = CacheKey::BitcoinTxIndex(
 					self.network.network_id as u64,
 					tx.txid().as_hash().to_string(),
@@ -298,7 +294,7 @@ impl Bitcoin {
 		&self,
 		txid: Txid,
 		vout: u32,
-	) -> Result<Option<(Address, u64)>> {
+	) -> Result<Option<(String, u64)>> {
 		let cache_key = CacheKey::BitcoinTxIndex(
 			self.network.network_id as u64,
 			txid.as_hash().to_string(),
@@ -313,24 +309,37 @@ impl Bitcoin {
 		{
 			Some((a, v)) => {
 				self.app_state.cache.delete(cache_key.clone()).await?;
-				Some((Address::from_str(&a)?, v))
+				Some((a, v))
 			}
 			_ => {
 				let tx = self.client.get_raw_transaction(&txid, None)?;
-				if vout < tx.output.len() as u32 {
-					let txout = &tx.output[vout as usize];
-
-					Address::from_script(
-						&txout.script_pubkey,
-						self.bitcoin_network,
-					)
-					.ok()
-					.map(|a| (a, txout.value))
-				} else {
-					None
-				}
+				self.get_address(&tx, vout)?.map(|a| {
+					let v = tx.output[vout as usize].value;
+					(a, v)
+				})
 			}
 		};
+
+		Ok(ret)
+	}
+
+	fn get_address(
+		&self,
+		tx: &BitcoinTransaction,
+		vout: u32,
+	) -> Result<Option<String>> {
+		let mut ret = None;
+
+		if vout < tx.output.len() as u32 {
+			if let Ok(address) = Address::from_script(
+				&tx.output[vout as usize].script_pubkey,
+				self.bitcoin_network,
+			) {
+				ret = Some(address.to_string());
+			} else {
+				ret = Some(format!("{}:{}", tx.txid().as_hash(), vout));
+			}
+		}
 
 		Ok(ret)
 	}
