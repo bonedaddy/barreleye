@@ -51,28 +51,6 @@ impl Accept for CombinedIncoming {
 	}
 }
 
-pub fn wrap_router(router: Router<Arc<AppState>>) -> Router<Arc<AppState>> {
-	async fn handle_404() -> ServerResult<StatusCode> {
-		Err(ServerError::NotFound)
-	}
-
-	async fn handle_timeout_error(
-		method: Method,
-		uri: Uri,
-		_err: BoxError,
-	) -> ServerResult<StatusCode> {
-		Err(ServerError::Internal {
-			error: Report::msg(format!("`{method} {uri}` timed out")),
-		})
-	}
-
-	router.fallback(handle_404).layer(
-		ServiceBuilder::new()
-			.layer(HandleErrorLayer::new(handle_timeout_error))
-			.timeout(Duration::from_secs(30)),
-	)
-}
-
 pub struct Server {
 	app_state: Arc<AppState>,
 }
@@ -124,14 +102,33 @@ impl Server {
 	pub async fn start(&self) -> Result<()> {
 		let settings = self.app_state.settings.clone();
 
-		let app = wrap_router(
-			Router::with_state(self.app_state.clone())
-				.merge(handlers::get_routes(self.app_state.clone()))
-				.route_layer(middleware::from_fn_with_state(
-					self.app_state.clone(),
-					Self::auth,
-				)),
-		);
+		async fn handle_404() -> ServerResult<StatusCode> {
+			Err(ServerError::NotFound)
+		}
+
+		async fn handle_timeout_error(
+			method: Method,
+			uri: Uri,
+			_err: BoxError,
+		) -> ServerResult<StatusCode> {
+			Err(ServerError::Internal {
+				error: Report::msg(format!("`{method} {uri}` timed out")),
+			})
+		}
+
+		let app = Router::new()
+			.nest("/", handlers::get_routes())
+			.route_layer(middleware::from_fn_with_state(
+				self.app_state.clone(),
+				Self::auth,
+			))
+			.fallback(handle_404)
+			.layer(
+				ServiceBuilder::new()
+					.layer(HandleErrorLayer::new(handle_timeout_error))
+					.timeout(Duration::from_secs(30)),
+			)
+			.with_state(self.app_state.clone());
 
 		let ipv4 = SocketAddr::new(
 			settings.server.ip_v4.parse()?,
