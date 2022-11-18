@@ -151,6 +151,7 @@ impl ChainTrait for Bitcoin {
 					.process_transaction_v1(
 						block_height,
 						block_hash.to_string(),
+						block.header.time,
 						tx,
 					)
 					.await?
@@ -187,6 +188,7 @@ impl Bitcoin {
 		&self,
 		block_height: u64,
 		block_hash: String,
+		block_time: u32,
 		tx: BitcoinTransaction,
 	) -> Result<Vec<Transfer>> {
 		let mut ret = vec![];
@@ -253,6 +255,7 @@ impl Bitcoin {
 						None,
 						U256::from_str_radix(&amount.to_string(), 10)?,
 						U256::from_str_radix(&output_total.to_string(), 10)?,
+						block_time,
 					));
 				}
 			}

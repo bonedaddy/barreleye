@@ -130,6 +130,7 @@ impl ChainTrait for Evm {
 							.process_transaction_v1(
 								block_height,
 								block_hash,
+								block.timestamp.as_u32(),
 								tx,
 							)
 							.await?
@@ -169,6 +170,7 @@ impl Evm {
 		&self,
 		block_height: u64,
 		block_hash: String,
+		block_time: u32,
 		tx: EvmTransaction,
 	) -> Result<Vec<Transfer>> {
 		let mut ret = vec![];
@@ -219,6 +221,7 @@ impl Evm {
 			None,
 			U256::from_str_radix(&tx.value.to_string(), 10)?,
 			U256::from_str_radix(&tx.value.to_string(), 10)?,
+			block_time,
 		));
 
 		Ok(ret)

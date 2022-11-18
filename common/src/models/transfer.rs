@@ -39,6 +39,7 @@ impl Model {
 		asset_address: Option<Address>,
 		amount: U256,
 		batch_amount: U256,
+		created_at: u32,
 	) -> Self {
 		Self {
 			uuid: utils::new_uuid(),
@@ -54,7 +55,7 @@ impl Model {
 				.to_lowercase(),
 			amount,
 			batch_amount,
-			created_at: utils::now().timestamp() as u32,
+			created_at,
 		}
 	}
 
