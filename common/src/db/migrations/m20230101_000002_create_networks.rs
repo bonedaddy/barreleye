@@ -1,10 +1,5 @@
 use async_trait::async_trait;
-use bitcoin::Network as BitcoinNetwork;
 use sea_orm_migration::prelude::*;
-use serde_json::json;
-use std::time::Duration;
-
-use crate::{utils, Blockchain, Env, IdPrefix};
 
 #[derive(DeriveMigrationName)]
 pub struct Migration;
@@ -69,108 +64,6 @@ impl MigrationTrait for Migration {
 							.date_time()
 							.not_null()
 							.extra("DEFAULT CURRENT_TIMESTAMP".to_owned()),
-					)
-					.to_owned(),
-			)
-			.await?;
-
-		manager
-			.exec_stmt(
-				Query::insert()
-					.into_table(Networks::Table)
-					.columns([
-						Networks::Id,
-						Networks::Name,
-						Networks::Tag,
-						Networks::Env,
-						Networks::Blockchain,
-						Networks::ChainId,
-						Networks::BlockTimeMs,
-						Networks::Rpc,
-						Networks::RpcBootstraps,
-					])
-					.values_panic([
-						utils::new_unique_id(IdPrefix::Network).into(),
-						"Bitcoin Localhost".into(),
-						"Bitcoin".into(),
-						Env::Localhost.into(),
-						Blockchain::Bitcoin.into(),
-						BitcoinNetwork::Regtest.magic().into(),
-						(Duration::from_secs(10 * 60).as_millis() as u64)
-							.into(),
-						"http://127.0.0.1:8332".into(),
-						json!([]).into(),
-					])
-					.values_panic([
-						utils::new_unique_id(IdPrefix::Network).into(),
-						"Bitcoin Testnet".into(),
-						"Bitcoin".into(),
-						Env::Testnet.into(),
-						Blockchain::Bitcoin.into(),
-						BitcoinNetwork::Testnet.magic().into(),
-						(Duration::from_secs(10 * 60).as_millis() as u64)
-							.into(),
-						"".into(),
-						json!(["https://btc.getblock.io/testnet/",]).into(),
-					])
-					.values_panic([
-						utils::new_unique_id(IdPrefix::Network).into(),
-						"Bitcoin".into(),
-						"Bitcoin".into(),
-						Env::Mainnet.into(),
-						Blockchain::Bitcoin.into(),
-						BitcoinNetwork::Bitcoin.magic().into(),
-						(Duration::from_secs(10 * 60).as_millis() as u64)
-							.into(),
-						"".into(),
-						json!(["https://btc.getblock.io/mainnet/",]).into(),
-					])
-					.values_panic([
-						utils::new_unique_id(IdPrefix::Network).into(),
-						"Ethereum Localhost".into(),
-						"Ethereum".into(),
-						Env::Localhost.into(),
-						Blockchain::Evm.into(),
-						1.into(),
-						(Duration::from_secs(12).as_millis() as u64).into(),
-						"http://127.0.0.1:8545".into(),
-						json!([]).into(),
-					])
-					.values_panic([
-						utils::new_unique_id(IdPrefix::Network).into(),
-						"Ethereum Goerli".into(),
-						"Ethereum".into(),
-						Env::Testnet.into(),
-						Blockchain::Evm.into(),
-						5.into(),
-						(Duration::from_secs(12).as_millis() as u64).into(),
-						"".into(),
-						json!([
-							"https://rpc.ankr.com/eth_goerli",
-							"https://eth-goerli.public.blastapi.io",
-						])
-						.into(),
-					])
-					.values_panic([
-						utils::new_unique_id(IdPrefix::Network).into(),
-						"Ethereum".into(),
-						"Ethereum".into(),
-						Env::Mainnet.into(),
-						Blockchain::Evm.into(),
-						1.into(),
-						(Duration::from_secs(12).as_millis() as u64).into(),
-						"".into(),
-						json!([
-							"https://cloudflare-eth.com",
-							"https://rpc.ankr.com/eth",
-							"https://rpc.flashbots.net",
-						])
-						.into(),
-					])
-					.on_conflict(
-						OnConflict::columns([Networks::Name])
-							.do_nothing()
-							.to_owned(),
 					)
 					.to_owned(),
 			)

@@ -144,7 +144,15 @@ impl Networks {
 		let mut last_sync_at = utils::now();
 
 		'watching: loop {
-			if self.app_state.is_ready() && self.app_state.is_leader() {
+			let is_leading =
+				self.app_state.is_ready() && self.app_state.is_leader();
+
+			if is_leading && utils::ago_in_seconds(5) > last_sync_at {
+				last_sync_at = utils::now();
+				self.sync_networks().await?;
+			}
+
+			if is_leading && !self.networks_map.is_empty() {
 				if utils::ago_in_seconds(5) > last_sync_at {
 					last_sync_at = utils::now();
 					self.sync_networks().await?;
