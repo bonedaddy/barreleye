@@ -1,173 +1,230 @@
-use eyre::Result;
-use std::sync::Arc;
-use tokio::{
-	signal,
-	time::{sleep, Duration},
+use axum::{
+	error_handling::HandleErrorLayer,
+	extract::State,
+	http::{header, Method, Request, StatusCode, Uri},
+	middleware::{self, Next},
+	response::Response,
+	BoxError, Router, Server as AxumServer,
 };
+use console::style;
+use eyre::{Report, Result};
+use hyper::server::{accept::Accept, conn::AddrIncoming};
+use signal::unix::SignalKind;
+use std::{
+	net::SocketAddr,
+	pin::Pin,
+	sync::Arc,
+	task::{Context, Poll},
+	time::Duration,
+};
+use tokio::signal;
+use tower::ServiceBuilder;
 use uuid::Uuid;
 
-use barreleye_chain::Networks;
+use crate::errors::ServerError;
 use barreleye_common::{
-	models::{Config, ConfigKey},
-	progress,
-	progress::Step,
-	utils, AppError, AppState, Cache, Db, Env, Settings, Warehouse,
+	models::Account, progress, progress::Step, AppError, AppState,
 };
-use errors::ServerError;
-use lists::Lists;
-use server::Server;
 
 mod errors;
 mod handlers;
-mod lists;
-mod server;
 
 pub type ServerResult<T> = Result<T, ServerError>;
 
-#[tokio::main]
-pub async fn start(env: Env, is_indexer: bool, is_server: bool) -> Result<()> {
-	progress::show(Step::Setup).await;
-
-	let settings = Arc::new(Settings::new()?);
-
-	let cache = Arc::new(
-		Cache::new(settings.clone())
-			.await
-			.map_err(|url| {
-				progress::quit(AppError::ServiceConnection {
-					service: settings.cache.driver.to_string(),
-					url: url.to_string(),
-				});
-			})
-			.unwrap(),
-	);
-
-	let warehouse = Arc::new(
-		Warehouse::new(settings.clone())
-			.await
-			.unwrap()
-			.run_migrations()
-			.await
-			.map_err(|url| {
-				progress::quit(AppError::ServiceConnection {
-					service: settings.warehouse.driver.to_string(),
-					url: url.to_string(),
-				});
-			})
-			.unwrap(),
-	);
-
-	let db = Arc::new(
-		Db::new(settings.clone())
-			.await
-			.map_err(|url| {
-				progress::quit(AppError::ServiceConnection {
-					service: settings.db.driver.to_string(),
-					url: url.to_string(),
-				});
-			})
-			.unwrap()
-			.run_migrations()
-			.await?,
-	);
-
-	let app_state = Arc::new(AppState::new(
-		settings, cache, db, warehouse, env, is_indexer, is_server,
-	));
-
-	let mut networks = Networks::new(app_state.clone()).connect().await?;
-	let server = Server::new(app_state.clone());
-	let lists = Lists::new(app_state.clone());
-
-	let (server_done, watcher_done, lists_done, _, _) = tokio::join! {
-		tokio::spawn({
-			let app_state = app_state.clone();
-			async move {
-				match is_server {
-					true => server.start().await,
-					_ => {
-						app_state.set_is_ready();
-						Ok(())
-					}
-				}
-			}
-		}),
-		tokio::spawn(async move {
-			match is_indexer {
-				true => tokio::select! {
-					v = networks.watch() => v,
-					_ = signal::ctrl_c() => Ok(()),
-				},
-				_ => Ok(())
-			}
-		}),
-		tokio::spawn(async move {
-			match is_indexer {
-				true => tokio::select! {
-					v = lists.watch() => v,
-					_ = signal::ctrl_c() => Ok(()),
-				},
-				_ => Ok(())
-			}
-		}),
-		tokio::spawn({
-			let app_state = app_state.clone();
-			async move {
-				match is_indexer {
-					true => tokio::select! {
-						v = leader_check(app_state) => v,
-						_ = signal::ctrl_c() => Ok(()),
-					},
-					_ => Ok(())
-				}
-			}
-		}),
-		tokio::spawn(async {
-			signal::ctrl_c().await.ok();
-			println!("\nSIGINT received; bye 👋");
-		}),
-	};
-
-	server_done.and(watcher_done).and(lists_done)?
+struct CombinedIncoming {
+	a: AddrIncoming,
+	b: AddrIncoming,
 }
 
-async fn leader_check(app_state: Arc<AppState>) -> Result<()> {
-	let leader_ping = app_state.settings.leader_ping;
-	let leader_promotion = app_state.settings.leader_promotion;
+impl Accept for CombinedIncoming {
+	type Conn = <AddrIncoming as Accept>::Conn;
+	type Error = <AddrIncoming as Accept>::Error;
 
-	if app_state.is_indexer && !app_state.is_server {
-		progress::show(Step::IndexerReady).await;
+	fn poll_accept(
+		mut self: Pin<&mut Self>,
+		cx: &mut Context<'_>,
+	) -> Poll<Option<Result<Self::Conn, Self::Error>>> {
+		if let Poll::Ready(Some(value)) = Pin::new(&mut self.a).poll_accept(cx)
+		{
+			return Poll::Ready(Some(value));
+		}
+
+		if let Poll::Ready(Some(value)) = Pin::new(&mut self.b).poll_accept(cx)
+		{
+			return Poll::Ready(Some(value));
+		}
+
+		Poll::Pending
+	}
+}
+
+pub struct Server {
+	app_state: Arc<AppState>,
+}
+
+impl Server {
+	pub fn new(app_state: Arc<AppState>) -> Self {
+		Self { app_state }
 	}
 
-	loop {
-		let active_at = utils::ago_in_seconds(leader_ping + 1);
-		let promoted_at = utils::ago_in_seconds(leader_promotion);
-
-		let check_in = Config::set::<Uuid>(
-			&app_state.db,
-			ConfigKey::Leader,
-			app_state.uuid,
-		);
-
-		match Config::get::<Uuid>(&app_state.db, ConfigKey::Leader).await? {
-			None => {
-				check_in.await?;
-			}
-			Some(hit)
-				if hit.value == app_state.uuid &&
-					hit.updated_at >= active_at =>
-			{
-				check_in.await?;
-				app_state.set_is_leader(true);
-			}
-			Some(hit) if hit.updated_at < promoted_at => {
-				check_in.await?;
-			}
-			_ => {
-				app_state.set_is_leader(false);
+	async fn auth<B>(
+		State(app): State<Arc<AppState>>,
+		mut req: Request<B>,
+		next: Next<B>,
+	) -> ServerResult<Response> {
+		let mut is_admin_key_required = true;
+		for user_endpoint in vec!["/v0/insights"].iter() {
+			if req.uri().to_string().starts_with(user_endpoint) {
+				is_admin_key_required = false;
 			}
 		}
 
-		sleep(Duration::from_secs(leader_ping)).await
+		let authorization = req
+			.headers()
+			.get(header::AUTHORIZATION)
+			.ok_or(ServerError::Unauthorized)?
+			.to_str()
+			.map_err(|_| ServerError::Unauthorized)?;
+
+		let token = match authorization.split_once(' ') {
+			Some((name, contents)) if name == "Bearer" => contents.to_string(),
+			_ => return Err(ServerError::Unauthorized),
+		};
+
+		let api_key =
+			Uuid::parse_str(&token).map_err(|_| ServerError::Unauthorized)?;
+
+		if let Some(account) =
+			Account::get_by_api_key(&app.db, api_key, is_admin_key_required)
+				.await
+				.map_err(|_| ServerError::Unauthorized)?
+		{
+			req.extensions_mut().insert(account);
+			Ok(next.run(req).await)
+		} else {
+			Err(ServerError::Unauthorized)
+		}
+	}
+
+	pub async fn start(&self) -> Result<()> {
+		let settings = self.app_state.settings.clone();
+
+		async fn handle_404() -> ServerResult<StatusCode> {
+			Err(ServerError::NotFound)
+		}
+
+		async fn handle_timeout_error(
+			method: Method,
+			uri: Uri,
+			_err: BoxError,
+		) -> ServerResult<StatusCode> {
+			Err(ServerError::Internal {
+				error: Report::msg(format!("`{method} {uri}` timed out")),
+			})
+		}
+
+		let app = Router::new()
+			.nest("/", handlers::get_routes())
+			.route_layer(middleware::from_fn_with_state(
+				self.app_state.clone(),
+				Self::auth,
+			))
+			.fallback(handle_404)
+			.layer(
+				ServiceBuilder::new()
+					.layer(HandleErrorLayer::new(handle_timeout_error))
+					.timeout(Duration::from_secs(30)),
+			)
+			.with_state(self.app_state.clone());
+
+		let ipv4 = SocketAddr::new(
+			settings.server.ip_v4.parse()?,
+			settings.server.port,
+		);
+
+		let show_progress = |addr: &str| {
+			progress::show(
+				match self.app_state.is_indexer && self.app_state.is_server {
+					true => Step::Ready(addr.to_string()),
+					_ => Step::ServerReady(addr.to_string()),
+				},
+			)
+		};
+
+		if settings.server.ip_v6.is_empty() {
+			show_progress(&style(ipv4).bold().to_string()).await;
+
+			match AxumServer::try_bind(&ipv4) {
+				Err(e) => progress::quit(AppError::ServerStartup {
+					url: ipv4.to_string(),
+					error: e.message().to_string(),
+				}),
+				Ok(server) => {
+					self.app_state.set_is_ready();
+					server
+						.serve(app.into_make_service())
+						.with_graceful_shutdown(Self::shutdown_signal())
+						.await?
+				}
+			}
+		} else {
+			let ipv6 = SocketAddr::new(
+				settings.server.ip_v6.parse()?,
+				settings.server.port,
+			);
+
+			match (AddrIncoming::bind(&ipv4), AddrIncoming::bind(&ipv6)) {
+				(Err(e), _) => progress::quit(AppError::ServerStartup {
+					url: ipv4.to_string(),
+					error: e.message().to_string(),
+				}),
+				(_, Err(e)) => progress::quit(AppError::ServerStartup {
+					url: ipv6.to_string(),
+					error: e.message().to_string(),
+				}),
+				(Ok(a), Ok(b)) => {
+					show_progress(&format!(
+						"{} & {}",
+						style(ipv4).bold(),
+						style(ipv6).bold()
+					))
+					.await;
+
+					self.app_state.set_is_ready();
+					AxumServer::builder(CombinedIncoming { a, b })
+						.serve(app.into_make_service())
+						.with_graceful_shutdown(Self::shutdown_signal())
+						.await?;
+				}
+			}
+		}
+
+		Ok(())
+	}
+
+	async fn shutdown_signal() {
+		let ctrl_c = async {
+			if signal::ctrl_c().await.is_err() {
+				progress::quit(AppError::SignalHandler);
+			}
+		};
+
+		#[cfg(unix)]
+		let terminate = async {
+			match signal::unix::signal(SignalKind::terminate()) {
+				Ok(mut signal) => {
+					signal.recv().await;
+				}
+				_ => progress::quit(AppError::SignalHandler),
+			};
+		};
+
+		#[cfg(not(unix))]
+		let terminate = future::pending::<()>();
+
+		tokio::select! {
+			_ = ctrl_c => {},
+			_ = terminate => {},
+		}
 	}
 }

@@ -289,6 +289,10 @@ dependencies = [
  "eyre",
  "fern",
  "log",
+ "regex",
+ "reqwest",
+ "tokio",
+ "uuid 1.2.2",
 ]
 
 [[package]]
@@ -355,8 +359,6 @@ dependencies = [
  "eyre",
  "hyper",
  "log",
- "regex",
- "reqwest",
  "sea-orm",
  "serde",
  "serde_json",

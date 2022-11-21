@@ -15,10 +15,8 @@ serde = "1.0.145"
 console = "0.15.1"
 serde_json = "1.0.87"
 hyper = "0.14.23"
-regex = "1.6.0"
 uuid = { version = "1.2.1", features = ["v4", "fast-rng"] }
 tower = { version = "0.4.13", features = ["timeout"] }
-reqwest = { version = "0.11.12", features = ["json", "rustls-tls"] }
 
 barreleye-chain = { path = "../chain", version = "0.0.1" }
 barreleye-common = { path = "../common", version = "0.0.1" }
