@@ -10,7 +10,10 @@ use std::sync::{
 	atomic::{AtomicBool, Ordering},
 	Arc,
 };
-use tokio::sync::mpsc::{Receiver, Sender};
+use tokio::{
+	sync::mpsc::{Receiver, Sender},
+	time::{sleep, Duration},
+};
 
 use crate::ChainTrait;
 use barreleye_common::{
@@ -61,7 +64,12 @@ impl Evm {
 
 		for url in rpc_endpoints.into_iter() {
 			if let Ok(provider) = Provider::<Http>::try_from(url.clone()) {
-				if provider.get_block_number().await.is_ok() {
+				let can_connect = tokio::select! {
+					_ = sleep(Duration::from_secs(5)) => false,
+					block = provider.get_block_number() => block.is_ok()
+				};
+
+				if can_connect {
 					rpc = Some(url);
 					maybe_provider = Some(provider);
 				}

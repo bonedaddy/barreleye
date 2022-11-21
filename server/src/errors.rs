@@ -19,6 +19,9 @@ pub enum ServerError {
 	#[display(fmt = "invalid parameter @ `{field}`: `{value}`")]
 	InvalidParam { field: String, value: String },
 
+	#[display(fmt = "could not connect to `{name}`")]
+	InvalidService { name: String },
+
 	#[display(fmt = "duplicate item found @ `{field}`: `{value}`")]
 	Duplicate { field: String, value: String },
 
@@ -38,6 +41,7 @@ impl IntoResponse for ServerError {
 			ServerError::Unauthorized => StatusCode::UNAUTHORIZED,
 			ServerError::Validation { .. } => StatusCode::BAD_REQUEST,
 			ServerError::InvalidParam { .. } => StatusCode::BAD_REQUEST,
+			ServerError::InvalidService { .. } => StatusCode::BAD_REQUEST,
 			ServerError::Duplicate { .. } => StatusCode::BAD_REQUEST,
 			ServerError::BadRequest { .. } => StatusCode::BAD_REQUEST,
 			ServerError::NotFound => StatusCode::NOT_FOUND,

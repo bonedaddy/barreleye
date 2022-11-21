@@ -1,11 +1,13 @@
 use axum::{extract::State, Json};
 use serde::Deserialize;
+use serde_json::json;
 use std::sync::Arc;
 
 use crate::{errors::ServerError, AppState, ServerResult};
+use barreleye_chain::{Bitcoin, ChainTrait, Evm};
 use barreleye_common::{
 	models::{BasicModel, Network},
-	Blockchain, Env,
+	utils, Blockchain, Env,
 };
 
 #[derive(Deserialize)]
@@ -48,6 +50,36 @@ pub async fn handler(
 			value: payload.chain_id.to_string(),
 		});
 	}
+
+	// check rpc connection
+	let n = Network {
+		network_id: 0,
+		id: "".to_string(),
+		name: payload.name.clone(),
+		tag: payload.tag.clone(),
+		env: payload.env,
+		blockchain: payload.blockchain,
+		chain_id: payload.chain_id as i64,
+		block_time_ms: 0,
+		rpc: payload.rpc.clone(),
+		rpc_bootstraps: json!(payload.rpc_bootstraps.clone()),
+		updated_at: None,
+		created_at: utils::now(),
+	};
+	let service_name = n.name.clone();
+	let a = app.clone();
+	let _: Box<dyn ChainTrait> = match payload.blockchain {
+		Blockchain::Bitcoin => {
+			Box::new(Bitcoin::new(a, n, None).await.map_err(|_| {
+				ServerError::InvalidService { name: service_name.clone() }
+			})?)
+		}
+		Blockchain::Evm => {
+			Box::new(Evm::new(a, n, None).await.map_err(|_| {
+				ServerError::InvalidService { name: service_name.clone() }
+			})?)
+		}
+	};
 
 	// create new
 	let network_id = Network::create(
