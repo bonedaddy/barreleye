@@ -1,5 +1,4 @@
 use clap::{arg, command, value_parser};
-use color_eyre::eyre::WrapErr;
 use eyre::Result;
 use std::env;
 
@@ -37,8 +36,7 @@ fn main() -> Result<()> {
 	};
 
 	banner::show(env, is_indexer, is_server, skip_ascii)?;
-	barreleye_server::start(env, is_indexer, is_server)
-		.wrap_err("Could not start the server")?;
+	barreleye_server::start(env, is_indexer, is_server)?;
 
 	Ok(())
 }

@@ -20,7 +20,7 @@ use url::Url;
 use crate::ChainTrait;
 use barreleye_common::{
 	cache::CacheKey,
-	models::{Config, ConfigKey, Network, PrimaryId, Transfer},
+	models::{Network, PrimaryId, Transfer},
 	utils, AppState,
 };
 
@@ -131,13 +131,15 @@ impl ChainTrait for Bitcoin {
 
 	async fn process_blocks(
 		&self,
-		last_saved_block: u64,
+		last_read_block: u64,
 		should_keep_going: Arc<AtomicBool>,
 		i_am_done: Sender<PrimaryId>,
 		mut receipt: Receiver<()>,
-	) -> Result<u64> {
+	) -> Result<(u64, Vec<Transfer>)> {
+		let mut block_height = last_read_block;
+		let mut transfers = vec![];
+
 		let mut already_notified = false;
-		let mut block_height = last_saved_block;
 
 		while should_keep_going.load(Ordering::SeqCst) {
 			block_height += 1;
@@ -145,32 +147,18 @@ impl ChainTrait for Bitcoin {
 			let block_hash = self.client.get_block_hash(block_height)?;
 			let block = self.client.get_block(&block_hash)?;
 
-			let mut transfers = vec![];
 			for tx in block.txdata.into_iter() {
-				for transfer in self
+				let mut new_transfers = self
 					.process_transaction_v1(
 						block_height,
 						block_hash.to_string(),
 						block.header.time,
 						tx,
 					)
-					.await?
-				{
-					transfers.push(transfer);
-				}
-			}
-
-			if !transfers.is_empty() {
-				Transfer::create_many(&self.app_state.warehouse, transfers)
 					.await?;
-			}
 
-			Config::set::<u64>(
-				&self.app_state.db,
-				ConfigKey::LastSavedBlock(self.network.network_id as u64),
-				block_height,
-			)
-			.await?;
+				transfers.append(&mut new_transfers);
+			}
 
 			if !already_notified {
 				i_am_done.send(self.network.network_id).await?;
@@ -178,7 +166,7 @@ impl ChainTrait for Bitcoin {
 			}
 		}
 
-		Ok(block_height)
+		Ok((block_height, transfers))
 	}
 }
 

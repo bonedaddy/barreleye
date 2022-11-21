@@ -4,10 +4,11 @@ use sea_orm::{entity::prelude::*, Set};
 use sea_orm_migration::prelude::OnConflict;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use std::collections::HashMap;
 
 use crate::{models::PrimaryId, utils, Db};
 
-#[derive(Display, Debug, Clone)]
+#[derive(Display, Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ConfigKey {
 	#[display(fmt = "leader")]
 	Leader,
@@ -79,6 +80,35 @@ impl Model {
 		)
 		.exec(db.get())
 		.await?;
+
+		Ok(())
+	}
+
+	pub async fn set_many<T>(
+		db: &Db,
+		values: HashMap<ConfigKey, T>,
+	) -> Result<()>
+	where
+		T: Serialize,
+	{
+		let insert_data = values
+			.into_iter()
+			.map(|(key, value)| ActiveModel {
+				key: Set(key.to_string()),
+				value: Set(json!(value).to_string()),
+				updated_at: Set(utils::now()),
+				..Default::default()
+			})
+			.collect::<Vec<ActiveModel>>();
+
+		Entity::insert_many(insert_data)
+			.on_conflict(
+				OnConflict::column(Column::Key)
+					.update_columns([Column::Value, Column::UpdatedAt])
+					.to_owned(),
+			)
+			.exec(db.get())
+			.await?;
 
 		Ok(())
 	}

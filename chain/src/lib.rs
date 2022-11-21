@@ -4,7 +4,7 @@ use std::sync::{atomic::AtomicBool, Arc};
 use tokio::sync::mpsc::{Receiver, Sender};
 
 pub use crate::bitcoin::Bitcoin;
-use barreleye_common::models::{Network, PrimaryId};
+use barreleye_common::models::{Network, PrimaryId, Transfer};
 pub use evm::Evm;
 pub use networks::Networks;
 
@@ -24,5 +24,5 @@ pub trait ChainTrait: Send + Sync {
 		should_keep_going: Arc<AtomicBool>,
 		i_am_done: Sender<PrimaryId>,
 		receipt: Receiver<()>,
-	) -> Result<u64>;
+	) -> Result<(u64, Vec<Transfer>)>;
 }

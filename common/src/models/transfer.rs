@@ -8,7 +8,7 @@ use crate::{models::PrimaryId, u256, utils, warehouse::Warehouse, Address};
 
 static TABLE: &str = "transfers";
 
-#[derive(Debug, Row, Serialize, Deserialize)]
+#[derive(Debug, Clone, Row, Serialize, Deserialize)]
 pub struct Model {
 	#[serde(with = "clickhouse::uuid")]
 	pub uuid: Uuid,

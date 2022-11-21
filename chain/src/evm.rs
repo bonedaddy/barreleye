@@ -15,7 +15,7 @@ use tokio::sync::mpsc::{Receiver, Sender};
 use crate::ChainTrait;
 use barreleye_common::{
 	cache::CacheKey,
-	models::{Config, ConfigKey, Network, PrimaryId, Transfer},
+	models::{Network, PrimaryId, Transfer},
 	utils, AppState,
 };
 
@@ -110,49 +110,38 @@ impl ChainTrait for Evm {
 
 	async fn process_blocks(
 		&self,
-		last_saved_block: u64,
+		last_read_block: u64,
 		should_keep_going: Arc<AtomicBool>,
 		i_am_done: Sender<PrimaryId>,
 		mut receipt: Receiver<()>,
-	) -> Result<u64> {
+	) -> Result<(u64, Vec<Transfer>)> {
+		let mut block_height = last_read_block;
+		let mut transfers = vec![];
+
 		let mut already_notified = false;
-		let mut block_height = last_saved_block;
 
 		while should_keep_going.load(Ordering::SeqCst) {
 			block_height += 1;
 
-			let mut transfers = vec![];
 			match self.provider.get_block_with_txs(block_height).await? {
 				Some(block) if block.number.is_some() => {
 					for tx in block.transactions.into_iter() {
-						let block_hash = block.hash.unwrap().encode_hex();
-						for transfer in self
+						let mut new_transfers = self
 							.process_transaction_v1(
 								block_height,
-								block_hash,
+								block.hash.unwrap().encode_hex(),
 								block.timestamp.as_u32(),
 								tx,
 							)
-							.await?
-						{
-							transfers.push(transfer);
-						}
+							.await?;
+
+						transfers.append(&mut new_transfers);
 					}
 				}
-				_ => {}
+				_ => {
+					break;
+				}
 			}
-
-			if !transfers.is_empty() {
-				Transfer::create_many(&self.app_state.warehouse, transfers)
-					.await?;
-			}
-
-			Config::set::<u64>(
-				&self.app_state.db,
-				ConfigKey::LastSavedBlock(self.network.network_id as u64),
-				block_height,
-			)
-			.await?;
 
 			if !already_notified {
 				i_am_done.send(self.network.network_id).await?;
@@ -160,7 +149,7 @@ impl ChainTrait for Evm {
 			}
 		}
 
-		Ok(block_height)
+		Ok((block_height, transfers))
 	}
 }
 

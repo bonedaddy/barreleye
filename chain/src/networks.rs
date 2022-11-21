@@ -17,7 +17,7 @@ use tokio::{
 
 use crate::{Bitcoin, ChainTrait, Evm};
 use barreleye_common::{
-	models::{Config, ConfigKey, Network, PrimaryId},
+	models::{Config, ConfigKey, Network, PrimaryId, Transfer},
 	progress,
 	progress::Step,
 	utils, AppError, AppState, Blockchain,
@@ -142,6 +142,9 @@ impl Networks {
 
 	pub async fn watch(&mut self) -> Result<()> {
 		let mut last_sync_at = utils::now();
+		let mut last_save_at = utils::now();
+		let mut last_read_block_map = HashMap::<i64, u64>::new();
+		let mut transfers = vec![];
 
 		'watching: loop {
 			let is_leading =
@@ -160,15 +163,24 @@ impl Networks {
 
 				let mut network_ids = HashMap::new();
 				for (network_id, chain) in self.networks_map.iter() {
-					let last_saved_block = {
-						let config_key =
-							ConfigKey::LastSavedBlock(*network_id as u64);
-
-						match Config::get::<u64>(&self.app_state.db, config_key)
-							.await?
-						{
-							Some(hit) => hit.value,
-							_ => chain.get_last_processed_block().await?,
+					let last_read_block = {
+						match last_read_block_map.contains_key(network_id) {
+							true => last_read_block_map[network_id],
+							_ => {
+								match Config::get::<u64>(
+									&self.app_state.db,
+									ConfigKey::LastSavedBlock(
+										*network_id as u64,
+									),
+								)
+								.await?
+								{
+									Some(hit) => hit.value,
+									_ => {
+										chain.get_last_processed_block().await?
+									}
+								}
+							}
 						}
 					};
 
@@ -182,7 +194,7 @@ impl Networks {
 						)
 						.await?
 						{
-							Some(hit) if hit.value > last_saved_block => {
+							Some(hit) if hit.value > last_read_block => {
 								hit.value
 							}
 							_ => {
@@ -201,31 +213,35 @@ impl Networks {
 						}
 					};
 
-					if last_saved_block < block_height {
-						network_ids.insert(network_id, last_saved_block);
+					if last_read_block < block_height {
+						network_ids.insert(network_id, last_read_block);
 					}
 				}
 
+				// let the other branch in `tokio::select` below finish first
+				let (i_am_done, mut is_done) =
+					mpsc::channel(network_ids.len() + 1);
+
 				let mut futures = vec![];
-				let (i_am_done, mut is_done) = mpsc::channel(network_ids.len());
 				let should_keep_going = Arc::new(AtomicBool::new(true));
 				let mut receipts = HashMap::<PrimaryId, Sender<()>>::new();
 
-				for (network_id, last_saved_block) in
+				for (network_id, last_read_block) in
 					network_ids.clone().into_iter()
 				{
 					let (rtx, receipt) = mpsc::channel(1);
 					receipts.insert(*network_id, rtx);
 
 					futures.push(tokio::spawn({
-						let chain = self.networks_map[network_id].clone();
+						let network_id = *network_id;
+						let chain = self.networks_map[&network_id].clone();
 						let i_am_done = i_am_done.clone();
 						let should_keep_going = should_keep_going.clone();
 
 						async move {
-							let block_height = chain
+							let (block_height, transfers) = chain
 								.process_blocks(
-									last_saved_block,
+									last_read_block,
 									should_keep_going,
 									i_am_done,
 									receipt,
@@ -238,12 +254,16 @@ impl Networks {
 								style(block_height).bold()
 							);
 
-							Ok::<_, ErrReport>(block_height)
+							Ok::<_, ErrReport>((
+								network_id,
+								block_height,
+								transfers,
+							))
 						}
 					}));
 				}
 
-				let result = tokio::select! {
+				let results = tokio::select! {
 					_ = async {
 						while let Some(network_id) = is_done.recv().await {
 							network_ids.remove(&network_id);
@@ -255,20 +275,68 @@ impl Networks {
 						}
 
 						Ok::<_, ErrReport>(())
-					} => Ok(()),
+					} => Ok(vec![]),
 					v = join_all(futures) => {
+						let mut out = vec![];
+
 						for result in v.into_iter() {
-							if let Err(e) = result {
-								return Err(e.into());
+							match result {
+								Ok(v) => out.push(v?),
+								Err(e) => {
+									return Err(e.into());
+								}
 							}
 						}
 
-						Ok(())
+						Ok(out)
 					},
 				};
 
-				if result.is_err() {
-					break 'watching result;
+				// if any of the chains complained, return err
+				if results.is_err() {
+					break 'watching results.map(|_| ());
+				}
+
+				// pile up `transfers` and inc block markers
+				for (network_id, last_read_block, new_transfers) in
+					results?.into_iter()
+				{
+					transfers.extend(new_transfers);
+					last_read_block_map.insert(network_id, last_read_block);
+				}
+
+				// batch save in warehouse
+				if utils::ago_in_seconds(5) > last_save_at &&
+					transfers.len() > 1_000
+				{
+					// insert new transfers
+					Transfer::create_many(
+						&self.app_state.warehouse,
+						transfers.clone(),
+					)
+					.await?;
+					transfers.clear();
+
+					// commit latest saved blocks
+					Config::set_many::<u64>(
+						&self.app_state.db,
+						last_read_block_map
+							.iter()
+							.map(|(network_id, last_read_block)| {
+								(
+									ConfigKey::LastSavedBlock(
+										(*network_id) as u64,
+									),
+									*last_read_block,
+								)
+							})
+							.collect::<HashMap<ConfigKey, u64>>(),
+					)
+					.await?;
+					last_read_block_map.clear();
+
+					// update timestamp
+					last_save_at = utils::now();
 				}
 			} else {
 				sleep(Duration::from_secs(1)).await;
