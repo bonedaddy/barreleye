@@ -274,7 +274,10 @@ impl Networks {
 				let mut results = vec![];
 				for future in futures.drain(..) {
 					match future.await {
-						Ok(v) => results.push(v?),
+						Ok(v) => match v {
+							Ok(result) => results.push(result),
+							_ => break 'watching v.map(|_| ()),
+						},
 						Err(e) => break 'watching Err(e.into()),
 					}
 				}

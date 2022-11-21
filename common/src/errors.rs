@@ -19,4 +19,7 @@ pub enum AppError {
 
 	#[display(fmt = "Leader promotion should be at least 2x leader ping.")]
 	InvalidLeaderConfigs,
+
+	#[display(fmt = "Indexing failed: {error}")]
+	IndexingFailed { error: String },
 }
