@@ -218,10 +218,7 @@ impl Networks {
 					}
 				}
 
-				// let the other branch in `tokio::select` below finish first
-				let (i_am_done, mut is_done) =
-					mpsc::channel(network_ids.len() + 1);
-
+				let (i_am_done, mut is_done) = mpsc::channel(network_ids.len());
 				let mut futures = vec![];
 				let should_keep_going = Arc::new(AtomicBool::new(true));
 				let mut receipts = HashMap::<PrimaryId, Sender<()>>::new();
@@ -229,7 +226,7 @@ impl Networks {
 				for (network_id, last_read_block) in
 					network_ids.clone().into_iter()
 				{
-					let (rtx, receipt) = mpsc::channel(1);
+					let (rtx, receipt) = mpsc::channel(network_ids.len());
 					receipts.insert(*network_id, rtx);
 
 					futures.push(tokio::spawn({
@@ -263,43 +260,28 @@ impl Networks {
 					}));
 				}
 
-				let results = tokio::select! {
-					_ = async {
-						while let Some(network_id) = is_done.recv().await {
-							network_ids.remove(&network_id);
-							if network_ids.is_empty() {
-								should_keep_going.store(false, Ordering::SeqCst);
-							}
+				drop(i_am_done); // drop the original non-cloned
+				while let Some(network_id) = is_done.recv().await {
+					network_ids.remove(&network_id);
+					if network_ids.is_empty() {
+						should_keep_going.store(false, Ordering::SeqCst);
+					}
 
-							receipts[&network_id].send(()).await?;
-						}
+					receipts[&network_id].send(()).await?;
+					receipts.remove(&network_id);
+				}
 
-						Ok::<_, ErrReport>(())
-					} => Ok(vec![]),
-					v = join_all(futures) => {
-						let mut out = vec![];
-
-						for result in v.into_iter() {
-							match result {
-								Ok(v) => out.push(v?),
-								Err(e) => {
-									return Err(e.into());
-								}
-							}
-						}
-
-						Ok(out)
-					},
-				};
-
-				// if any of the chains complained, return err
-				if results.is_err() {
-					break 'watching results.map(|_| ());
+				let mut results = vec![];
+				for future in futures.drain(..) {
+					match future.await {
+						Ok(v) => results.push(v?),
+						Err(e) => break 'watching Err(e.into()),
+					}
 				}
 
 				// pile up `transfers` and inc block markers
 				for (network_id, last_read_block, new_transfers) in
-					results?.into_iter()
+					results.into_iter()
 				{
 					transfers.extend(new_transfers);
 					last_read_block_map.insert(network_id, last_read_block);
