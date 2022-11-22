@@ -6,12 +6,15 @@ use ethers::{
 use eyre::{bail, Result};
 use indicatif::ProgressBar;
 use primitive_types::U256;
-use std::sync::{
-	atomic::{AtomicBool, Ordering},
-	Arc,
+use std::{
+	borrow::BorrowMut,
+	sync::{
+		atomic::{AtomicBool, Ordering},
+		Arc,
+	},
 };
 use tokio::{
-	sync::mpsc::{Receiver, Sender},
+	sync::{mpsc::Sender, oneshot::Receiver},
 	time::{sleep, Duration},
 };
 
@@ -153,7 +156,7 @@ impl ChainTrait for Evm {
 
 			if !already_notified {
 				i_am_done.send(self.network.network_id).await?;
-				already_notified = receipt.recv().await.is_some();
+				already_notified = receipt.borrow_mut().await.is_ok();
 			}
 		}
 

@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use eyre::Result;
 use std::sync::{atomic::AtomicBool, Arc};
-use tokio::sync::mpsc::{Receiver, Sender};
+use tokio::sync::{mpsc::Sender, oneshot::Receiver};
 
 pub use crate::bitcoin::Bitcoin;
 use barreleye_common::models::{Network, PrimaryId, Transfer};

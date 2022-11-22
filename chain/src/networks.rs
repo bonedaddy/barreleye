@@ -11,7 +11,7 @@ use std::{
 	},
 };
 use tokio::{
-	sync::{mpsc, mpsc::Sender},
+	sync::{mpsc, oneshot, oneshot::Sender},
 	time::{sleep, Duration},
 };
 
@@ -226,7 +226,7 @@ impl Networks {
 				for (network_id, last_read_block) in
 					network_ids.clone().into_iter()
 				{
-					let (rtx, receipt) = mpsc::channel(network_ids.len());
+					let (rtx, receipt) = oneshot::channel();
 					receipts.insert(*network_id, rtx);
 
 					futures.push(tokio::spawn({
@@ -267,8 +267,9 @@ impl Networks {
 						should_keep_going.store(false, Ordering::SeqCst);
 					}
 
-					receipts[&network_id].send(()).await?;
-					receipts.remove(&network_id);
+					if let Some(receipt) = receipts.remove(&network_id) {
+						receipt.send(()).unwrap();
+					}
 				}
 
 				let mut results = vec![];

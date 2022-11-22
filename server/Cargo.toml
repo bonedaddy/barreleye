@@ -11,9 +11,9 @@ log = "0.4.0"
 eyre = "0.6.8"
 axum = "0.6.0-rc.5"
 derive_more = "0.99.17"
-serde = "1.0.145"
+serde = "1.0.147"
 console = "0.15.1"
-serde_json = "1.0.87"
+serde_json = "1.0.89"
 hyper = "0.14.23"
 uuid = { version = "1.2.1", features = ["v4", "fast-rng"] }
 tower = { version = "0.4.13", features = ["timeout"] }

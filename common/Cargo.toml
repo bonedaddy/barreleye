@@ -10,11 +10,11 @@ async-trait = "0.1.57"
 eyre = "0.6.8"
 sea-orm-migration = "0.10.3"
 nanoid = "0.4.0"
-serde = "1.0.145"
+serde = "1.0.147"
 log = "0.4.17"
 config = "0.13.2"
 derive_more = "0.99.17"
-serde_json = "1.0.87"
+serde_json = "1.0.89"
 chrono =  "0.4.22"
 url = "2.3.1"
 console = "0.15.2"
@@ -26,7 +26,7 @@ directories = "4.0.1"
 rocksdb = "0.19.0"
 rmp-serde = "1.1.1"
 clickhouse = { version = "0.11.0", features = ["uuid"] }
-clap = { version = "4.0.24", features = ["cargo"] }
+clap = { version = "4.0.26", features = ["cargo"] }
 uuid = { version = "1.2.1", features = ["v4", "fast-rng"] }
 reqwest = { version = "0.11.12", features = ["json", "rustls-tls"] }
 
