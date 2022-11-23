@@ -127,4 +127,29 @@ impl Model {
 				created_at: m.created_at,
 			}))
 	}
+
+	pub async fn get_many<T>(
+		db: &Db,
+		keys: Vec<ConfigKey>,
+	) -> Result<HashMap<String, Value<T>>>
+	where
+		T: for<'a> Deserialize<'a>,
+	{
+		Ok(Entity::find()
+			.filter(Column::Key.is_in(keys.iter().map(|k| k.to_string())))
+			.all(db.get())
+			.await?
+			.into_iter()
+			.map(|m| {
+				(
+					m.key,
+					Value {
+						value: serde_json::from_str(&m.value).unwrap(),
+						updated_at: m.updated_at,
+						created_at: m.created_at,
+					},
+				)
+			})
+			.collect())
+	}
 }
