@@ -183,7 +183,8 @@ impl Bitcoin {
 		let mut ret = vec![];
 
 		// index outputs for quicker lookup later (even if coinbase tx)
-		let all_outputs = self.index_transaction_outputs(&tx).await?;
+		let all_outputs =
+			self.index_transaction_outputs(block_height, &tx).await?;
 
 		// skip if coinbase tx
 		if tx.is_coin_base() {
@@ -255,27 +256,24 @@ impl Bitcoin {
 
 	async fn index_transaction_outputs(
 		&self,
+		block_height: u64,
 		tx: &BitcoinTransaction,
 	) -> Result<Vec<(String, u64)>> {
 		let mut ret = vec![];
 
 		for (i, txout) in tx.output.iter().enumerate() {
-			if let Some(a) = self.get_address(tx, i as u32)? {
+			if let Some(address) = self.get_address(tx, i as u32)? {
 				let cache_key = CacheKey::BitcoinTxIndex(
 					self.network.network_id as u64,
-					tx.txid().as_hash().to_string(),
-					i as u32,
+					tx.txid().as_hash().to_string()[..8].to_string(),
 				);
-
-				let v = txout.value;
-				let cache_value = (a.to_string(), v);
 
 				self.app_state
 					.cache
-					.set::<(String, u64)>(cache_key, cache_value)
+					.set::<u64>(cache_key, block_height)
 					.await?;
 
-				ret.push((a, v));
+				ret.push((address, txout.value));
 			}
 		}
 
@@ -289,28 +287,24 @@ impl Bitcoin {
 	) -> Result<Option<(String, u64)>> {
 		let cache_key = CacheKey::BitcoinTxIndex(
 			self.network.network_id as u64,
-			txid.as_hash().to_string(),
-			vout,
+			txid.as_hash().to_string()[..8].to_string(),
 		);
 
-		let ret = match self
-			.app_state
-			.cache
-			.get::<(String, u64)>(cache_key.clone())
-			.await?
+		let mut block_hash = None;
+		if let Some(block_height) =
+			self.app_state.cache.get::<u64>(cache_key.clone()).await?
 		{
-			Some((a, v)) => {
-				self.app_state.cache.delete(cache_key.clone()).await?;
-				Some((a, v))
-			}
-			_ => {
-				let tx = self.client.get_raw_transaction(&txid, None)?;
-				self.get_address(&tx, vout)?.map(|a| {
-					let v = tx.output[vout as usize].value;
-					(a, v)
-				})
-			}
-		};
+			block_hash = Some(self.client.get_block_hash(block_height)?);
+			self.app_state.cache.delete(cache_key).await?;
+		}
+
+		// `block_hash` should always be "Some" unless indexing was not started
+		// from the very beginning (in which case -txindex is needed)
+		let tx = self.client.get_raw_transaction(&txid, block_hash.as_ref())?;
+		let ret = self.get_address(&tx, vout)?.map(|a| {
+			let v = tx.output[vout as usize].value;
+			(a, v)
+		});
 
 		Ok(ret)
 	}

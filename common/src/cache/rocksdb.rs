@@ -42,12 +42,12 @@ impl RocksDb {
 
 #[async_trait]
 impl CacheTrait for RocksDb {
-	async fn set(&self, key: &str, value: &str) -> Result<()> {
-		Ok(self.db.put(key, rmp_serde::to_vec(value)?)?)
+	async fn set(&self, key: &str, value: &[u8]) -> Result<()> {
+		Ok(self.db.put(key, value)?)
 	}
 
-	async fn get(&self, key: &str) -> Result<Option<String>> {
-		Ok(self.db.get(key)?.and_then(|v| rmp_serde::from_slice(&v).ok()))
+	async fn get(&self, key: &str) -> Result<Option<Vec<u8>>> {
+		Ok(self.db.get(key)?)
 	}
 
 	async fn delete(&self, key: &str) -> Result<()> {
