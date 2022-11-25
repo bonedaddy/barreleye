@@ -995,10 +995,11 @@ pub fn show(
 		} else if env == Env::Testnet {
 			t.push(s("+Testnet").red().to_string())
 		}
-		if is_indexer && !is_server {
-			t.push(s("+IndexerOnly").cyan().to_string())
-		} else if is_server && !is_indexer {
-			t.push(s("+ServerOnly").cyan().to_string())
+		if is_indexer {
+			t.push(s("+Indexer").cyan().to_string())
+		}
+		if is_server {
+			t.push(s("+Server").green().to_string())
 		}
 
 		let tags = t.join(", ");

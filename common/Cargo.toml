@@ -25,7 +25,7 @@ primitive-types = "0.12.1"
 directories = "4.0.1"
 rocksdb = "0.19.0"
 rmp-serde = "1.1.1"
-clickhouse = { version = "0.11.0", features = ["uuid"] }
+clickhouse = { version = "0.11.1", features = ["uuid"] }
 clap = { version = "4.0.26", features = ["cargo"] }
 uuid = { version = "1.2.1", features = ["v4", "fast-rng"] }
 reqwest = { version = "0.11.12", features = ["json", "rustls-tls"] }
