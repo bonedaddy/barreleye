@@ -22,8 +22,7 @@ pub struct Payload {
 	blockchain: Option<Blockchain>,
 	chain_id: Option<u64>,
 	block_time_ms: Option<u64>,
-	rpc: Option<String>,
-	rpc_bootstraps: Option<Vec<String>>,
+	rpc_endpoints: Option<Vec<String>>,
 }
 
 pub async fn handler(
@@ -72,8 +71,7 @@ pub async fn handler(
 		blockchain: optional_set(payload.blockchain),
 		chain_id: optional_set(payload.chain_id.map(|v| v as i64)),
 		block_time_ms: optional_set(payload.block_time_ms.map(|v| v as i64)),
-		rpc: optional_set(payload.rpc),
-		rpc_bootstraps: optional_set(payload.rpc_bootstraps.map(|v| json!(v))),
+		rpc_endpoints: optional_set(payload.rpc_endpoints.map(|v| json!(v))),
 		..Default::default()
 	};
 

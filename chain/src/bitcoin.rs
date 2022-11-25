@@ -22,7 +22,7 @@ use crate::ChainTrait;
 use barreleye_common::{
 	cache::CacheKey,
 	models::{Network, PrimaryId, Transfer},
-	utils, AppState,
+	AppState,
 };
 
 pub struct Bitcoin {
@@ -42,28 +42,11 @@ impl Bitcoin {
 		let mut rpc: Option<String> = None;
 		let mut maybe_client: Option<Client> = None;
 
-		let mut rpc_endpoints = vec![];
-
-		let (message_trying, message_failed) = if network.rpc.is_empty() {
-			rpc_endpoints =
-				serde_json::from_value(network.rpc_bootstraps.clone())?;
-			(
-				"trying rpc endpoints…".to_string(),
-				"Could not connect to any RPC endpoint.".to_string(),
-			)
-		} else {
-			rpc_endpoints.push(network.rpc.clone());
-			(
-				"connecting to rpc…".to_string(),
-				format!(
-					"Could not connect to RPC endpoint @ `{}`.",
-					utils::with_masked_auth(&network.rpc)
-				),
-			)
-		};
+		let rpc_endpoints: Vec<String> =
+			serde_json::from_value(network.rpc_endpoints.clone())?;
 
 		if let Some(pb) = pb {
-			pb.set_message(message_trying);
+			pb.set_message("trying rpc endpoints…");
 		}
 
 		for url in rpc_endpoints.into_iter() {
@@ -90,7 +73,10 @@ impl Bitcoin {
 				pb.abandon();
 			}
 
-			bail!(format!("{}: {}", network.name, message_failed));
+			bail!(format!(
+				"{}: Could not connect to any RPC endpoint.",
+				network.name
+			));
 		}
 
 		let bitcoin_network =

@@ -52,9 +52,8 @@ impl MigrationTrait for Migration {
 							.big_integer()
 							.not_null(),
 					)
-					.col(ColumnDef::new(Networks::Rpc).string().not_null())
 					.col(
-						ColumnDef::new(Networks::RpcBootstraps)
+						ColumnDef::new(Networks::RpcEndpoints)
 							.json()
 							.not_null(),
 					)
@@ -89,8 +88,7 @@ enum Networks {
 	Blockchain,
 	ChainId,
 	BlockTimeMs,
-	Rpc,
-	RpcBootstraps,
+	RpcEndpoints,
 	UpdatedAt,
 	CreatedAt,
 }

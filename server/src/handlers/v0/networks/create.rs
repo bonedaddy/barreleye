@@ -19,8 +19,7 @@ pub struct Payload {
 	blockchain: Blockchain,
 	chain_id: u64,
 	block_time_ms: u64,
-	rpc: String,
-	rpc_bootstraps: Vec<String>,
+	rpc_endpoints: Vec<String>,
 }
 
 pub async fn handler(
@@ -61,8 +60,7 @@ pub async fn handler(
 		blockchain: payload.blockchain,
 		chain_id: payload.chain_id as i64,
 		block_time_ms: 0,
-		rpc: payload.rpc.clone(),
-		rpc_bootstraps: json!(payload.rpc_bootstraps.clone()),
+		rpc_endpoints: json!(payload.rpc_endpoints.clone()),
 		updated_at: None,
 		created_at: utils::now(),
 	};
@@ -91,8 +89,7 @@ pub async fn handler(
 			payload.blockchain,
 			payload.chain_id as i64,
 			payload.block_time_ms as i64,
-			&payload.rpc,
-			payload.rpc_bootstraps,
+			payload.rpc_endpoints,
 		),
 	)
 	.await?;

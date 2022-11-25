@@ -1,7 +1,6 @@
 use async_trait::async_trait;
 use ethers::{
-	abi::AbiEncode, prelude::*, types::Transaction as EvmTransaction,
-	utils as ethers_utils,
+	abi::AbiEncode, prelude::*, types::Transaction as EvmTransaction, utils,
 };
 use eyre::{bail, Result};
 use indicatif::ProgressBar;
@@ -22,7 +21,7 @@ use crate::ChainTrait;
 use barreleye_common::{
 	cache::CacheKey,
 	models::{Network, PrimaryId, Transfer},
-	utils, AppState,
+	AppState,
 };
 
 pub struct Evm {
@@ -41,28 +40,11 @@ impl Evm {
 		let mut rpc: Option<String> = None;
 		let mut maybe_provider: Option<Provider<Http>> = None;
 
-		let mut rpc_endpoints = vec![];
-
-		let (message_trying, message_failed) = if network.rpc.is_empty() {
-			rpc_endpoints =
-				serde_json::from_value(network.rpc_bootstraps.clone())?;
-			(
-				"trying rpc endpoints…".to_string(),
-				"Could not connect to any RPC endpoint.".to_string(),
-			)
-		} else {
-			rpc_endpoints.push(network.rpc.clone());
-			(
-				"connecting to rpc…".to_string(),
-				format!(
-					"Could not connect to RPC endpoint @ `{}`.",
-					utils::with_masked_auth(&network.rpc)
-				),
-			)
-		};
+		let rpc_endpoints: Vec<String> =
+			serde_json::from_value(network.rpc_endpoints.clone())?;
 
 		if let Some(pb) = pb {
-			pb.set_message(message_trying);
+			pb.set_message("trying rpc endpoints…");
 		}
 
 		for url in rpc_endpoints.into_iter() {
@@ -84,7 +66,10 @@ impl Evm {
 				pb.abandon();
 			}
 
-			bail!(format!("{}: {}", network.name, message_failed));
+			bail!(format!(
+				"{}: Could not connect to any RPC endpoint.",
+				network.name
+			));
 		}
 
 		Ok(Self {
@@ -216,8 +201,8 @@ impl Evm {
 			block_height,
 			block_hash,
 			tx.hash.encode_hex(),
-			ethers_utils::to_checksum(&tx.from, None).into(),
-			ethers_utils::to_checksum(&to, None).into(),
+			utils::to_checksum(&tx.from, None).into(),
+			utils::to_checksum(&to, None).into(),
 			None,
 			U256::from_str_radix(&tx.value.to_string(), 10)?,
 			U256::from_str_radix(&tx.value.to_string(), 10)?,
@@ -230,7 +215,7 @@ impl Evm {
 	async fn is_smart_contract(&self, address: &H160) -> Result<bool> {
 		let cache_key = CacheKey::EvmSmartContract(
 			self.network.network_id as u64,
-			ethers_utils::to_checksum(address, None),
+			utils::to_checksum(address, None),
 		);
 
 		Ok(match self.app_state.cache.get::<bool>(cache_key.clone()).await? {

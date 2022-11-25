@@ -29,8 +29,7 @@ pub struct Model {
 	pub blockchain: Blockchain,
 	pub chain_id: i64,
 	pub block_time_ms: i64,
-	pub rpc: String,
-	pub rpc_bootstraps: Json,
+	pub rpc_endpoints: Json,
 	#[sea_orm(nullable)]
 	#[serde(skip_serializing)]
 	pub updated_at: Option<DateTime>,
@@ -63,8 +62,7 @@ impl Model {
 		blockchain: Blockchain,
 		chain_id: i64,
 		block_time_ms: i64,
-		rpc: &str,
-		rpc_bootstraps: Vec<String>,
+		rpc_endpoints: Vec<String>,
 	) -> ActiveModel {
 		ActiveModel {
 			id: Set(utils::new_unique_id(IdPrefix::Network)),
@@ -74,8 +72,7 @@ impl Model {
 			blockchain: Set(blockchain),
 			chain_id: Set(chain_id),
 			block_time_ms: Set(block_time_ms),
-			rpc: Set(rpc.to_string()),
-			rpc_bootstraps: Set(json!(rpc_bootstraps)),
+			rpc_endpoints: Set(json!(rpc_endpoints)),
 			..Default::default()
 		}
 	}
