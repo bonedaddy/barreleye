@@ -50,9 +50,12 @@ impl Warehouse {
 			.await
 			.wrap_err(self.url_without_database.clone())?;
 
-		self.clickhouse.client.query(&format!(
-			r#"
-			CREATE TABLE IF NOT EXISTS {}.transfers (
+		self.clickhouse
+			.client
+			.query(&format!(
+				r#"
+			CREATE TABLE IF NOT EXISTS {}.transfers
+			(
 			  uuid UUID,
 			  network_id UInt64,
 			  block_height UInt64,
@@ -64,12 +67,65 @@ impl Warehouse {
 			  amount UInt256,
 			  batch_amount UInt256,
 			  created_at DateTime
-			) ENGINE = ReplacingMergeTree
-			ORDER BY (network_id, block_height, block_hash, tx_hash, from_address, to_address, asset_address, amount, batch_amount)
+			)
+			ENGINE = ReplacingMergeTree
+			ORDER BY (
+				network_id,
+				block_height,
+				block_hash,
+				tx_hash,
+				from_address,
+				to_address,
+				asset_address,
+				amount,
+				batch_amount
+			)
 			PARTITION BY toYYYYMM(created_at);
 			"#,
-			self.db_name
-		)).execute().await.wrap_err(self.url_without_database.clone())?;
+				self.db_name
+			))
+			.execute()
+			.await
+			.wrap_err(self.url_without_database.clone())?;
+
+		self.clickhouse
+			.client
+			.query(&format!(
+				r#"
+			CREATE MATERIALIZED VIEW IF NOT EXISTS {}.address_stats
+			ENGINE = SummingMergeTree
+			PARTITION BY network_id
+			ORDER BY (address, network_id)
+			POPULATE AS
+			SELECT
+			    a.address,
+			    a.network_id,
+			    a.in,
+			    b.out
+			FROM
+			(
+			    SELECT
+			        to_address AS address,
+			        network_id,
+			        count(from_address) AS in
+			    FROM {}.transfers
+			    GROUP BY (network_id, to_address)
+			) AS a
+			LEFT JOIN
+			(
+			    SELECT
+			        from_address AS address,
+			        network_id,
+			        count(to_address) AS out
+			    FROM {}.transfers
+			    GROUP BY (network_id, from_address)
+			) AS b ON (a.address = b.address) AND (a.network_id = b.network_id)
+			"#,
+				self.db_name, self.db_name, self.db_name
+			))
+			.execute()
+			.await
+			.wrap_err(self.url_without_database.clone())?;
 
 		Ok(self)
 	}
