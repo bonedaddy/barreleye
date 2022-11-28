@@ -2,5 +2,6 @@ barreleye.toml
 **/*.rs.bk
 .env*.local
 target
+txt
 barreleye_cache
 barreleye_database
