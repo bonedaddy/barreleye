@@ -22,7 +22,7 @@ barreleye-chain = { path = "../chain", version = "0.0.1" }
 barreleye-common = { path = "../common", version = "0.0.1" }
 
 [dependencies.sea-orm]
-version = "0.10.4"
+version = "0.10.5"
 features = [
   "sqlx-sqlite",
   "sqlx-postgres",
