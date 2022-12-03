@@ -89,8 +89,6 @@ pub enum IdPrefix {
 	Network,
 	#[display(fmt = "key")]
 	ApiKey,
-	#[display(fmt = "acc")]
-	Account,
 	#[display(fmt = "lab")]
 	Label,
 	#[display(fmt = "lab_adr")]

@@ -9,14 +9,12 @@ use sea_orm::{
 
 pub use self::config::{Config, ConfigKey};
 use crate::{utils, Db};
-pub use account::{Account, AccountActiveModel};
 pub use api_key::{ApiKey, ApiKeyActiveModel};
 pub use label::{Label, LabelActiveModel};
 pub use labeled_address::{LabeledAddress, LabeledAddressActiveModel};
 pub use network::{Network, NetworkActiveModel};
 pub use transfer::Transfer;
 
-pub mod account;
 pub mod api_key;
 pub mod config;
 pub mod label;

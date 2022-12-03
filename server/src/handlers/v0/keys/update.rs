@@ -14,7 +14,7 @@ use barreleye_common::models::{
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Payload {
-	is_admin: Option<bool>,
+	is_active: Option<bool>,
 }
 
 pub async fn handler(
@@ -23,7 +23,7 @@ pub async fn handler(
 	Json(payload): Json<Payload>,
 ) -> ServerResult<StatusCode> {
 	let update_data = ApiKeyActiveModel {
-		is_admin: optional_set(payload.is_admin),
+		is_active: optional_set(payload.is_active),
 		..Default::default()
 	};
 

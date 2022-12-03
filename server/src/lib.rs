@@ -23,7 +23,7 @@ use uuid::Uuid;
 
 use crate::errors::ServerError;
 use barreleye_common::{
-	models::Account, progress, progress::Step, AppError, AppState,
+	models::ApiKey, progress, progress::Step, AppError, AppState,
 };
 
 mod errors;
@@ -69,13 +69,14 @@ impl Server {
 
 	async fn auth<B>(
 		State(app): State<Arc<AppState>>,
-		mut req: Request<B>,
+		req: Request<B>,
 		next: Next<B>,
 	) -> ServerResult<Response> {
-		let mut is_admin_key_required = true;
-		for user_endpoint in vec!["/v0/insights"].iter() {
-			if req.uri().to_string().starts_with(user_endpoint) {
-				is_admin_key_required = false;
+		for public_endpoint in
+			vec!["/v0/assets", "/v0/upstream", "/v0/related"].iter()
+		{
+			if req.uri().to_string().starts_with(public_endpoint) {
+				return Ok(next.run(req).await);
 			}
 		}
 
@@ -94,16 +95,16 @@ impl Server {
 		let api_key =
 			Uuid::parse_str(&token).map_err(|_| ServerError::Unauthorized)?;
 
-		if let Some(account) =
-			Account::get_by_api_key(&app.db, api_key, is_admin_key_required)
-				.await
-				.map_err(|_| ServerError::Unauthorized)?
+		if let Some(api_key) = ApiKey::get_by_uuid(&app.db, &api_key)
+			.await
+			.map_err(|_| ServerError::Unauthorized)?
 		{
-			req.extensions_mut().insert(account);
-			Ok(next.run(req).await)
-		} else {
-			Err(ServerError::Unauthorized)
+			if api_key.is_active {
+				return Ok(next.run(req).await);
+			}
 		}
+
+		Err(ServerError::Unauthorized)
 	}
 
 	pub async fn start(&self) -> Result<()> {

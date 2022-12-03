@@ -3,7 +3,7 @@ use sea_orm::entity::{prelude::*, *};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-	models::{account, BasicModel, PrimaryId},
+	models::{BasicModel, PrimaryId},
 	utils, Db, IdPrefix,
 };
 
@@ -16,13 +16,10 @@ pub struct Model {
 	#[sea_orm(primary_key)]
 	#[serde(skip_serializing, skip_deserializing)]
 	pub api_key_id: PrimaryId,
-	#[serde(skip_serializing)]
-	pub account_id: PrimaryId,
 	pub id: String,
 	#[serde(skip_serializing)]
 	pub uuid: Uuid,
-	#[serde(skip_serializing)]
-	pub is_admin: bool,
+	pub is_active: bool,
 	#[sea_orm(nullable)]
 	#[serde(skip_serializing)]
 	pub updated_at: Option<DateTime>,
@@ -36,18 +33,11 @@ pub use ActiveModel as ApiKeyActiveModel;
 pub use Model as ApiKey;
 
 #[derive(Copy, Clone, Debug, EnumIter)]
-pub enum Relation {
-	Account,
-}
+pub enum Relation {}
 
 impl RelationTrait for Relation {
 	fn def(&self) -> RelationDef {
-		match self {
-			Self::Account => Entity::belongs_to(account::Entity)
-				.from(Column::AccountId)
-				.to(account::Column::AccountId)
-				.into(),
-		}
+		panic!("No RelationDef")
 	}
 }
 
@@ -58,24 +48,17 @@ impl BasicModel for Model {
 }
 
 impl Model {
-	pub fn new_model(account_id: PrimaryId, is_admin: bool) -> ActiveModel {
+	pub fn new_model() -> ActiveModel {
 		ActiveModel {
-			account_id: Set(account_id),
 			id: Set(utils::new_unique_id(IdPrefix::ApiKey)),
 			uuid: Set(utils::new_uuid()),
-			is_admin: Set(is_admin),
+			is_active: Set(true),
 			..Default::default()
 		}
 	}
 
-	pub async fn get_all_by_account_id(
-		db: &Db,
-		account_id: PrimaryId,
-	) -> Result<Vec<Self>> {
-		Ok(Entity::find()
-			.filter(Column::AccountId.eq(account_id))
-			.all(db.get())
-			.await?)
+	pub async fn get_by_uuid(db: &Db, uuid: &Uuid) -> Result<Option<Self>> {
+		Ok(Entity::find().filter(Column::Uuid.eq(*uuid)).one(db.get()).await?)
 	}
 
 	pub fn format(&self) -> Self {

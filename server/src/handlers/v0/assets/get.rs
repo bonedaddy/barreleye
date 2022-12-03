@@ -1,0 +1,15 @@
+use axum::Json;
+use serde::Serialize;
+
+use crate::ServerResult;
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Response {
+	assets: bool,
+}
+
+pub async fn handler() -> ServerResult<Json<Response>> {
+	let response = Response { assets: true };
+	Ok(response.into())
+}
