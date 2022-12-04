@@ -1,15 +1,18 @@
 use clickhouse::Row;
 use eyre::Result;
-use primitive_types::U256;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
-	models::PrimaryId, u256, utils, warehouse::Warehouse, Address,
-	ChainModuleId,
+	models::PrimaryId, utils, warehouse::Warehouse, Address, ChainModuleId,
 };
 
-static TABLE: &str = "transfers";
+static TABLE: &str = "links";
+
+#[repr(u16)]
+pub enum Reason {
+	PossibleSelfTransfer = 1,
+}
 
 #[derive(PartialEq, Eq, Hash, Debug, Clone, Row, Serialize, Deserialize)]
 pub struct Model {
@@ -21,15 +24,11 @@ pub struct Model {
 	pub tx_hash: String,
 	pub from_address: String,
 	pub to_address: String,
-	pub asset_address: String,
-	#[serde(with = "u256")]
-	pub amount: U256,
-	#[serde(with = "u256")]
-	pub batch_amount: U256,
+	pub reason: u16,
 	pub created_at: u32,
 }
 
-pub use Model as Transfer;
+pub use Model as Link;
 
 impl Model {
 	pub fn new(
@@ -39,9 +38,7 @@ impl Model {
 		tx_hash: String,
 		from_address: Address,
 		to_address: Address,
-		asset_address: Option<Address>,
-		amount: U256,
-		batch_amount: U256,
+		reason: Reason,
 		created_at: u32,
 	) -> Self {
 		Self {
@@ -52,12 +49,7 @@ impl Model {
 			tx_hash: tx_hash.to_lowercase(),
 			from_address: from_address.to_string().to_lowercase(),
 			to_address: to_address.to_string().to_lowercase(),
-			asset_address: asset_address
-				.unwrap_or_else(Address::blank)
-				.to_string()
-				.to_lowercase(),
-			amount,
-			batch_amount,
+			reason: reason as u16,
 			created_at,
 		}
 	}
@@ -72,20 +64,5 @@ impl Model {
 		}
 
 		Ok(insert.end().await?)
-	}
-
-	pub async fn get_block_height(
-		warehouse: &Warehouse,
-		network_id: PrimaryId,
-	) -> Result<Option<u64>> {
-		let record = warehouse.get()
-		    .query(&format!("SELECT ?fields FROM {TABLE} WHERE network_id = ? ORDER BY block_height DESC"))
-		    .bind(network_id)
-		    .fetch_one::<Model>().await;
-
-		Ok(match record {
-			Ok(row) => Some(row.block_height),
-			_ => None,
-		})
 	}
 }

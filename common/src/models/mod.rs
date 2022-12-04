@@ -12,6 +12,7 @@ use crate::{utils, Db};
 pub use api_key::{ApiKey, ApiKeyActiveModel};
 pub use label::{Label, LabelActiveModel};
 pub use labeled_address::{LabeledAddress, LabeledAddressActiveModel};
+pub use link::{Link, Reason as LinkReason};
 pub use network::{Network, NetworkActiveModel};
 pub use transfer::Transfer;
 
@@ -19,6 +20,7 @@ pub mod api_key;
 pub mod config;
 pub mod label;
 pub mod labeled_address;
+pub mod link;
 pub mod network;
 pub mod transfer;
 

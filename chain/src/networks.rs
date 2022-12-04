@@ -15,9 +15,9 @@ use tokio::{
 	time::{sleep, Duration},
 };
 
-use crate::{Bitcoin, ChainTrait, Evm};
+use crate::{Bitcoin, ChainTrait, Evm, IndexResults};
 use barreleye_common::{
-	models::{Config, ConfigKey, Network, PrimaryId, Transfer},
+	models::{Config, ConfigKey, Network, PrimaryId},
 	progress,
 	progress::Step,
 	utils, AppError, AppState, Blockchain,
@@ -142,9 +142,8 @@ impl Networks {
 
 	pub async fn watch(&mut self) -> Result<()> {
 		let mut last_sync_at = utils::now();
-		let mut last_save_at = utils::now();
 		let mut last_read_block_map = HashMap::<i64, u64>::new();
-		let mut transfers = vec![];
+		let mut index_results = IndexResults::new();
 
 		'watching: loop {
 			let is_leading =
@@ -236,7 +235,7 @@ impl Networks {
 						let should_keep_going = should_keep_going.clone();
 
 						async move {
-							let (block_height, transfers) = chain
+							let (block_height, index_results) = chain
 								.process_blocks(
 									last_read_block,
 									should_keep_going,
@@ -254,7 +253,7 @@ impl Networks {
 							Ok::<_, ErrReport>((
 								network_id,
 								block_height,
-								transfers,
+								index_results,
 							))
 						}
 					}));
@@ -283,25 +282,18 @@ impl Networks {
 					}
 				}
 
-				// pile up `transfers` and inc block markers
-				for (network_id, last_read_block, new_transfers) in
+				// pile up `index_results` and inc block markers
+				for (network_id, last_read_block, new_index_results) in
 					results.into_iter()
 				{
-					transfers.extend(new_transfers);
+					index_results += new_index_results;
 					last_read_block_map.insert(network_id, last_read_block);
 				}
 
 				// batch save in warehouse
-				if utils::ago_in_seconds(5) > last_save_at &&
-					transfers.len() > 1_000
-				{
-					// insert new transfers
-					Transfer::create_many(
-						&self.app_state.warehouse,
-						transfers.clone(),
-					)
-					.await?;
-					transfers.clear();
+				if index_results.is_ready_to_commit() {
+					// push to warehouse
+					index_results.commit(&self.app_state.warehouse).await?;
 
 					// commit latest saved blocks
 					Config::set_many::<u64>(
@@ -320,9 +312,6 @@ impl Networks {
 					)
 					.await?;
 					last_read_block_map.clear();
-
-					// update timestamp
-					last_save_at = utils::now();
 				}
 			} else {
 				sleep(Duration::from_secs(1)).await;

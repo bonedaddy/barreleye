@@ -6,7 +6,6 @@ use bitcoin::{
 use bitcoincore_rpc::{Auth, Client, RpcApi};
 use eyre::{bail, Result};
 use indicatif::ProgressBar;
-use primitive_types::U256;
 use std::{
 	borrow::BorrowMut,
 	collections::HashMap,
@@ -18,12 +17,17 @@ use std::{
 use tokio::sync::{mpsc::Sender, oneshot::Receiver};
 use url::Url;
 
-use crate::ChainTrait;
+use crate::{ChainTrait, IndexResults, ModuleTrait};
 use barreleye_common::{
 	cache::CacheKey,
 	models::{Network, PrimaryId, Transfer},
 	AppState,
 };
+use modules::{
+	BitcoinCoinbase, BitcoinLink, BitcoinModuleTrait, BitcoinTransfer,
+};
+
+mod modules;
 
 pub struct Bitcoin {
 	app_state: Arc<AppState>,
@@ -122,9 +126,9 @@ impl ChainTrait for Bitcoin {
 		should_keep_going: Arc<AtomicBool>,
 		i_am_done: Sender<PrimaryId>,
 		mut receipt: Receiver<()>,
-	) -> Result<(u64, Vec<Transfer>)> {
+	) -> Result<(u64, IndexResults)> {
 		let mut block_height = last_read_block;
-		let mut transfers = vec![];
+		let mut index_results = IndexResults::new();
 
 		let mut already_notified = false;
 
@@ -135,16 +139,9 @@ impl ChainTrait for Bitcoin {
 			let block = self.client.get_block(&block_hash)?;
 
 			for tx in block.txdata.into_iter() {
-				let mut new_transfers = self
-					.process_transaction_v1(
-						block_height,
-						block_hash.to_string(),
-						block.header.time,
-						tx,
-					)
+				index_results += self
+					.process_transaction(block_height, block.header.time, tx)
 					.await?;
-
-				transfers.append(&mut new_transfers);
 			}
 
 			if !already_notified {
@@ -153,41 +150,24 @@ impl ChainTrait for Bitcoin {
 			}
 		}
 
-		Ok((block_height, transfers))
+		Ok((block_height, index_results))
 	}
 }
 
 impl Bitcoin {
-	// v1 tracks only address-to-address transfer of non-zero bitcoin
-	async fn process_transaction_v1(
+	async fn process_transaction(
 		&self,
 		block_height: u64,
-		block_hash: String,
 		block_time: u32,
 		tx: BitcoinTransaction,
-	) -> Result<Vec<Transfer>> {
-		let mut ret = vec![];
+	) -> Result<IndexResults> {
+		let mut ret = IndexResults::new();
 
-		// index outputs for quicker lookup later (even if coinbase tx)
-		let all_outputs =
-			self.index_transaction_outputs(block_height, &tx).await?;
-
-		// skip if coinbase tx
-		if tx.is_coin_base() {
-			return Ok(ret);
-		}
-
-		let mut all_inputs = vec![];
-		for txin in tx.input.iter() {
-			let (txid, vout) =
-				(txin.previous_output.txid, txin.previous_output.vout);
-
-			if !txid.is_empty() {
-				if let Some((a, v)) = self.get_utxo(txid, vout).await? {
-					all_inputs.push((a, v))
-				}
-			}
-		}
+		let modules: Vec<Box<dyn BitcoinModuleTrait>> = vec![
+			Box::new(BitcoinTransfer::new(self.network.network_id)),
+			Box::new(BitcoinLink::new(self.network.network_id)),
+			Box::new(BitcoinCoinbase::new(self.network.network_id)),
+		];
 
 		let get_unique_addresses = move |pair: Vec<(String, u64)>| {
 			let mut m = HashMap::<String, u64>::new();
@@ -207,34 +187,38 @@ impl Bitcoin {
 			m
 		};
 
-		let input_map = get_unique_addresses(all_inputs);
-		let input_total: u64 = input_map.iter().map(|(_, v)| v).sum();
+		let inputs = get_unique_addresses({
+			let mut ret = vec![];
 
-		let output_map = get_unique_addresses(all_outputs);
-		let output_total: u64 = output_map.iter().map(|(_, v)| v).sum();
+			for txin in tx.input.iter() {
+				let (txid, vout) =
+					(txin.previous_output.txid, txin.previous_output.vout);
 
-		for input in input_map.iter() {
-			for output in output_map.iter() {
-				let (from, to) = (input.0.clone(), output.0.clone());
-				if from != to {
-					let amount = ((*input.1 as f64 / input_total as f64) *
-						*output.1 as f64)
-						.round();
-
-					ret.push(Transfer::new(
-						self.network.network_id,
-						block_height,
-						block_hash.clone(),
-						tx.txid().as_hash().to_string(),
-						from.into(),
-						to.into(),
-						None,
-						U256::from_str_radix(&amount.to_string(), 10)?,
-						U256::from_str_radix(&output_total.to_string(), 10)?,
-						block_time,
-					));
+				if !txid.is_empty() && !tx.is_coin_base() {
+					if let Some((a, v)) = self.get_utxo(txid, vout).await? {
+						ret.push((a, v))
+					}
 				}
 			}
+
+			ret
+		});
+
+		let outputs = get_unique_addresses(
+			self.index_transaction_outputs(block_height, &tx).await?,
+		);
+
+		for module in modules.into_iter() {
+			ret += module
+				.run(
+					self,
+					block_height,
+					block_time,
+					tx.clone(),
+					inputs.clone(),
+					outputs.clone(),
+				)
+				.await?;
 		}
 
 		Ok(ret)
@@ -314,5 +298,9 @@ impl Bitcoin {
 		}
 
 		Ok(ret)
+	}
+
+	fn is_valid_address(&self, address: &str) -> bool {
+		!address.contains(':')
 	}
 }

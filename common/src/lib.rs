@@ -179,3 +179,12 @@ pub enum Risk {
 	#[serde(rename = "SEVERE")]
 	Severe = 40,
 }
+
+#[repr(u16)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ChainModuleId {
+	BitcoinTransfer = 1,
+	BitcoinLink = 2,
+	BitcoinCoinbase = 3,
+	EvmTransfer = 4,
+}

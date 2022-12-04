@@ -1,10 +1,7 @@
 use async_trait::async_trait;
-use ethers::{
-	abi::AbiEncode, prelude::*, types::Transaction as EvmTransaction, utils,
-};
+use ethers::{prelude::*, types::Transaction as EvmTransaction, utils};
 use eyre::{bail, Result};
 use indicatif::ProgressBar;
-use primitive_types::U256;
 use std::{
 	borrow::BorrowMut,
 	sync::{
@@ -17,12 +14,15 @@ use tokio::{
 	time::{sleep, Duration},
 };
 
-use crate::ChainTrait;
+use crate::{ChainTrait, IndexResults, ModuleTrait};
 use barreleye_common::{
 	cache::CacheKey,
 	models::{Network, PrimaryId, Transfer},
 	AppState,
 };
+use modules::{EvmModuleTrait, EvmTransfer};
+
+mod modules;
 
 pub struct Evm {
 	app_state: Arc<AppState>,
@@ -110,9 +110,9 @@ impl ChainTrait for Evm {
 		should_keep_going: Arc<AtomicBool>,
 		i_am_done: Sender<PrimaryId>,
 		mut receipt: Receiver<()>,
-	) -> Result<(u64, Vec<Transfer>)> {
+	) -> Result<(u64, IndexResults)> {
 		let mut block_height = last_read_block;
-		let mut transfers = vec![];
+		let mut index_results = IndexResults::new();
 
 		let mut already_notified = false;
 
@@ -122,16 +122,13 @@ impl ChainTrait for Evm {
 			match self.provider.get_block_with_txs(block_height).await? {
 				Some(block) if block.number.is_some() => {
 					for tx in block.transactions.into_iter() {
-						let mut new_transfers = self
-							.process_transaction_v1(
+						index_results += self
+							.process_transaction(
 								block_height,
-								block.hash.unwrap().encode_hex(),
 								block.timestamp.as_u32(),
 								tx,
 							)
 							.await?;
-
-						transfers.append(&mut new_transfers);
 					}
 				}
 				_ => {
@@ -145,69 +142,26 @@ impl ChainTrait for Evm {
 			}
 		}
 
-		Ok((block_height, transfers))
+		Ok((block_height, index_results))
 	}
 }
 
 impl Evm {
-	// v1 tracks only eoa-to-eoa transfer of non-zero ether
-	async fn process_transaction_v1(
+	async fn process_transaction(
 		&self,
 		block_height: u64,
-		block_hash: String,
 		block_time: u32,
 		tx: EvmTransaction,
-	) -> Result<Vec<Transfer>> {
-		let mut ret = vec![];
+	) -> Result<IndexResults> {
+		let mut ret = IndexResults::new();
 
-		// skip if pending
-		if tx.block_hash.is_none() {
-			return Ok(ret);
+		let modules: Vec<Box<dyn EvmModuleTrait>> =
+			vec![Box::new(EvmTransfer::new(self.network.network_id))];
+
+		for module in modules.into_iter() {
+			ret +=
+				module.run(self, block_height, block_time, tx.clone()).await?;
 		}
-
-		// skip if no asset transfer
-		if tx.value.is_zero() {
-			return Ok(ret);
-		}
-
-		// skip if contract deploy call
-		if tx.to.is_none() {
-			return Ok(ret);
-		}
-		let to = tx.to.unwrap();
-
-		// skip if burning
-		if to.is_zero() {
-			return Ok(ret);
-		}
-
-		// skip if sending to self
-		if tx.from == to {
-			return Ok(ret);
-		}
-
-		// skip if contract fn call
-		if self.is_smart_contract(&to).await? {
-			return Ok(ret);
-		}
-
-		// skip if contract is sending funds
-		if self.is_smart_contract(&tx.from).await? {
-			return Ok(ret);
-		}
-
-		ret.push(Transfer::new(
-			self.network.network_id,
-			block_height,
-			block_hash,
-			tx.hash.encode_hex(),
-			utils::to_checksum(&tx.from, None).into(),
-			utils::to_checksum(&to, None).into(),
-			None,
-			U256::from_str_radix(&tx.value.to_string(), 10)?,
-			U256::from_str_radix(&tx.value.to_string(), 10)?,
-			block_time,
-		));
 
 		Ok(ret)
 	}

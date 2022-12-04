@@ -57,9 +57,9 @@ impl Warehouse {
 			CREATE TABLE IF NOT EXISTS {}.transfers
 			(
 			  uuid UUID,
+			  module_id UInt16,
 			  network_id UInt64,
 			  block_height UInt64,
-			  block_hash String,
 			  tx_hash String,
 			  from_address String,
 			  to_address String,
@@ -70,9 +70,9 @@ impl Warehouse {
 			)
 			ENGINE = ReplacingMergeTree
 			ORDER BY (
+				module_id,
 				network_id,
 				block_height,
-				block_hash,
 				tx_hash,
 				from_address,
 				to_address,
@@ -122,6 +122,37 @@ impl Warehouse {
 			) AS b ON (a.address = b.address) AND (a.network_id = b.network_id)
 			"#,
 				self.db_name, self.db_name, self.db_name
+			))
+			.execute()
+			.await
+			.wrap_err(self.url_without_database.clone())?;
+
+		self.clickhouse
+			.client
+			.query(&format!(
+				r#"
+			CREATE TABLE IF NOT EXISTS {}.links
+			(
+			  uuid UUID,
+			  module_id UInt16,
+			  network_id UInt64,
+			  block_height UInt64,
+			  tx_hash String,
+			  from_address String,
+			  to_address String,
+			  reason UInt16,
+			  created_at DateTime
+			)
+			ENGINE = ReplacingMergeTree
+			ORDER BY (
+				module_id,
+				network_id,
+				from_address,
+				to_address
+			)
+			PARTITION BY toYYYYMM(created_at);
+			"#,
+				self.db_name
 			))
 			.execute()
 			.await

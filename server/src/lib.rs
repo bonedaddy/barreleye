@@ -95,16 +95,13 @@ impl Server {
 		let api_key =
 			Uuid::parse_str(&token).map_err(|_| ServerError::Unauthorized)?;
 
-		if let Some(api_key) = ApiKey::get_by_uuid(&app.db, &api_key)
+		match ApiKey::get_by_uuid(&app.db, &api_key)
 			.await
 			.map_err(|_| ServerError::Unauthorized)?
 		{
-			if api_key.is_active {
-				return Ok(next.run(req).await);
-			}
+			Some(api_key) if api_key.is_active => Ok(next.run(req).await),
+			_ => Err(ServerError::Unauthorized),
 		}
-
-		Err(ServerError::Unauthorized)
 	}
 
 	pub async fn start(&self) -> Result<()> {
