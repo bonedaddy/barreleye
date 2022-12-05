@@ -30,7 +30,8 @@ pub async fn handler(
 		let mut all_cache_keys = vec![];
 
 		for n in all_networks.iter() {
-			all_cache_keys.push(ConfigKey::LastSavedBlock(n.network_id as u64));
+			all_cache_keys
+				.push(ConfigKey::IndexLatestBlock(n.network_id as u64));
 			all_cache_keys.push(ConfigKey::BlockHeight(n.network_id as u64));
 		}
 
@@ -50,7 +51,7 @@ pub async fn handler(
 
 		let block_index = {
 			let cache_key =
-				ConfigKey::LastSavedBlock(n.network_id as u64).to_string();
+				ConfigKey::IndexLatestBlock(n.network_id as u64).to_string();
 			match all_configs.contains_key(&cache_key) {
 				true => all_configs[&cache_key].value,
 				_ => 0,

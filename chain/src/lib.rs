@@ -2,6 +2,7 @@ use async_trait::async_trait;
 use chrono::NaiveDateTime;
 use eyre::Result;
 use std::{
+	borrow::BorrowMut,
 	collections::HashSet,
 	ops::AddAssign,
 	sync::{atomic::AtomicBool, Arc},
@@ -20,19 +21,52 @@ mod bitcoin;
 mod evm;
 mod networks;
 
+pub struct CanExit {
+	network_id: PrimaryId,
+	notified: bool,
+	done: Sender<PrimaryId>,
+	receipt: Receiver<()>,
+}
+
+impl CanExit {
+	pub fn new(
+		network_id: PrimaryId,
+		done: Sender<PrimaryId>,
+		receipt: Receiver<()>,
+	) -> Self {
+		Self { network_id, notified: false, done, receipt }
+	}
+
+	pub async fn notify(&mut self) -> Result<()> {
+		if !self.notified {
+			self.done.send(self.network_id).await?;
+			self.notified = self.receipt.borrow_mut().await.is_ok();
+		}
+
+		Ok(())
+	}
+}
+
 #[async_trait]
 pub trait ChainTrait: Send + Sync {
 	fn get_network(&self) -> Network;
 	fn get_rpc(&self) -> Option<String>;
+	fn get_module_ids(&self) -> Vec<ChainModuleId>;
 	async fn get_block_height(&self) -> Result<u64>;
 	async fn get_last_processed_block(&self) -> Result<u64>;
 	async fn process_blocks(
 		&self,
-		last_saved_block: u64,
+		starting_block: u64,
+		ending_block: Option<u64>,
+		modules: Vec<ChainModuleId>,
 		should_keep_going: Arc<AtomicBool>,
-		i_am_done: Sender<PrimaryId>,
-		receipt: Receiver<()>,
+		can_exit: CanExit,
 	) -> Result<(u64, IndexResults)>;
+	async fn process_block(
+		&self,
+		block_height: u64,
+		modules: Vec<ChainModuleId>,
+	) -> Result<Option<IndexResults>>;
 }
 
 #[async_trait]

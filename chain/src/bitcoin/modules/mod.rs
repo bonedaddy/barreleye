@@ -3,7 +3,7 @@ use bitcoin::blockdata::transaction::Transaction;
 use eyre::Result;
 use std::collections::HashMap;
 
-use crate::{Bitcoin, IndexResults};
+use crate::{Bitcoin, IndexResults, ModuleTrait};
 pub use coinbase::BitcoinCoinbase;
 pub use link::BitcoinLink;
 pub use transfer::BitcoinTransfer;
@@ -13,7 +13,7 @@ mod link;
 mod transfer;
 
 #[async_trait]
-pub trait BitcoinModuleTrait: Send + Sync {
+pub trait BitcoinModuleTrait: ModuleTrait + Send + Sync {
 	async fn run(
 		&self,
 		bitcoin: &Bitcoin,

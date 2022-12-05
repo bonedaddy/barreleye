@@ -11,11 +11,11 @@ use std::{
 	},
 };
 use tokio::{
-	sync::{mpsc, oneshot, oneshot::Sender},
+	sync::{mpsc, oneshot, oneshot::Sender, Mutex},
 	time::{sleep, Duration},
 };
 
-use crate::{Bitcoin, ChainTrait, Evm, IndexResults};
+use crate::{Bitcoin, CanExit, ChainTrait, Evm, IndexResults};
 use barreleye_common::{
 	models::{Config, ConfigKey, Network, PrimaryId},
 	progress,
@@ -23,14 +23,17 @@ use barreleye_common::{
 	utils, AppError, AppState, Blockchain,
 };
 
+type BoxedChain = Arc<Box<dyn ChainTrait>>;
+
+#[derive(Clone)]
 pub struct Networks {
 	app_state: Arc<AppState>,
-	networks_map: HashMap<PrimaryId, Arc<Box<dyn ChainTrait>>>,
+	networks_map: Arc<Mutex<HashMap<PrimaryId, BoxedChain>>>,
 }
 
 impl Networks {
 	pub fn new(app_state: Arc<AppState>) -> Self {
-		Self { app_state, networks_map: HashMap::new() }
+		Self { app_state, networks_map: Arc::new(Mutex::new(HashMap::new())) }
 	}
 
 	pub async fn connect(mut self) -> Result<Self> {
@@ -100,7 +103,7 @@ impl Networks {
 			});
 		}
 
-		self.networks_map = networks_map;
+		self.networks_map = Arc::new(Mutex::new(networks_map));
 
 		Ok(self)
 	}
@@ -110,21 +113,23 @@ impl Networks {
 			Network::get_all_by_env(&self.app_state.db, self.app_state.env)
 				.await?;
 
+		let mut networks_map = self.networks_map.lock().await;
+
 		// drop removed networks
 		let all_networks_ids: Vec<PrimaryId> =
 			all_networks.iter().map(|n| n.network_id).collect();
-		self.networks_map
+		networks_map
 			.retain(|network_id, _| all_networks_ids.contains(network_id));
 
 		// add new networks
 		for n in all_networks
 			.into_iter()
-			.filter(|n| !self.networks_map.contains_key(&n.network_id))
+			.filter(|n| !networks_map.contains_key(&n.network_id))
 			.collect::<Vec<Network>>()
 			.into_iter()
 		{
 			let app_state = self.app_state.clone();
-			self.networks_map.insert(
+			networks_map.insert(
 				n.network_id,
 				Arc::new(match n.blockchain {
 					Blockchain::Bitcoin => {
@@ -140,44 +145,41 @@ impl Networks {
 		Ok(())
 	}
 
-	pub async fn watch(&mut self) -> Result<()> {
+	pub async fn index(&mut self) -> Result<()> {
 		let mut last_sync_at = utils::now();
 		let mut last_read_block_map = HashMap::<i64, u64>::new();
 		let mut index_results = IndexResults::new();
 
-		'watching: loop {
-			let is_leading =
-				self.app_state.is_ready() && self.app_state.is_leader();
+		'indexing: loop {
+			if !self.app_state.is_leading() {
+				sleep(Duration::from_secs(1)).await;
+				continue;
+			}
 
-			if is_leading && utils::ago_in_seconds(5) > last_sync_at {
+			if utils::ago_in_seconds(5) > last_sync_at {
 				last_sync_at = utils::now();
 				self.sync_networks().await?;
 			}
 
-			if is_leading && !self.networks_map.is_empty() {
-				if utils::ago_in_seconds(5) > last_sync_at {
-					last_sync_at = utils::now();
-					self.sync_networks().await?;
-				}
-
+			let networks_map = self.networks_map.lock().await.clone();
+			if !networks_map.is_empty() {
 				let mut network_ids = HashMap::new();
-				for (network_id, chain) in self.networks_map.iter() {
+				for (network_id, chain) in networks_map.iter() {
 					let last_read_block = {
 						match last_read_block_map.contains_key(network_id) {
 							true => last_read_block_map[network_id],
 							_ => {
-								match Config::get::<u64>(
+								let index_latest_block = Config::get::<u64>(
 									&self.app_state.db,
-									ConfigKey::LastSavedBlock(
+									ConfigKey::IndexLatestBlock(
 										*network_id as u64,
 									),
-								)
-								.await?
-								{
-									Some(hit) => hit.value,
-									_ => {
-										chain.get_last_processed_block().await?
-									}
+								);
+
+								if let Some(hit) = index_latest_block.await? {
+									hit.value
+								} else {
+									chain.get_last_processed_block().await?
 								}
 							}
 						}
@@ -217,7 +219,9 @@ impl Networks {
 					}
 				}
 
-				let (i_am_done, mut is_done) = mpsc::channel(network_ids.len());
+				// @TODO insert futures for syncing modules
+
+				let (done, mut is_done) = mpsc::channel(network_ids.len());
 				let mut futures = vec![];
 				let should_keep_going = Arc::new(AtomicBool::new(true));
 				let mut receipts = HashMap::<PrimaryId, Sender<()>>::new();
@@ -230,17 +234,20 @@ impl Networks {
 
 					futures.push(tokio::spawn({
 						let network_id = *network_id;
-						let chain = self.networks_map[&network_id].clone();
-						let i_am_done = i_am_done.clone();
+						let chain = networks_map[&network_id].clone();
+						let modules = chain.get_module_ids();
 						let should_keep_going = should_keep_going.clone();
+						let can_exit =
+							CanExit::new(network_id, done.clone(), receipt);
 
 						async move {
 							let (block_height, index_results) = chain
 								.process_blocks(
 									last_read_block,
+									None,
+									modules,
 									should_keep_going,
-									i_am_done,
-									receipt,
+									can_exit,
 								)
 								.await?;
 
@@ -259,7 +266,7 @@ impl Networks {
 					}));
 				}
 
-				drop(i_am_done); // drop the original non-cloned
+				drop(done); // drop the original non-cloned
 				while let Some(network_id) = is_done.recv().await {
 					network_ids.remove(&network_id);
 					if network_ids.is_empty() {
@@ -276,17 +283,17 @@ impl Networks {
 					match future.await {
 						Ok(v) => match v {
 							Ok(result) => results.push(result),
-							_ => break 'watching v.map(|_| ()),
+							_ => break 'indexing v.map(|_| ()),
 						},
-						Err(e) => break 'watching Err(e.into()),
+						Err(e) => break 'indexing Err(e.into()),
 					}
 				}
 
 				// pile up `index_results` and inc block markers
-				for (network_id, last_read_block, new_index_results) in
+				for (network_id, last_read_block, new_data) in
 					results.into_iter()
 				{
-					index_results += new_index_results;
+					index_results += new_data;
 					last_read_block_map.insert(network_id, last_read_block);
 				}
 
@@ -302,7 +309,7 @@ impl Networks {
 							.iter()
 							.map(|(network_id, last_read_block)| {
 								(
-									ConfigKey::LastSavedBlock(
+									ConfigKey::IndexLatestBlock(
 										(*network_id) as u64,
 									),
 									*last_read_block,
@@ -313,8 +320,6 @@ impl Networks {
 					.await?;
 					last_read_block_map.clear();
 				}
-			} else {
-				sleep(Duration::from_secs(1)).await;
 			}
 		}
 	}

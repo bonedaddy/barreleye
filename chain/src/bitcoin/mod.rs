@@ -7,21 +7,19 @@ use bitcoincore_rpc::{Auth, Client, RpcApi};
 use eyre::{bail, Result};
 use indicatif::ProgressBar;
 use std::{
-	borrow::BorrowMut,
 	collections::HashMap,
 	sync::{
 		atomic::{AtomicBool, Ordering},
 		Arc,
 	},
 };
-use tokio::sync::{mpsc::Sender, oneshot::Receiver};
 use url::Url;
 
-use crate::{ChainTrait, IndexResults, ModuleTrait};
+use crate::{CanExit, ChainTrait, IndexResults, ModuleTrait};
 use barreleye_common::{
 	cache::CacheKey,
-	models::{Network, PrimaryId, Transfer},
-	AppState,
+	models::{Network, Transfer},
+	AppState, ChainModuleId,
 };
 use modules::{
 	BitcoinCoinbase, BitcoinLink, BitcoinModuleTrait, BitcoinTransfer,
@@ -107,6 +105,14 @@ impl ChainTrait for Bitcoin {
 		self.rpc.clone()
 	}
 
+	fn get_module_ids(&self) -> Vec<ChainModuleId> {
+		vec![
+			ChainModuleId::BitcoinTransfer,
+			ChainModuleId::BitcoinLink,
+			ChainModuleId::BitcoinCoinbase,
+		]
+	}
+
 	async fn get_block_height(&self) -> Result<u64> {
 		Ok(self.client.get_block_count()?)
 	}
@@ -122,35 +128,62 @@ impl ChainTrait for Bitcoin {
 
 	async fn process_blocks(
 		&self,
-		last_read_block: u64,
+		starting_block: u64,
+		ending_block: Option<u64>,
+		modules: Vec<ChainModuleId>,
 		should_keep_going: Arc<AtomicBool>,
-		i_am_done: Sender<PrimaryId>,
-		mut receipt: Receiver<()>,
+		mut can_exit: CanExit,
 	) -> Result<(u64, IndexResults)> {
-		let mut block_height = last_read_block;
+		let mut block_height = starting_block;
 		let mut index_results = IndexResults::new();
-
-		let mut already_notified = false;
 
 		while should_keep_going.load(Ordering::SeqCst) {
 			block_height += 1;
 
-			let block_hash = self.client.get_block_hash(block_height)?;
-			let block = self.client.get_block(&block_hash)?;
-
-			for tx in block.txdata.into_iter() {
-				index_results += self
-					.process_transaction(block_height, block.header.time, tx)
-					.await?;
+			if let Some(max_block_height) = ending_block {
+				if block_height > max_block_height {
+					break;
+				}
 			}
 
-			if !already_notified {
-				i_am_done.send(self.network.network_id).await?;
-				already_notified = receipt.borrow_mut().await.is_ok();
+			match self.process_block(block_height, modules.clone()).await? {
+				Some(data) => index_results += data,
+				None => break,
 			}
+
+			can_exit.notify().await?;
 		}
 
 		Ok((block_height, index_results))
+	}
+
+	async fn process_block(
+		&self,
+		block_height: u64,
+		modules: Vec<ChainModuleId>,
+	) -> Result<Option<IndexResults>> {
+		let mut ret = None;
+
+		if let Ok(block_hash) = self.client.get_block_hash(block_height) {
+			if let Ok(block) = self.client.get_block(&block_hash) {
+				let mut index_results = IndexResults::new();
+
+				for tx in block.txdata.into_iter() {
+					index_results += self
+						.process_transaction(
+							block_height,
+							block.header.time,
+							tx,
+							modules.clone(),
+						)
+						.await?;
+				}
+
+				ret = Some(index_results);
+			}
+		}
+
+		Ok(ret)
 	}
 }
 
@@ -160,14 +193,17 @@ impl Bitcoin {
 		block_height: u64,
 		block_time: u32,
 		tx: Transaction,
+		mods: Vec<ChainModuleId>,
 	) -> Result<IndexResults> {
 		let mut ret = IndexResults::new();
 
-		let modules: Vec<Box<dyn BitcoinModuleTrait>> = vec![
+		let mut modules: Vec<Box<dyn BitcoinModuleTrait>> = vec![
 			Box::new(BitcoinTransfer::new(self.network.network_id)),
 			Box::new(BitcoinLink::new(self.network.network_id)),
 			Box::new(BitcoinCoinbase::new(self.network.network_id)),
 		];
+
+		modules.retain(|m| mods.contains(&m.get_id()));
 
 		let get_unique_addresses = move |pair: Vec<(String, u64)>| {
 			let mut m = HashMap::<String, u64>::new();

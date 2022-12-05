@@ -66,6 +66,10 @@ impl AppState {
 		}
 	}
 
+	pub fn is_leading(&self) -> bool {
+		self.is_ready() && self.is_leader()
+	}
+
 	pub fn is_ready(&self) -> bool {
 		self.is_ready.load(Ordering::SeqCst)
 	}

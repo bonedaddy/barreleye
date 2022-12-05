@@ -2,13 +2,13 @@ use async_trait::async_trait;
 use ethers::types::Transaction;
 use eyre::Result;
 
-use crate::{Evm, IndexResults};
+use crate::{Evm, IndexResults, ModuleTrait};
 pub use transfer::EvmTransfer;
 
 mod transfer;
 
 #[async_trait]
-pub trait EvmModuleTrait: Send + Sync {
+pub trait EvmModuleTrait: ModuleTrait + Send + Sync {
 	async fn run(
 		&self,
 		evm: &Evm,

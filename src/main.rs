@@ -120,7 +120,7 @@ async fn main() -> Result<()> {
 		tokio::spawn(async move {
 			match is_indexer {
 				true => tokio::select! {
-					data = networks.watch() => {
+					data = networks.index() => {
 						if data.is_err() {
 							progress::quit(AppError::IndexingFailed {
 								error: data.as_ref().unwrap_err().to_string(),

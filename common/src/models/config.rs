@@ -12,11 +12,11 @@ use crate::{models::PrimaryId, utils, Db};
 pub enum ConfigKey {
 	#[display(fmt = "leader")]
 	Leader,
-	#[display(fmt = "label_fetched_{}", "_0")]
+	#[display(fmt = "label_fetched_l{}", "_0")]
 	LabelFetched(PrimaryId),
-	#[display(fmt = "last_saved_block_{}", "_0")]
-	LastSavedBlock(u64),
-	#[display(fmt = "block_height_{}", "_0")]
+	#[display(fmt = "index_latest_block_n{}", "_0")]
+	IndexLatestBlock(u64),
+	#[display(fmt = "block_height_n{}", "_0")]
 	BlockHeight(u64),
 }
 
