@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use bitcoin::{
-	blockdata::transaction::Transaction as BitcoinTransaction,
-	hash_types::Txid, util::address::Address, Network as BitcoinNetwork,
+	blockdata::transaction::Transaction, hash_types::Txid,
+	util::address::Address, Network as BitcoinNetwork,
 };
 use bitcoincore_rpc::{Auth, Client, RpcApi};
 use eyre::{bail, Result};
@@ -159,7 +159,7 @@ impl Bitcoin {
 		&self,
 		block_height: u64,
 		block_time: u32,
-		tx: BitcoinTransaction,
+		tx: Transaction,
 	) -> Result<IndexResults> {
 		let mut ret = IndexResults::new();
 
@@ -227,7 +227,7 @@ impl Bitcoin {
 	async fn index_transaction_outputs(
 		&self,
 		block_height: u64,
-		tx: &BitcoinTransaction,
+		tx: &Transaction,
 	) -> Result<Vec<(String, u64)>> {
 		let mut ret = vec![];
 
@@ -281,7 +281,7 @@ impl Bitcoin {
 
 	fn get_address(
 		&self,
-		tx: &BitcoinTransaction,
+		tx: &Transaction,
 		vout: u32,
 	) -> Result<Option<String>> {
 		let mut ret = None;

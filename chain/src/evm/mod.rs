@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use ethers::{prelude::*, types::Transaction as EvmTransaction, utils};
+use ethers::{prelude::*, types::Transaction, utils};
 use eyre::{bail, Result};
 use indicatif::ProgressBar;
 use std::{
@@ -151,7 +151,7 @@ impl Evm {
 		&self,
 		block_height: u64,
 		block_time: u32,
-		tx: EvmTransaction,
+		tx: Transaction,
 	) -> Result<IndexResults> {
 		let mut ret = IndexResults::new();
 
