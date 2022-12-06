@@ -7,9 +7,7 @@ use serde::Deserialize;
 use std::sync::Arc;
 
 use crate::{errors::ServerError, AppState, ServerResult};
-use barreleye_common::models::{
-	optional_set, BasicModel, Label, LabelActiveModel,
-};
+use barreleye_common::models::{optional_set, BasicModel, Label, LabelActiveModel};
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -24,19 +22,12 @@ pub async fn handler(
 	Path(label_id): Path<String>,
 	Json(payload): Json<Payload>,
 ) -> ServerResult<StatusCode> {
-	let label = Label::get_by_id(&app.db, &label_id)
-		.await?
-		.ok_or(ServerError::NotFound)?;
+	let label = Label::get_by_id(&app.db, &label_id).await?.ok_or(ServerError::NotFound)?;
 
 	// check for duplicate name
 	if let Some(name) = payload.name.clone() {
-		if label_id != label.id &&
-			label.name.trim().to_lowercase() == name.trim().to_lowercase()
-		{
-			return Err(ServerError::Duplicate {
-				field: "name".to_string(),
-				value: name,
-			});
+		if label_id != label.id && label.name.trim().to_lowercase() == name.trim().to_lowercase() {
+			return Err(ServerError::Duplicate { field: "name".to_string(), value: name });
 		}
 	}
 

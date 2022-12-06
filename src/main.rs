@@ -29,10 +29,7 @@ async fn main() -> Result<()> {
 		.author("Barreleye")
 		.version(env!("CARGO_PKG_VERSION"))
 		.propagate_version(true)
-		.arg(
-			arg!(-e --env <ENV> "Network types to connect to")
-				.value_parser(value_parser!(Env)),
-		)
+		.arg(arg!(-e --env <ENV> "Network types to connect to").value_parser(value_parser!(Env)))
 		.arg(arg!(--indexer "Run only indexer, without the server"))
 		.arg(arg!(--server "Run only server, without the indexer"))
 		.arg(arg!(-p --plain "No ASCII banner"))
@@ -96,9 +93,8 @@ async fn main() -> Result<()> {
 			.await?,
 	);
 
-	let app_state = Arc::new(AppState::new(
-		settings, cache, db, warehouse, env, is_indexer, is_server,
-	));
+	let app_state =
+		Arc::new(AppState::new(settings, cache, db, warehouse, env, is_indexer, is_server));
 
 	let mut networks = Networks::new(app_state.clone()).connect().await?;
 	let server = Server::new(app_state.clone());
@@ -176,20 +172,13 @@ async fn leader_check(app_state: Arc<AppState>) -> Result<()> {
 		let active_at = utils::ago_in_seconds(leader_ping + 1);
 		let promoted_at = utils::ago_in_seconds(leader_promotion);
 
-		let check_in = Config::set::<Uuid>(
-			&app_state.db,
-			ConfigKey::Leader,
-			app_state.uuid,
-		);
+		let check_in = Config::set::<Uuid>(&app_state.db, ConfigKey::Leader, app_state.uuid);
 
 		match Config::get::<Uuid>(&app_state.db, ConfigKey::Leader).await? {
 			None => {
 				check_in.await?;
 			}
-			Some(hit)
-				if hit.value == app_state.uuid &&
-					hit.updated_at >= active_at =>
-			{
+			Some(hit) if hit.value == app_state.uuid && hit.updated_at >= active_at => {
 				check_in.await?;
 				app_state.set_is_leader(true);
 			}

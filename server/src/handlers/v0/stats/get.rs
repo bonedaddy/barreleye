@@ -21,17 +21,14 @@ pub struct Response {
 	networks: Vec<ResponseNetwork>,
 }
 
-pub async fn handler(
-	State(app): State<Arc<AppState>>,
-) -> ServerResult<Json<Response>> {
+pub async fn handler(State(app): State<Arc<AppState>>) -> ServerResult<Json<Response>> {
 	let all_networks = Network::get_all(&app.db).await?;
 
 	let all_configs = {
 		let mut all_cache_keys = vec![];
 
 		for n in all_networks.iter() {
-			all_cache_keys
-				.push(ConfigKey::IndexLatestBlock(n.network_id as u64));
+			all_cache_keys.push(ConfigKey::IndexerLatestBlock(n.network_id as u64));
 			all_cache_keys.push(ConfigKey::BlockHeight(n.network_id as u64));
 		}
 
@@ -41,8 +38,7 @@ pub async fn handler(
 	let mut networks = vec![];
 	for n in all_networks.into_iter() {
 		let block_height = {
-			let cache_key =
-				ConfigKey::BlockHeight(n.network_id as u64).to_string();
+			let cache_key = ConfigKey::BlockHeight(n.network_id as u64).to_string();
 			match all_configs.contains_key(&cache_key) {
 				true => all_configs[&cache_key].value,
 				_ => 0,
@@ -50,8 +46,7 @@ pub async fn handler(
 		};
 
 		let block_index = {
-			let cache_key =
-				ConfigKey::IndexLatestBlock(n.network_id as u64).to_string();
+			let cache_key = ConfigKey::IndexerLatestBlock(n.network_id as u64).to_string();
 			match all_configs.contains_key(&cache_key) {
 				true => all_configs[&cache_key].value,
 				_ => 0,
@@ -63,17 +58,11 @@ pub async fn handler(
 			_ => 0.0,
 		};
 
-		networks.push(ResponseNetwork {
-			name: n.name,
-			block_index,
-			block_height,
-			sync,
-		});
+		networks.push(ResponseNetwork { name: n.name, block_index, block_height, sync });
 	}
 
 	Ok(Response {
-		sync: networks.iter().map(|n| n.sync).sum::<f64>() /
-			networks.len() as f64,
+		sync: networks.iter().map(|n| n.sync).sum::<f64>() / networks.len() as f64,
 		networks,
 	}
 	.into())

@@ -28,10 +28,7 @@ pub async fn handler(
 ) -> ServerResult<Json<Network>> {
 	// check for duplicate name
 	if Network::get_by_name(&app.db, &payload.name).await?.is_some() {
-		return Err(ServerError::Duplicate {
-			field: "name".to_string(),
-			value: payload.name,
-		});
+		return Err(ServerError::Duplicate { field: "name".to_string(), value: payload.name });
 	}
 
 	// check for duplicate chain id
@@ -67,16 +64,16 @@ pub async fn handler(
 	let service_name = n.name.clone();
 	let a = app.clone();
 	let _: Box<dyn ChainTrait> = match payload.blockchain {
-		Blockchain::Bitcoin => {
-			Box::new(Bitcoin::new(a, n, None).await.map_err(|_| {
-				ServerError::InvalidService { name: service_name.clone() }
-			})?)
-		}
-		Blockchain::Evm => {
-			Box::new(Evm::new(a, n, None).await.map_err(|_| {
-				ServerError::InvalidService { name: service_name.clone() }
-			})?)
-		}
+		Blockchain::Bitcoin => Box::new(
+			Bitcoin::new(a, n, None)
+				.await
+				.map_err(|_| ServerError::InvalidService { name: service_name.clone() })?,
+		),
+		Blockchain::Evm => Box::new(
+			Evm::new(a, n, None)
+				.await
+				.map_err(|_| ServerError::InvalidService { name: service_name.clone() })?,
+		),
 	};
 
 	// create new

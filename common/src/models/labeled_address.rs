@@ -8,9 +8,7 @@ use crate::{
 	utils, Address, Db, IdPrefix,
 };
 
-#[derive(
-	Clone, Debug, PartialEq, Eq, Serialize, Deserialize, DeriveEntityModel,
-)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, DeriveEntityModel)]
 #[sea_orm(table_name = "labeled_addresses")]
 #[serde(rename_all = "camelCase")]
 pub struct Model {
@@ -62,10 +60,7 @@ impl Model {
 		}
 	}
 
-	pub async fn create_many(
-		db: &Db,
-		data: Vec<ActiveModel>,
-	) -> Result<PrimaryId> {
+	pub async fn create_many(db: &Db, data: Vec<ActiveModel>) -> Result<PrimaryId> {
 		let insert_result = Entity::insert_many(data)
 			.on_conflict(
 				OnConflict::columns([Column::LabelId, Column::Address])
@@ -79,24 +74,12 @@ impl Model {
 		Ok(insert_result.last_insert_id)
 	}
 
-	pub async fn get_all_by_label_ids(
-		db: &Db,
-		label_ids: Vec<PrimaryId>,
-	) -> Result<Vec<Self>> {
-		Ok(Entity::find()
-			.filter(Column::LabelId.is_in(label_ids))
-			.all(db.get())
-			.await?)
+	pub async fn get_all_by_label_ids(db: &Db, label_ids: Vec<PrimaryId>) -> Result<Vec<Self>> {
+		Ok(Entity::find().filter(Column::LabelId.is_in(label_ids)).all(db.get()).await?)
 	}
 
-	pub async fn get_by_address(
-		db: &Db,
-		address: &str,
-	) -> Result<Option<Self>> {
-		Ok(Entity::find()
-			.filter(Column::Address.eq(address.to_lowercase()))
-			.one(db.get())
-			.await?)
+	pub async fn get_by_address(db: &Db, address: &str) -> Result<Option<Self>> {
+		Ok(Entity::find().filter(Column::Address.eq(address.to_lowercase())).one(db.get()).await?)
 	}
 
 	pub async fn get_all_by_label_id_and_addresses(
@@ -106,10 +89,7 @@ impl Model {
 	) -> Result<Vec<Self>> {
 		Ok(Entity::find()
 			.filter(Column::LabelId.eq(label_id))
-			.filter(
-				Column::Address
-					.is_in(addresses.into_iter().map(|a| a.to_lowercase())),
-			)
+			.filter(Column::Address.is_in(addresses.into_iter().map(|a| a.to_lowercase())))
 			.all(db.get())
 			.await?)
 	}

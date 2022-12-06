@@ -4,10 +4,7 @@ use primitive_types::U256;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{
-	models::PrimaryId, u256, utils, warehouse::Warehouse, Address,
-	ChainModuleId,
-};
+use crate::{models::PrimaryId, u256, utils, warehouse::Warehouse, Address, ChainModuleId};
 
 static TABLE: &str = "transfers";
 
@@ -52,20 +49,14 @@ impl Model {
 			tx_hash: tx_hash.to_lowercase(),
 			from_address: from_address.to_string().to_lowercase(),
 			to_address: to_address.to_string().to_lowercase(),
-			asset_address: asset_address
-				.unwrap_or_else(Address::blank)
-				.to_string()
-				.to_lowercase(),
+			asset_address: asset_address.unwrap_or_else(Address::blank).to_string().to_lowercase(),
 			amount,
 			batch_amount,
 			created_at,
 		}
 	}
 
-	pub async fn create_many(
-		warehouse: &Warehouse,
-		models: Vec<Self>,
-	) -> Result<()> {
+	pub async fn create_many(warehouse: &Warehouse, models: Vec<Self>) -> Result<()> {
 		let mut insert = warehouse.get().insert(TABLE)?;
 		for model in models.into_iter() {
 			insert.write(&model).await?;
@@ -78,10 +69,14 @@ impl Model {
 		warehouse: &Warehouse,
 		network_id: PrimaryId,
 	) -> Result<Option<u64>> {
-		let record = warehouse.get()
-		    .query(&format!("SELECT ?fields FROM {TABLE} WHERE network_id = ? ORDER BY block_height DESC"))
-		    .bind(network_id)
-		    .fetch_one::<Model>().await;
+		let record = warehouse
+			.get()
+			.query(&format!(
+				"SELECT ?fields FROM {TABLE} WHERE network_id = ? ORDER BY block_height DESC"
+			))
+			.bind(network_id)
+			.fetch_one::<Model>()
+			.await;
 
 		Ok(match record {
 			Ok(row) => Some(row.block_height),

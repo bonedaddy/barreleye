@@ -6,8 +6,8 @@ use std::{fs, fs::OpenOptions, path::PathBuf};
 use url::Url;
 
 use crate::{
-	cache::Driver as CacheDriver, db::Driver as DatabaseDriver,
-	errors::AppError, progress, utils, warehouse::Driver as WarehouseDriver,
+	cache::Driver as CacheDriver, db::Driver as DatabaseDriver, errors::AppError, progress, utils,
+	warehouse::Driver as WarehouseDriver,
 };
 
 pub static DEFAULT_SETTINGS_FILENAME: &str = "barreleye.toml";
@@ -94,23 +94,13 @@ pub struct Dsn {
 impl Settings {
 	pub fn new() -> Result<Self> {
 		// create a blank file if doesn't exist
-		if OpenOptions::new()
-			.write(true)
-			.create_new(true)
-			.open(DEFAULT_SETTINGS_FILENAME)
-			.is_ok()
-		{
-			fs::write(
-				DEFAULT_SETTINGS_FILENAME,
-				DEFAULT_SETTINGS_CONTENT.trim(),
-			)?;
+		if OpenOptions::new().write(true).create_new(true).open(DEFAULT_SETTINGS_FILENAME).is_ok() {
+			fs::write(DEFAULT_SETTINGS_FILENAME, DEFAULT_SETTINGS_CONTENT.trim())?;
 		}
 
 		// builder settings
-		let mut s = Config::builder().add_source(
-			File::new(DEFAULT_SETTINGS_FILENAME, FileFormat::Toml)
-				.required(false),
-		);
+		let mut s = Config::builder()
+			.add_source(File::new(DEFAULT_SETTINGS_FILENAME, FileFormat::Toml).required(false));
 
 		if let Some(dir) = BaseDirs::new() {
 			s = s.add_source(

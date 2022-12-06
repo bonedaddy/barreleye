@@ -4,9 +4,7 @@ use std::sync::Arc;
 use crate::{AppState, ServerResult};
 use barreleye_common::models::{ApiKey, BasicModel};
 
-pub async fn handler(
-	State(app): State<Arc<AppState>>,
-) -> ServerResult<Json<ApiKey>> {
+pub async fn handler(State(app): State<Arc<AppState>>) -> ServerResult<Json<ApiKey>> {
 	// create new
 	let api_key_id = ApiKey::create(&app.db, ApiKey::new_model()).await?;
 

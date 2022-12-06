@@ -24,27 +24,23 @@ pub async fn handler(
 	Path(label_address_id): Path<String>,
 	Json(payload): Json<Payload>,
 ) -> ServerResult<StatusCode> {
-	let update_data = LabeledAddressActiveModel {
-		label_id: match payload.label {
-			Some(label) => {
-				let label = Label::get_by_id(&app.db, &label).await?.ok_or(
-					ServerError::InvalidParam {
-						field: "label".to_string(),
-						value: label,
-					},
-				)?;
+	let update_data =
+		LabeledAddressActiveModel {
+			label_id: match payload.label {
+				Some(label) => {
+					let label = Label::get_by_id(&app.db, &label).await?.ok_or(
+						ServerError::InvalidParam { field: "label".to_string(), value: label },
+					)?;
 
-				ActiveValue::set(label.label_id)
-			}
-			_ => ActiveValue::not_set(),
-		},
-		address: optional_set(payload.address),
-		..Default::default()
-	};
+					ActiveValue::set(label.label_id)
+				}
+				_ => ActiveValue::not_set(),
+			},
+			address: optional_set(payload.address),
+			..Default::default()
+		};
 
-	if LabeledAddress::update_by_id(&app.db, &label_address_id, update_data)
-		.await?
-	{
+	if LabeledAddress::update_by_id(&app.db, &label_address_id, update_data).await? {
 		Ok(StatusCode::NO_CONTENT)
 	} else {
 		Err(ServerError::NotFound)

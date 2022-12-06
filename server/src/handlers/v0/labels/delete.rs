@@ -11,9 +11,7 @@ pub async fn handler(
 	State(app): State<Arc<AppState>>,
 	Path(label_id): Path<String>,
 ) -> ServerResult<StatusCode> {
-	let label = Label::get_by_id(&app.db, &label_id)
-		.await?
-		.ok_or(ServerError::NotFound)?;
+	let label = Label::get_by_id(&app.db, &label_id).await?.ok_or(ServerError::NotFound)?;
 
 	// dont delete if hardcoded
 	if label.is_hardcoded {
@@ -24,8 +22,7 @@ pub async fn handler(
 
 	// dont delete if applied
 	let labeled_addresses =
-		LabeledAddress::get_all_by_label_ids(&app.db, vec![label.label_id])
-			.await?;
+		LabeledAddress::get_all_by_label_ids(&app.db, vec![label.label_id]).await?;
 	if !labeled_addresses.is_empty() {
 		return Err(ServerError::BadRequest {
 			reason: format!(

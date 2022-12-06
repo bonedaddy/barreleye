@@ -19,12 +19,9 @@ pub async fn handler(
 	State(app): State<Arc<AppState>>,
 	Json(payload): Json<Payload>,
 ) -> ServerResult<Json<Vec<LabeledAddress>>> {
-	let label = Label::get_by_id(&app.db, &payload.label).await?.ok_or(
-		ServerError::InvalidParam {
-			field: "label".to_string(),
-			value: payload.label,
-		},
-	)?;
+	let label = Label::get_by_id(&app.db, &payload.label)
+		.await?
+		.ok_or(ServerError::InvalidParam { field: "label".to_string(), value: payload.label })?;
 
 	// check for duplicates
 	let labeled_addresses = LabeledAddress::get_all_by_label_id_and_addresses(
@@ -47,9 +44,7 @@ pub async fn handler(
 			.addresses
 			.clone()
 			.iter()
-			.map(|address| {
-				LabeledAddress::new_model(label.label_id, Address::new(address))
-			})
+			.map(|address| LabeledAddress::new_model(label.label_id, Address::new(address)))
 			.collect(),
 	)
 	.await?;

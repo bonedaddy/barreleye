@@ -23,23 +23,25 @@ mod networks;
 
 pub struct CanExit {
 	network_id: PrimaryId,
+	module_id: Option<ChainModuleId>,
 	notified: bool,
-	done: Sender<PrimaryId>,
+	done: Sender<(PrimaryId, Option<ChainModuleId>)>,
 	receipt: Receiver<()>,
 }
 
 impl CanExit {
 	pub fn new(
 		network_id: PrimaryId,
-		done: Sender<PrimaryId>,
+		module_id: Option<ChainModuleId>,
+		done: Sender<(PrimaryId, Option<ChainModuleId>)>,
 		receipt: Receiver<()>,
 	) -> Self {
-		Self { network_id, notified: false, done, receipt }
+		Self { network_id, module_id, notified: false, done, receipt }
 	}
 
 	pub async fn notify(&mut self) -> Result<()> {
 		if !self.notified {
-			self.done.send(self.network_id).await?;
+			self.done.send((self.network_id, self.module_id)).await?;
 			self.notified = self.receipt.borrow_mut().await.is_ok();
 		}
 
@@ -103,19 +105,11 @@ impl IndexResults {
 
 	pub async fn commit(&mut self, warehouse: &Warehouse) -> Result<()> {
 		if !self.transfers.is_empty() {
-			Transfer::create_many(
-				warehouse,
-				self.transfers.clone().into_iter().collect(),
-			)
-			.await?;
+			Transfer::create_many(warehouse, self.transfers.clone().into_iter().collect()).await?;
 		}
 
 		if !self.links.is_empty() {
-			Link::create_many(
-				warehouse,
-				self.links.clone().into_iter().collect(),
-			)
-			.await?;
+			Link::create_many(warehouse, self.links.clone().into_iter().collect()).await?;
 		}
 
 		self.reset();

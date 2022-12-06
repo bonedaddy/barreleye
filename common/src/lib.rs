@@ -118,17 +118,7 @@ impl FromStr for LabelId {
 	}
 }
 
-#[derive(
-	Debug,
-	EnumIter,
-	DeriveActiveEnum,
-	Copy,
-	Clone,
-	PartialEq,
-	Eq,
-	Serialize,
-	Deserialize,
-)]
+#[derive(Debug, EnumIter, DeriveActiveEnum, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[sea_orm(rs_type = "i16", db_type = "SmallInteger")]
 pub enum Env {
 	#[serde(rename = "localhost")]
@@ -153,17 +143,7 @@ impl ValueEnum for Env {
 	}
 }
 
-#[derive(
-	Debug,
-	EnumIter,
-	DeriveActiveEnum,
-	Copy,
-	Clone,
-	PartialEq,
-	Eq,
-	Serialize,
-	Deserialize,
-)]
+#[derive(Debug, EnumIter, DeriveActiveEnum, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[sea_orm(rs_type = "i16", db_type = "SmallInteger")]
 pub enum Blockchain {
 	#[serde(rename = "bitcoin")]
@@ -185,7 +165,7 @@ pub enum Risk {
 }
 
 #[repr(u16)]
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum ChainModuleId {
 	BitcoinTransfer = 1,
 	BitcoinLink = 2,

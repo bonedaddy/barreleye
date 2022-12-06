@@ -22,9 +22,7 @@ use tower::ServiceBuilder;
 use uuid::Uuid;
 
 use crate::errors::ServerError;
-use barreleye_common::{
-	models::ApiKey, progress, progress::Step, AppError, AppState,
-};
+use barreleye_common::{models::ApiKey, progress, progress::Step, AppError, AppState};
 
 mod errors;
 mod handlers;
@@ -44,13 +42,11 @@ impl Accept for CombinedIncoming {
 		mut self: Pin<&mut Self>,
 		cx: &mut Context<'_>,
 	) -> Poll<Option<Result<Self::Conn, Self::Error>>> {
-		if let Poll::Ready(Some(value)) = Pin::new(&mut self.a).poll_accept(cx)
-		{
+		if let Poll::Ready(Some(value)) = Pin::new(&mut self.a).poll_accept(cx) {
 			return Poll::Ready(Some(value));
 		}
 
-		if let Poll::Ready(Some(value)) = Pin::new(&mut self.b).poll_accept(cx)
-		{
+		if let Poll::Ready(Some(value)) = Pin::new(&mut self.b).poll_accept(cx) {
 			return Poll::Ready(Some(value));
 		}
 
@@ -72,9 +68,7 @@ impl Server {
 		req: Request<B>,
 		next: Next<B>,
 	) -> ServerResult<Response> {
-		for public_endpoint in
-			vec!["/v0/assets", "/v0/upstream", "/v0/related"].iter()
-		{
+		for public_endpoint in vec!["/v0/assets", "/v0/upstream", "/v0/related"].iter() {
 			if req.uri().to_string().starts_with(public_endpoint) {
 				return Ok(next.run(req).await);
 			}
@@ -92,13 +86,9 @@ impl Server {
 			_ => return Err(ServerError::Unauthorized),
 		};
 
-		let api_key =
-			Uuid::parse_str(&token).map_err(|_| ServerError::Unauthorized)?;
+		let api_key = Uuid::parse_str(&token).map_err(|_| ServerError::Unauthorized)?;
 
-		match ApiKey::get_by_uuid(&app.db, &api_key)
-			.await
-			.map_err(|_| ServerError::Unauthorized)?
-		{
+		match ApiKey::get_by_uuid(&app.db, &api_key).await.map_err(|_| ServerError::Unauthorized)? {
 			Some(api_key) if api_key.is_active => Ok(next.run(req).await),
 			_ => Err(ServerError::Unauthorized),
 		}
@@ -116,17 +106,12 @@ impl Server {
 			uri: Uri,
 			_err: BoxError,
 		) -> ServerResult<StatusCode> {
-			Err(ServerError::Internal {
-				error: Report::msg(format!("`{method} {uri}` timed out")),
-			})
+			Err(ServerError::Internal { error: Report::msg(format!("`{method} {uri}` timed out")) })
 		}
 
 		let app = Router::new()
 			.nest("/", handlers::get_routes())
-			.route_layer(middleware::from_fn_with_state(
-				self.app_state.clone(),
-				Self::auth,
-			))
+			.route_layer(middleware::from_fn_with_state(self.app_state.clone(), Self::auth))
 			.fallback(handle_404)
 			.layer(
 				ServiceBuilder::new()
@@ -135,18 +120,13 @@ impl Server {
 			)
 			.with_state(self.app_state.clone());
 
-		let ipv4 = SocketAddr::new(
-			settings.server.ip_v4.parse()?,
-			settings.server.port,
-		);
+		let ipv4 = SocketAddr::new(settings.server.ip_v4.parse()?, settings.server.port);
 
 		let show_progress = |addr: &str| {
-			progress::show(
-				match self.app_state.is_indexer && self.app_state.is_server {
-					true => Step::Ready(addr.to_string()),
-					_ => Step::ServerReady(addr.to_string()),
-				},
-			)
+			progress::show(match self.app_state.is_indexer && self.app_state.is_server {
+				true => Step::Ready(addr.to_string()),
+				_ => Step::ServerReady(addr.to_string()),
+			})
 		};
 
 		if settings.server.ip_v6.is_empty() {
@@ -166,10 +146,7 @@ impl Server {
 				}
 			}
 		} else {
-			let ipv6 = SocketAddr::new(
-				settings.server.ip_v6.parse()?,
-				settings.server.port,
-			);
+			let ipv6 = SocketAddr::new(settings.server.ip_v6.parse()?, settings.server.port);
 
 			match (AddrIncoming::bind(&ipv4), AddrIncoming::bind(&ipv6)) {
 				(Err(e), _) => progress::quit(AppError::ServerStartup {
@@ -181,12 +158,8 @@ impl Server {
 					error: e.message().to_string(),
 				}),
 				(Ok(a), Ok(b)) => {
-					show_progress(&format!(
-						"{} & {}",
-						style(ipv4).bold(),
-						style(ipv6).bold()
-					))
-					.await;
+					show_progress(&format!("{} & {}", style(ipv4).bold(), style(ipv6).bold()))
+						.await;
 
 					self.app_state.set_is_ready();
 					AxumServer::builder(CombinedIncoming { a, b })

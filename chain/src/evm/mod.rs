@@ -34,8 +34,7 @@ impl Evm {
 		let mut rpc: Option<String> = None;
 		let mut maybe_provider: Option<Provider<Http>> = None;
 
-		let rpc_endpoints: Vec<String> =
-			serde_json::from_value(network.rpc_endpoints.clone())?;
+		let rpc_endpoints: Vec<String> = serde_json::from_value(network.rpc_endpoints.clone())?;
 
 		if let Some(pb) = pb {
 			pb.set_message("trying rpc endpoints…");
@@ -60,18 +59,10 @@ impl Evm {
 				pb.abandon();
 			}
 
-			bail!(format!(
-				"{}: Could not connect to any RPC endpoint.",
-				network.name
-			));
+			bail!(format!("{}: Could not connect to any RPC endpoint.", network.name));
 		}
 
-		Ok(Self {
-			app_state,
-			network,
-			rpc,
-			provider: Arc::new(maybe_provider.unwrap()),
-		})
+		Ok(Self { app_state, network, rpc, provider: Arc::new(maybe_provider.unwrap()) })
 	}
 }
 
@@ -94,12 +85,9 @@ impl ChainTrait for Evm {
 	}
 
 	async fn get_last_processed_block(&self) -> Result<u64> {
-		Ok(Transfer::get_block_height(
-			&self.app_state.warehouse,
-			self.network.network_id,
-		)
-		.await?
-		.unwrap_or(0))
+		Ok(Transfer::get_block_height(&self.app_state.warehouse, self.network.network_id)
+			.await?
+			.unwrap_or(0))
 	}
 
 	async fn process_blocks(
@@ -140,9 +128,7 @@ impl ChainTrait for Evm {
 	) -> Result<Option<IndexResults>> {
 		let mut ret = None;
 
-		if let Some(block) =
-			self.provider.get_block_with_txs(block_height).await?
-		{
+		if let Some(block) = self.provider.get_block_with_txs(block_height).await? {
 			if block.number.is_some() {
 				let mut index_results = IndexResults::new();
 
@@ -181,8 +167,7 @@ impl Evm {
 		modules.retain(|m| mods.contains(&m.get_id()));
 
 		for module in modules.into_iter() {
-			ret +=
-				module.run(self, block_height, block_time, tx.clone()).await?;
+			ret += module.run(self, block_height, block_time, tx.clone()).await?;
 		}
 
 		Ok(ret)
@@ -197,13 +182,9 @@ impl Evm {
 		Ok(match self.app_state.cache.get::<bool>(cache_key.clone()).await? {
 			Some(v) => v,
 			_ => {
-				let is_smart_contract =
-					!self.provider.get_code(*address, None).await?.is_empty();
+				let is_smart_contract = !self.provider.get_code(*address, None).await?.is_empty();
 
-				self.app_state
-					.cache
-					.set::<bool>(cache_key, is_smart_contract)
-					.await?;
+				self.app_state.cache.set::<bool>(cache_key, is_smart_contract).await?;
 
 				is_smart_contract
 			}

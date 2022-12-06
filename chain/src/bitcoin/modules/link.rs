@@ -3,9 +3,7 @@ use bitcoin::blockdata::transaction::Transaction;
 use eyre::Result;
 use std::collections::{HashMap, HashSet};
 
-use crate::{
-	bitcoin::modules::BitcoinModuleTrait, Bitcoin, IndexResults, ModuleTrait,
-};
+use crate::{bitcoin::modules::BitcoinModuleTrait, Bitcoin, IndexResults, ModuleTrait};
 use barreleye_common::{
 	models::{Link, LinkReason, PrimaryId},
 	ChainModuleId,
@@ -47,8 +45,7 @@ impl BitcoinModuleTrait for BitcoinLink {
 
 		let sends_change_to_self = {
 			let inputs: HashSet<String> = inputs.clone().into_keys().collect();
-			let outputs: HashSet<String> =
-				outputs.clone().into_keys().collect();
+			let outputs: HashSet<String> = outputs.clone().into_keys().collect();
 
 			!inputs.intersection(&outputs).collect::<HashSet<_>>().is_empty()
 		};

@@ -47,9 +47,7 @@ pub trait BasicModel {
 	) -> Result<<<<Self::ActiveModel as ActiveModelTrait>::Entity as EntityTrait>::PrimaryKey as
 	PrimaryKeyTrait>::ValueType>{
 		let insert_result =
-			<Self::ActiveModel as ActiveModelTrait>::Entity::insert(data)
-				.exec(db.get())
-				.await?;
+			<Self::ActiveModel as ActiveModelTrait>::Entity::insert(data).exec(db.get()).await?;
 
 		Ok(insert_result.last_insert_id)
 	}
@@ -59,53 +57,57 @@ pub trait BasicModel {
 		data: Vec<Self::ActiveModel>,
 	) -> Result<<<<Self::ActiveModel as ActiveModelTrait>::Entity as EntityTrait>::PrimaryKey as
 	PrimaryKeyTrait>::ValueType>{
-		let insert_result =
-			<Self::ActiveModel as ActiveModelTrait>::Entity::insert_many(data)
-				.exec(db.get())
-				.await?;
+		let insert_result = <Self::ActiveModel as ActiveModelTrait>::Entity::insert_many(data)
+			.exec(db.get())
+			.await?;
 
 		Ok(insert_result.last_insert_id)
 	}
 
-    async fn get(
+	async fn get(
 		db: &Db,
 		primary_id: <<<Self::ActiveModel as ActiveModelTrait>::Entity as EntityTrait>::PrimaryKey as
 		PrimaryKeyTrait>::ValueType,
-	) -> Result<Option<<<Self::ActiveModel as ActiveModelTrait>::Entity as EntityTrait>::Model>, DbErr>{
-		<Self::ActiveModel as ActiveModelTrait>::Entity::find_by_id(primary_id)
-			.one(db.get())
-			.await
+	) -> Result<
+		Option<<<Self::ActiveModel as ActiveModelTrait>::Entity as EntityTrait>::Model>,
+		DbErr,
+	> {
+		<Self::ActiveModel as ActiveModelTrait>::Entity::find_by_id(primary_id).one(db.get()).await
 	}
 
-    async fn get_by_id(
+	async fn get_by_id(
 		db: &Db,
 		id: &str,
-	) -> Result<Option<<<Self::ActiveModel as ActiveModelTrait>::Entity as EntityTrait>::Model>, DbErr>{
+	) -> Result<
+		Option<<<Self::ActiveModel as ActiveModelTrait>::Entity as EntityTrait>::Model>,
+		DbErr,
+	> {
 		<Self::ActiveModel as ActiveModelTrait>::Entity::find()
 			.filter(Expr::col(Alias::new("id")).eq(id))
 			.one(db.get())
 			.await
 	}
 
-    async fn get_all(
+	async fn get_all(
 		db: &Db,
-	) -> Result<Vec<<<Self::ActiveModel as ActiveModelTrait>::Entity as EntityTrait>::Model>, DbErr>{
+	) -> Result<Vec<<<Self::ActiveModel as ActiveModelTrait>::Entity as EntityTrait>::Model>, DbErr>
+	{
 		Self::get_all_where(db, vec![], None, None).await
 	}
 
-    async fn get_all_where(
+	async fn get_all_where(
 		db: &Db,
 		conditions: Vec<SimpleExpr>,
 		offset: Option<u64>,
 		limit: Option<u64>,
-	) -> Result<Vec<<<Self::ActiveModel as ActiveModelTrait>::Entity as EntityTrait>::Model>, DbErr>{
+	) -> Result<Vec<<<Self::ActiveModel as ActiveModelTrait>::Entity as EntityTrait>::Model>, DbErr>
+	{
 		let mut filter = Condition::all();
 		for condition in conditions.into_iter() {
 			filter = filter.add(condition);
 		}
 
-		let mut q = <Self::ActiveModel as ActiveModelTrait>::Entity::find()
-			.filter(filter);
+		let mut q = <Self::ActiveModel as ActiveModelTrait>::Entity::find().filter(filter);
 
 		if let Some(v) = offset {
 			q = q.offset(v);
@@ -118,18 +120,13 @@ pub trait BasicModel {
 		q.all(db.get()).await
 	}
 
-	async fn update_by_id(
-		db: &Db,
-		id: &str,
-		data: Self::ActiveModel,
-	) -> Result<bool, DbErr> {
-		let res =
-			<Self::ActiveModel as ActiveModelTrait>::Entity::update_many()
-				.col_expr(Alias::new("updated_at"), Expr::value(utils::now()))
-				.set(data)
-				.filter(Expr::col(Alias::new("id")).eq(id))
-				.exec(db.get())
-				.await?;
+	async fn update_by_id(db: &Db, id: &str, data: Self::ActiveModel) -> Result<bool, DbErr> {
+		let res = <Self::ActiveModel as ActiveModelTrait>::Entity::update_many()
+			.col_expr(Alias::new("updated_at"), Expr::value(utils::now()))
+			.set(data)
+			.filter(Expr::col(Alias::new("id")).eq(id))
+			.exec(db.get())
+			.await?;
 
 		Ok(res.rows_affected == 1)
 	}
@@ -139,10 +136,7 @@ pub trait BasicModel {
 		primary_id: <<<Self::ActiveModel as ActiveModelTrait>::Entity as EntityTrait>::PrimaryKey as
 		PrimaryKeyTrait>::ValueType,
 	) -> Result<bool, DbErr> {
-		let res =
-			<Self::ActiveModel as ActiveModelTrait>::Entity::delete_by_id(
-				primary_id,
-			)
+		let res = <Self::ActiveModel as ActiveModelTrait>::Entity::delete_by_id(primary_id)
 			.exec(db.get())
 			.await?;
 
@@ -150,21 +144,19 @@ pub trait BasicModel {
 	}
 
 	async fn delete_by_id(db: &Db, id: &str) -> Result<bool, DbErr> {
-		let res =
-			<Self::ActiveModel as ActiveModelTrait>::Entity::delete_many()
-				.filter(Expr::col(Alias::new("id")).eq(id))
-				.exec(db.get())
-				.await?;
+		let res = <Self::ActiveModel as ActiveModelTrait>::Entity::delete_many()
+			.filter(Expr::col(Alias::new("id")).eq(id))
+			.exec(db.get())
+			.await?;
 
 		Ok(res.rows_affected == 1)
 	}
 
 	async fn delete_by_ids(db: &Db, ids: Vec<String>) -> Result<u64, DbErr> {
-		let res =
-			<Self::ActiveModel as ActiveModelTrait>::Entity::delete_many()
-				.filter(Expr::col(Alias::new("id")).is_in(ids))
-				.exec(db.get())
-				.await?;
+		let res = <Self::ActiveModel as ActiveModelTrait>::Entity::delete_many()
+			.filter(Expr::col(Alias::new("id")).is_in(ids))
+			.exec(db.get())
+			.await?;
 
 		Ok(res.rows_affected)
 	}

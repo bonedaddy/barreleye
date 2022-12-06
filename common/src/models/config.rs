@@ -8,14 +8,18 @@ use std::collections::HashMap;
 
 use crate::{models::PrimaryId, utils, Db};
 
-#[derive(Display, Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Display, Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum ConfigKey {
 	#[display(fmt = "leader")]
 	Leader,
 	#[display(fmt = "label_fetched_l{}", "_0")]
 	LabelFetched(PrimaryId),
-	#[display(fmt = "index_latest_block_n{}", "_0")]
-	IndexLatestBlock(u64),
+	#[display(fmt = "indexer_latest_n{}_block", "_0")]
+	IndexerLatestBlock(u64),
+	#[display(fmt = "indexer_sync_n{}_m{}_blocks", "_0", "_1")]
+	IndexerSyncBlocks(u64, u16),
+	#[display(fmt = "indexer_n{}_m{}_synced", "_0", "_1")]
+	IndexerSynced(u64, u16),
 	#[display(fmt = "block_height_n{}", "_0")]
 	BlockHeight(u64),
 }
@@ -26,9 +30,7 @@ impl From<ConfigKey> for String {
 	}
 }
 
-#[derive(
-	Clone, Debug, PartialEq, Eq, Serialize, Deserialize, DeriveEntityModel,
-)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, DeriveEntityModel)]
 #[sea_orm(table_name = "configs")]
 #[serde(rename_all = "camelCase")]
 pub struct Model {
@@ -84,10 +86,7 @@ impl Model {
 		Ok(())
 	}
 
-	pub async fn set_many<T>(
-		db: &Db,
-		values: HashMap<ConfigKey, T>,
-	) -> Result<()>
+	pub async fn set_many<T>(db: &Db, values: HashMap<ConfigKey, T>) -> Result<()>
 	where
 		T: Serialize,
 	{
@@ -117,21 +116,16 @@ impl Model {
 	where
 		T: for<'a> Deserialize<'a>,
 	{
-		Ok(Entity::find()
-			.filter(Column::Key.eq(key.to_string()))
-			.one(db.get())
-			.await?
-			.map(|m| Value {
+		Ok(Entity::find().filter(Column::Key.eq(key.to_string())).one(db.get()).await?.map(|m| {
+			Value {
 				value: serde_json::from_str(&m.value).unwrap(),
 				updated_at: m.updated_at,
 				created_at: m.created_at,
-			}))
+			}
+		}))
 	}
 
-	pub async fn get_many<T>(
-		db: &Db,
-		keys: Vec<ConfigKey>,
-	) -> Result<HashMap<String, Value<T>>>
+	pub async fn get_many<T>(db: &Db, keys: Vec<ConfigKey>) -> Result<HashMap<String, Value<T>>>
 	where
 		T: for<'a> Deserialize<'a>,
 	{

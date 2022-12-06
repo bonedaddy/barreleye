@@ -20,35 +20,21 @@ pub enum Step {
 
 pub async fn show(step: Step) {
 	let out = |step, emoji, text| {
-		println!(
-			"{} {}{}",
-			style(format!("[{step}/4]")).bold().dim(),
-			emoji,
-			text,
-		)
+		println!("{} {}{}", style(format!("[{step}/4]")).bold().dim(), emoji, text,)
 	};
 
 	match step {
 		Step::Setup => out(1, SETUP, "Checking setup…"),
 		Step::Migrations => out(2, MIGRATIONS, "Running migrations…"),
 		Step::Networks => out(3, NETWORKS, "Pinging networks…"),
-		Step::Ready(addr) => {
-			out(4, READY, &format!("Indexing & listening on {addr}…"))
-		}
+		Step::Ready(addr) => out(4, READY, &format!("Indexing & listening on {addr}…")),
 		Step::IndexerReady => out(4, READY, "Indexing…"),
-		Step::ServerReady(addr) => {
-			out(4, READY, &format!("Listening on {addr}…"))
-		}
+		Step::ServerReady(addr) => out(4, READY, &format!("Listening on {addr}…")),
 	}
 }
 
 pub fn quit(app_error: AppError) {
-	println!(
-		"{} {}Shutting down…\n\n› {}",
-		style("[err]").bold().dim(),
-		QUIT,
-		app_error,
-	);
+	println!("{} {}Shutting down…\n\n› {}", style("[err]").bold().dim(), QUIT, app_error,);
 
 	process::exit(match app_error {
 		AppError::SignalHandler => exitcode::OSERR,

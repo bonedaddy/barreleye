@@ -4,9 +4,7 @@ use eyre::Result;
 use primitive_types::U256;
 use std::collections::HashMap;
 
-use crate::{
-	bitcoin::modules::BitcoinModuleTrait, Bitcoin, IndexResults, ModuleTrait,
-};
+use crate::{bitcoin::modules::BitcoinModuleTrait, Bitcoin, IndexResults, ModuleTrait};
 use barreleye_common::{
 	models::{PrimaryId, Transfer},
 	Address, ChainModuleId,
@@ -45,8 +43,7 @@ impl BitcoinModuleTrait for BitcoinCoinbase {
 		if tx.is_coin_base() {
 			let tx_hash = tx.txid().as_hash().to_string();
 			let output_amount_total: u64 = outputs.clone().into_values().sum();
-			let batch_amount =
-				U256::from_str_radix(&output_amount_total.to_string(), 10)?;
+			let batch_amount = U256::from_str_radix(&output_amount_total.to_string(), 10)?;
 
 			for (to, amount) in outputs.into_iter() {
 				ret.transfers.insert(Transfer::new(

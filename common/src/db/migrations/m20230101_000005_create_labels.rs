@@ -21,24 +21,10 @@ impl MigrationTrait for Migration {
 							.auto_increment()
 							.primary_key(),
 					)
-					.col(
-						ColumnDef::new(Labels::Id)
-							.unique_key()
-							.string()
-							.not_null(),
-					)
-					.col(
-						ColumnDef::new(Labels::Name)
-							.unique_key()
-							.string()
-							.not_null(),
-					)
+					.col(ColumnDef::new(Labels::Id).unique_key().string().not_null())
+					.col(ColumnDef::new(Labels::Name).unique_key().string().not_null())
 					.col(ColumnDef::new(Labels::IsEnabled).boolean().not_null())
-					.col(
-						ColumnDef::new(Labels::IsHardcoded)
-							.boolean()
-							.not_null(),
-					)
+					.col(ColumnDef::new(Labels::IsHardcoded).boolean().not_null())
 					.col(ColumnDef::new(Labels::IsTracked).boolean().not_null())
 					.col(ColumnDef::new(Labels::UpdatedAt).date_time().null())
 					.col(
@@ -76,11 +62,7 @@ impl MigrationTrait for Migration {
 						true.into(),
 						true.into(),
 					])
-					.on_conflict(
-						OnConflict::columns([Labels::Id])
-							.do_nothing()
-							.to_owned(),
-					)
+					.on_conflict(OnConflict::columns([Labels::Id]).do_nothing().to_owned())
 					.to_owned(),
 			)
 			.await

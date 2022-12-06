@@ -1,8 +1,6 @@
 use async_trait::async_trait;
 use eyre::Result;
-use rocksdb::{
-	DBCompactionStyle, DBWithThreadMode, LogLevel, MultiThreaded, Options,
-};
+use rocksdb::{DBCompactionStyle, DBWithThreadMode, LogLevel, MultiThreaded, Options};
 use std::sync::Arc;
 
 use crate::{cache::CacheTrait, utils, Settings};

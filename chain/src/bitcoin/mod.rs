@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use bitcoin::{
-	blockdata::transaction::Transaction, hash_types::Txid,
-	util::address::Address, Network as BitcoinNetwork,
+	blockdata::transaction::Transaction, hash_types::Txid, util::address::Address,
+	Network as BitcoinNetwork,
 };
 use bitcoincore_rpc::{Auth, Client, RpcApi};
 use eyre::{bail, Result};
@@ -21,9 +21,7 @@ use barreleye_common::{
 	models::{Network, Transfer},
 	AppState, ChainModuleId,
 };
-use modules::{
-	BitcoinCoinbase, BitcoinLink, BitcoinModuleTrait, BitcoinTransfer,
-};
+use modules::{BitcoinCoinbase, BitcoinLink, BitcoinModuleTrait, BitcoinTransfer};
 
 mod modules;
 
@@ -44,8 +42,7 @@ impl Bitcoin {
 		let mut rpc: Option<String> = None;
 		let mut maybe_client: Option<Client> = None;
 
-		let rpc_endpoints: Vec<String> =
-			serde_json::from_value(network.rpc_endpoints.clone())?;
+		let rpc_endpoints: Vec<String> = serde_json::from_value(network.rpc_endpoints.clone())?;
 
 		if let Some(pb) = pb {
 			pb.set_message("trying rpc endpoints…");
@@ -54,10 +51,9 @@ impl Bitcoin {
 		for url in rpc_endpoints.into_iter() {
 			if let Ok(u) = Url::parse(&url) {
 				let auth = match (u.username(), u.password()) {
-					(username, Some(password)) => Auth::UserPass(
-						username.to_string(),
-						password.to_string(),
-					),
+					(username, Some(password)) => {
+						Auth::UserPass(username.to_string(), password.to_string())
+					}
 					_ => Auth::None,
 				};
 
@@ -75,15 +71,11 @@ impl Bitcoin {
 				pb.abandon();
 			}
 
-			bail!(format!(
-				"{}: Could not connect to any RPC endpoint.",
-				network.name
-			));
+			bail!(format!("{}: Could not connect to any RPC endpoint.", network.name));
 		}
 
 		let bitcoin_network =
-			BitcoinNetwork::from_magic(network.chain_id as u32)
-				.unwrap_or(BitcoinNetwork::Bitcoin);
+			BitcoinNetwork::from_magic(network.chain_id as u32).unwrap_or(BitcoinNetwork::Bitcoin);
 
 		Ok(Self {
 			app_state,
@@ -118,12 +110,9 @@ impl ChainTrait for Bitcoin {
 	}
 
 	async fn get_last_processed_block(&self) -> Result<u64> {
-		Ok(Transfer::get_block_height(
-			&self.app_state.warehouse,
-			self.network.network_id,
-		)
-		.await?
-		.unwrap_or(0))
+		Ok(Transfer::get_block_height(&self.app_state.warehouse, self.network.network_id)
+			.await?
+			.unwrap_or(0))
 	}
 
 	async fn process_blocks(
@@ -170,12 +159,7 @@ impl ChainTrait for Bitcoin {
 
 				for tx in block.txdata.into_iter() {
 					index_results += self
-						.process_transaction(
-							block_height,
-							block.header.time,
-							tx,
-							modules.clone(),
-						)
+						.process_transaction(block_height, block.header.time, tx, modules.clone())
 						.await?;
 				}
 
@@ -227,8 +211,7 @@ impl Bitcoin {
 			let mut ret = vec![];
 
 			for txin in tx.input.iter() {
-				let (txid, vout) =
-					(txin.previous_output.txid, txin.previous_output.vout);
+				let (txid, vout) = (txin.previous_output.txid, txin.previous_output.vout);
 
 				if !txid.is_empty() && !tx.is_coin_base() {
 					if let Some((a, v)) = self.get_utxo(txid, vout).await? {
@@ -240,20 +223,12 @@ impl Bitcoin {
 			ret
 		});
 
-		let outputs = get_unique_addresses(
-			self.index_transaction_outputs(block_height, &tx).await?,
-		);
+		let outputs =
+			get_unique_addresses(self.index_transaction_outputs(block_height, &tx).await?);
 
 		for module in modules.into_iter() {
 			ret += module
-				.run(
-					self,
-					block_height,
-					block_time,
-					tx.clone(),
-					inputs.clone(),
-					outputs.clone(),
-				)
+				.run(self, block_height, block_time, tx.clone(), inputs.clone(), outputs.clone())
 				.await?;
 		}
 
@@ -274,10 +249,7 @@ impl Bitcoin {
 					tx.txid().as_hash().to_string()[..8].to_string(),
 				);
 
-				self.app_state
-					.cache
-					.set::<u64>(cache_key, block_height)
-					.await?;
+				self.app_state.cache.set::<u64>(cache_key, block_height).await?;
 
 				ret.push((address, txout.value));
 			}
@@ -286,20 +258,14 @@ impl Bitcoin {
 		Ok(ret)
 	}
 
-	async fn get_utxo(
-		&self,
-		txid: Txid,
-		vout: u32,
-	) -> Result<Option<(String, u64)>> {
+	async fn get_utxo(&self, txid: Txid, vout: u32) -> Result<Option<(String, u64)>> {
 		let cache_key = CacheKey::BitcoinTxIndex(
 			self.network.network_id as u64,
 			txid.as_hash().to_string()[..8].to_string(),
 		);
 
 		let mut block_hash = None;
-		if let Some(block_height) =
-			self.app_state.cache.get::<u64>(cache_key.clone()).await?
-		{
+		if let Some(block_height) = self.app_state.cache.get::<u64>(cache_key.clone()).await? {
 			block_hash = Some(self.client.get_block_hash(block_height)?);
 			self.app_state.cache.delete(cache_key).await?;
 		}
@@ -315,18 +281,13 @@ impl Bitcoin {
 		Ok(ret)
 	}
 
-	fn get_address(
-		&self,
-		tx: &Transaction,
-		vout: u32,
-	) -> Result<Option<String>> {
+	fn get_address(&self, tx: &Transaction, vout: u32) -> Result<Option<String>> {
 		let mut ret = None;
 
 		if vout < tx.output.len() as u32 {
-			if let Ok(address) = Address::from_script(
-				&tx.output[vout as usize].script_pubkey,
-				self.bitcoin_network,
-			) {
+			if let Ok(address) =
+				Address::from_script(&tx.output[vout as usize].script_pubkey, self.bitcoin_network)
+			{
 				ret = Some(address.to_string());
 			} else {
 				ret = Some(format!("{}:{}", tx.txid().as_hash(), vout));

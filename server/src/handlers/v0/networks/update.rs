@@ -30,19 +30,14 @@ pub async fn handler(
 	Path(network_id): Path<String>,
 	Json(payload): Json<Payload>,
 ) -> ServerResult<StatusCode> {
-	let network = Network::get_by_id(&app.db, &network_id)
-		.await?
-		.ok_or(ServerError::NotFound)?;
+	let network = Network::get_by_id(&app.db, &network_id).await?.ok_or(ServerError::NotFound)?;
 
 	// check for duplicate name
 	if let Some(name) = payload.name.clone() {
 		if network_id != network.id &&
 			network.name.trim().to_lowercase() == name.trim().to_lowercase()
 		{
-			return Err(ServerError::Duplicate {
-				field: "name".to_string(),
-				value: name,
-			});
+			return Err(ServerError::Duplicate { field: "name".to_string(), value: name });
 		}
 	}
 

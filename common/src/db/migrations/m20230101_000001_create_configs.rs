@@ -19,12 +19,7 @@ impl MigrationTrait for Migration {
 							.auto_increment()
 							.primary_key(),
 					)
-					.col(
-						ColumnDef::new(Config::Key)
-							.unique_key()
-							.string()
-							.not_null(),
-					)
+					.col(ColumnDef::new(Config::Key).unique_key().string().not_null())
 					.col(ColumnDef::new(Config::Value).string().null())
 					.col(
 						ColumnDef::new(Config::UpdatedAt)

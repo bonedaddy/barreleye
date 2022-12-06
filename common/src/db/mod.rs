@@ -2,8 +2,7 @@ use derive_more::Display;
 use eyre::{Result, WrapErr};
 use log::LevelFilter;
 use sea_orm::{
-	ConnectOptions, ConnectionTrait, Database, DatabaseConnection, DbBackend,
-	Statement,
+	ConnectOptions, ConnectionTrait, Database, DatabaseConnection, DbBackend, Statement,
 };
 use serde::{Deserialize, Serialize};
 use std::{sync::Arc, time::Duration};
@@ -52,9 +51,7 @@ impl Db {
 
 			opt.max_connections(max_connections)
 				.min_connections(min_connections)
-				.connect_timeout(Duration::from_secs(
-					settings.db.connect_timeout,
-				))
+				.connect_timeout(Duration::from_secs(settings.db.connect_timeout))
 				.idle_timeout(Duration::from_secs(settings.db.idle_timeout))
 				.max_lifetime(Duration::from_secs(settings.db.max_lifetime))
 				.sqlx_logging(false)
@@ -66,10 +63,9 @@ impl Db {
 		let (url_without_database, db_name) = utils::without_pathname(&url);
 		let url_with_database = url;
 
-		let conn =
-			Database::connect(with_options(url_without_database.clone()))
-				.await
-				.wrap_err(url_without_database.clone())?;
+		let conn = Database::connect(with_options(url_without_database.clone()))
+			.await
+			.wrap_err(url_without_database.clone())?;
 
 		let db = match conn.get_database_backend() {
 			DbBackend::MySql => {
@@ -86,8 +82,14 @@ impl Db {
 			}
 			DbBackend::Postgres => {
 				let result = conn
-					.execute(Statement::from_string(DbBackend::Postgres, format!("SELECT datname FROM pg_catalog.pg_database WHERE datname='{db_name}';")))
-					.await.wrap_err(url_without_database.clone())?;
+					.execute(Statement::from_string(
+						DbBackend::Postgres,
+						format!(
+							"SELECT datname FROM pg_catalog.pg_database WHERE datname='{db_name}';"
+						),
+					))
+					.await
+					.wrap_err(url_without_database.clone())?;
 
 				if result.rows_affected() == 0 {
 					conn.execute(Statement::from_string(

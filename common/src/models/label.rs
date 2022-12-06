@@ -11,9 +11,7 @@ use crate::{
 	utils, Db, IdPrefix,
 };
 
-#[derive(
-	Clone, Debug, PartialEq, Eq, Serialize, Deserialize, DeriveEntityModel,
-)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, DeriveEntityModel)]
 #[sea_orm(table_name = "labels")]
 #[serde(rename_all = "camelCase")]
 pub struct Model {
@@ -79,10 +77,8 @@ impl Model {
 	pub async fn get_by_name(db: &Db, name: &str) -> Result<Option<Self>> {
 		Ok(Entity::find()
 			.filter(
-				Condition::all().add(
-					Func::lower(Expr::col(Column::Name))
-						.equals(name.trim().to_lowercase()),
-				),
+				Condition::all()
+					.add(Func::lower(Expr::col(Column::Name)).equals(name.trim().to_lowercase())),
 			)
 			.one(db.get())
 			.await?)

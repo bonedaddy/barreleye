@@ -47,9 +47,7 @@ impl Cache {
 
 		Ok(Self {
 			cache: match settings.cache.driver {
-				Driver::RocksDB => Box::new(
-					RocksDb::new(settings).await.wrap_err(rocksdb_url)?,
-				),
+				Driver::RocksDB => Box::new(RocksDb::new(settings).await.wrap_err(rocksdb_url)?),
 			},
 		})
 	}
@@ -69,11 +67,7 @@ impl Cache {
 		T: DeserializeOwned,
 	{
 		let key = cache_key.to_string().to_lowercase();
-		Ok(self
-			.cache
-			.get(&key)
-			.await?
-			.and_then(|v| rmp_serde::from_slice(&v).ok()))
+		Ok(self.cache.get(&key).await?.and_then(|v| rmp_serde::from_slice(&v).ok()))
 	}
 
 	pub async fn delete(&self, cache_key: CacheKey) -> Result<()> {
