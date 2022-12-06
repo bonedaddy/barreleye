@@ -14,10 +14,10 @@ pub enum ConfigKey {
 	Leader,
 	#[display(fmt = "label_fetched_l{}", "_0")]
 	LabelFetched(PrimaryId),
-	#[display(fmt = "indexer_latest_n{}_block", "_0")]
-	IndexerLatestBlock(u64),
-	#[display(fmt = "indexer_sync_n{}_m{}_blocks", "_0", "_1")]
-	IndexerSyncBlocks(u64, u16),
+	#[display(fmt = "indexer_tail_n{}_block", "_0")]
+	IndexerTailBlock(u64),
+	#[display(fmt = "indexer_head_n{}_m{}_blocks", "_0", "_1")]
+	IndexerHeadBlocks(u64, u16),
 	#[display(fmt = "indexer_n{}_m{}_synced", "_0", "_1")]
 	IndexerSynced(u64, u16),
 	#[display(fmt = "block_height_n{}", "_0")]

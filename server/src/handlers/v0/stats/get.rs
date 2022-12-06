@@ -27,9 +27,11 @@ pub async fn handler(State(app): State<Arc<AppState>>) -> ServerResult<Json<Resp
 	let all_configs = {
 		let mut all_cache_keys = vec![];
 
-		for n in all_networks.iter() {
-			all_cache_keys.push(ConfigKey::IndexerLatestBlock(n.network_id as u64));
-			all_cache_keys.push(ConfigKey::BlockHeight(n.network_id as u64));
+		for network in all_networks.iter() {
+			let nid = network.network_id as u64;
+
+			all_cache_keys.push(ConfigKey::IndexerTailBlock(nid));
+			all_cache_keys.push(ConfigKey::BlockHeight(nid));
 		}
 
 		Config::get_many::<u64>(&app.db, all_cache_keys).await?
@@ -46,7 +48,7 @@ pub async fn handler(State(app): State<Arc<AppState>>) -> ServerResult<Json<Resp
 		};
 
 		let block_index = {
-			let cache_key = ConfigKey::IndexerLatestBlock(n.network_id as u64).to_string();
+			let cache_key = ConfigKey::IndexerTailBlock(n.network_id as u64).to_string();
 			match all_configs.contains_key(&cache_key) {
 				true => all_configs[&cache_key].value,
 				_ => 0,

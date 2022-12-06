@@ -172,7 +172,7 @@ impl Networks {
 
 					// push all modules to retrieve latest blocks
 					let last_read_block = {
-						let config_key = ConfigKey::IndexerLatestBlock(nid);
+						let config_key = ConfigKey::IndexerTailBlock(nid);
 						match config_key_map.contains_key(&config_key) {
 							true => json_parse::<BlockHeight>(config_key_map[&config_key].clone())?,
 							_ => {
@@ -209,7 +209,7 @@ impl Networks {
 						network_params_map.insert(
 							(*network_id, None),
 							NetworkParams::new(
-								ConfigKey::IndexerLatestBlock(nid),
+								ConfigKey::IndexerTailBlock(nid),
 								last_read_block,
 								None,
 								&chain.get_module_ids(),
@@ -223,7 +223,7 @@ impl Networks {
 
 						let ck_synced = ConfigKey::IndexerSynced(nid, mid);
 						if Config::get::<u8>(&self.app_state.db, ck_synced).await?.is_none() {
-							let ck_block_range = ConfigKey::IndexerSyncBlocks(nid, mid);
+							let ck_block_range = ConfigKey::IndexerHeadBlocks(nid, mid);
 							let block_range = {
 								match config_key_map.contains_key(&ck_block_range) {
 									true => json_parse::<(BlockHeight, BlockHeight)>(
@@ -322,8 +322,8 @@ impl Networks {
 
 							let config_key = network_params.config_key;
 							let config_value = match config_key {
-								ConfigKey::IndexerLatestBlock(_) => json!(block_height),
-								ConfigKey::IndexerSyncBlocks(_, _) if block_range_max.is_some() => {
+								ConfigKey::IndexerTailBlock(_) => json!(block_height),
+								ConfigKey::IndexerHeadBlocks(_, _) if block_range_max.is_some() => {
 									json!((block_height, block_range_max.unwrap()))
 								}
 								_ => json!(()),
@@ -375,11 +375,11 @@ impl Networks {
 						let key = *config_key;
 
 						match config_key {
-							ConfigKey::IndexerLatestBlock(_) => {
+							ConfigKey::IndexerTailBlock(_) => {
 								let value = json_parse::<BlockHeight>(config_value.clone())?;
 								Config::set::<BlockHeight>(db, key, value).await?;
 							}
-							ConfigKey::IndexerSyncBlocks(_, _) => {
+							ConfigKey::IndexerHeadBlocks(_, _) => {
 								let value =
 									json_parse::<(BlockHeight, BlockHeight)>(config_value.clone())?;
 								Config::set::<(BlockHeight, BlockHeight)>(db, key, value).await?;
@@ -396,7 +396,7 @@ impl Networks {
 					// fully synced, it's safe to delete config for its range markers
 					for (config_key, _) in config_key_map.iter() {
 						if let ConfigKey::IndexerSynced(nid, mid) = config_key {
-							let ck_block_range = ConfigKey::IndexerSyncBlocks(*nid, *mid);
+							let ck_block_range = ConfigKey::IndexerHeadBlocks(*nid, *mid);
 							Config::delete(&self.app_state.db, ck_block_range).await?;
 						}
 					}

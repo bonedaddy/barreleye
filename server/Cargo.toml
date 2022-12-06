@@ -6,16 +6,16 @@ edition = "2021"
 workspace = ".."
 
 [dependencies]
-tokio = { version = "1.21.2", features = ["full"] }
+tokio = { version = "1.23.0", features = ["full"] }
 log = "0.4.0"
 eyre = "0.6.8"
 axum = "0.6.1"
 derive_more = "0.99.17"
-serde = "1.0.147"
-console = "0.15.1"
+serde = "1.0.149"
+console = "0.15.2"
 serde_json = "1.0.89"
 hyper = "0.14.23"
-uuid = { version = "1.2.1", features = ["v4", "fast-rng"] }
+uuid = { version = "1.2.2", features = ["v4", "fast-rng"] }
 tower = { version = "0.4.13", features = ["timeout"] }
 
 barreleye-chain = { path = "../chain", version = "0.0.1" }

@@ -6,16 +6,16 @@ edition = "2021"
 workspace = ".."
 
 [dependencies]
-async-trait = "0.1.58"
+async-trait = "0.1.59"
 eyre = "0.6.8"
 sea-orm-migration = "0.10.5"
 nanoid = "0.4.0"
-serde = "1.0.147"
+serde = "1.0.149"
 log = "0.4.17"
 config = "0.13.2"
 derive_more = "0.99.17"
 serde_json = "1.0.89"
-chrono =  "0.4.22"
+chrono =  "0.4.23"
 url = "2.3.1"
 console = "0.15.2"
 exitcode = "1.1.2"
@@ -26,9 +26,9 @@ directories = "4.0.1"
 rocksdb = "0.19.0"
 rmp-serde = "1.1.1"
 clickhouse = { version = "0.11.1", features = ["uuid"] }
-clap = { version = "4.0.27", features = ["cargo"] }
-uuid = { version = "1.2.1", features = ["v4", "fast-rng"] }
-reqwest = { version = "0.11.12", features = ["json", "rustls-tls"] }
+clap = { version = "4.0.29", features = ["cargo"] }
+uuid = { version = "1.2.2", features = ["v4", "fast-rng"] }
+reqwest = { version = "0.11.13", features = ["json", "rustls-tls"] }
 
 [dependencies.sea-orm]
 version = "0.10.5"
