@@ -4,10 +4,10 @@ use eyre::Result;
 use primitive_types::U256;
 use std::collections::HashMap;
 
-use crate::{bitcoin::modules::BitcoinModuleTrait, Bitcoin, IndexResults, ModuleTrait};
+use crate::{bitcoin::modules::BitcoinModuleTrait, Bitcoin, ModuleTrait, WarehouseData};
 use barreleye_common::{
 	models::{PrimaryId, Transfer},
-	ChainModuleId,
+	BlockHeight, ChainModuleId,
 };
 
 pub struct BitcoinTransfer {
@@ -32,13 +32,13 @@ impl BitcoinModuleTrait for BitcoinTransfer {
 	async fn run(
 		&self,
 		_bitcoin: &Bitcoin,
-		block_height: u64,
+		block_height: BlockHeight,
 		block_time: u32,
 		tx: Transaction,
 		inputs: HashMap<String, u64>,
 		outputs: HashMap<String, u64>,
-	) -> Result<IndexResults> {
-		let mut ret = IndexResults::new();
+	) -> Result<WarehouseData> {
+		let mut ret = WarehouseData::new();
 
 		if tx.is_coin_base() {
 			return Ok(ret);

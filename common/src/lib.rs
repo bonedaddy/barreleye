@@ -28,6 +28,8 @@ pub mod u256;
 pub mod utils;
 pub mod warehouse;
 
+pub type BlockHeight = u64;
+
 #[derive(Clone)]
 pub struct AppState {
 	pub uuid: Uuid,

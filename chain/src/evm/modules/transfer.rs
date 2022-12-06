@@ -3,10 +3,10 @@ use ethers::{abi::AbiEncode, types::Transaction, utils};
 use eyre::Result;
 use primitive_types::U256;
 
-use crate::{evm::modules::EvmModuleTrait, Evm, IndexResults, ModuleTrait};
+use crate::{evm::modules::EvmModuleTrait, Evm, ModuleTrait, WarehouseData};
 use barreleye_common::{
 	models::{PrimaryId, Transfer},
-	ChainModuleId,
+	BlockHeight, ChainModuleId,
 };
 
 pub struct EvmTransfer {
@@ -31,11 +31,11 @@ impl EvmModuleTrait for EvmTransfer {
 	async fn run(
 		&self,
 		evm: &Evm,
-		block_height: u64,
+		block_height: BlockHeight,
 		block_time: u32,
 		tx: Transaction,
-	) -> Result<IndexResults> {
-		let mut ret = IndexResults::new();
+	) -> Result<WarehouseData> {
+		let mut ret = WarehouseData::new();
 
 		// skip if pending
 		if tx.block_hash.is_none() {

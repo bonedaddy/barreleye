@@ -146,4 +146,9 @@ impl Model {
 			})
 			.collect())
 	}
+
+	pub async fn delete(db: &Db, key: ConfigKey) -> Result<()> {
+		Entity::delete_many().filter(Column::Key.eq(key.to_string())).exec(db.get()).await?;
+		Ok(())
+	}
 }

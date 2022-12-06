@@ -16,12 +16,12 @@ use tokio::{
 	time::{sleep, Duration},
 };
 
-use crate::{Bitcoin, CanExit, ChainModuleId, ChainTrait, Evm, IndexResults};
+use crate::{Bitcoin, CanExit, ChainModuleId, ChainTrait, Evm, WarehouseData};
 use barreleye_common::{
 	models::{Config, ConfigKey, Network, PrimaryId},
 	progress,
 	progress::Step,
-	utils, AppError, AppState, Blockchain,
+	utils, AppError, AppState, BlockHeight, Blockchain,
 };
 
 type BoxedChain = Arc<Box<dyn ChainTrait>>;
@@ -29,15 +29,15 @@ type BoxedChain = Arc<Box<dyn ChainTrait>>;
 #[derive(Clone)]
 struct NetworkParams {
 	pub config_key: ConfigKey,
-	pub range: (u64, Option<u64>),
+	pub range: (BlockHeight, Option<BlockHeight>),
 	pub modules: Vec<ChainModuleId>,
 }
 
 impl NetworkParams {
 	pub fn new(
 		config_key: ConfigKey,
-		min: u64,
-		max: Option<u64>,
+		min: BlockHeight,
+		max: Option<BlockHeight>,
 		modules: &[ChainModuleId],
 	) -> Self {
 		Self { config_key, range: (min, max), modules: modules.to_vec() }
@@ -149,8 +149,7 @@ impl Networks {
 
 	pub async fn index(&mut self) -> Result<()> {
 		let mut last_sync_at = utils::now();
-		// let mut last_read_block_map = HashMap::<i64, u64>::new();
-		let mut index_results = IndexResults::new();
+		let mut warehouse_data = WarehouseData::new();
 		let mut config_key_map = HashMap::<ConfigKey, serde_json::Value>::new();
 
 		'indexing: loop {
@@ -175,10 +174,10 @@ impl Networks {
 					let last_read_block = {
 						let config_key = ConfigKey::IndexerLatestBlock(nid);
 						match config_key_map.contains_key(&config_key) {
-							true => json_parse::<u64>(config_key_map[&config_key].clone())?,
+							true => json_parse::<BlockHeight>(config_key_map[&config_key].clone())?,
 							_ => {
 								let index_latest_block =
-									Config::get::<u64>(&self.app_state.db, config_key);
+									Config::get::<BlockHeight>(&self.app_state.db, config_key);
 
 								if let Some(hit) = index_latest_block.await? {
 									hit.value
@@ -190,13 +189,17 @@ impl Networks {
 					};
 					let block_height = {
 						let config_key = ConfigKey::BlockHeight(nid);
-						match Config::get::<u64>(&self.app_state.db, config_key).await? {
+						match Config::get::<BlockHeight>(&self.app_state.db, config_key).await? {
 							Some(hit) if hit.value > last_read_block => hit.value,
 							_ => {
 								let block_height = chain.get_block_height().await?;
 
-								Config::set::<u64>(&self.app_state.db, config_key, block_height)
-									.await?;
+								Config::set::<BlockHeight>(
+									&self.app_state.db,
+									config_key,
+									block_height,
+								)
+								.await?;
 
 								block_height
 							}
@@ -223,11 +226,11 @@ impl Networks {
 							let ck_block_range = ConfigKey::IndexerSyncBlocks(nid, mid);
 							let block_range = {
 								match config_key_map.contains_key(&ck_block_range) {
-									true => json_parse::<(u64, u64)>(
+									true => json_parse::<(BlockHeight, BlockHeight)>(
 										config_key_map[&ck_block_range].clone(),
 									)?,
 									_ => {
-										match Config::get::<(u64, u64)>(
+										match Config::get::<(BlockHeight, BlockHeight)>(
 											&self.app_state.db,
 											ck_block_range,
 										)
@@ -237,7 +240,7 @@ impl Networks {
 											_ => {
 												let block_range = (0, last_read_block);
 
-												Config::set::<(u64, u64)>(
+												Config::set::<(BlockHeight, BlockHeight)>(
 													&self.app_state.db,
 													ck_block_range,
 													block_range,
@@ -287,7 +290,7 @@ impl Networks {
 							let block_range_min = network_params.range.0;
 							let block_range_max = network_params.range.1;
 
-							let (block_height, index_results) = chain
+							let (block_height, warehouse_data) = chain
 								.process_blocks(
 									block_range_min,
 									block_range_max,
@@ -326,7 +329,7 @@ impl Networks {
 								_ => json!(()),
 							};
 
-							Ok::<_, ErrReport>((config_key, config_value, index_results))
+							Ok::<_, ErrReport>((config_key, config_value, warehouse_data))
 						}
 					}));
 				}
@@ -355,16 +358,16 @@ impl Networks {
 					}
 				}
 
-				// pile up `index_results` and update block markers
+				// pile up `warehouse_data` and update block markers
 				for (config_key, config_value, new_data) in results.into_iter() {
-					index_results += new_data;
+					warehouse_data += new_data;
 					config_key_map.insert(config_key, config_value);
 				}
 
 				// batch save in warehouse
-				if index_results.is_ready_to_commit() {
+				if warehouse_data.should_commit() {
 					// push to warehouse
-					index_results.commit(&self.app_state.warehouse).await?;
+					warehouse_data.commit(&self.app_state.warehouse).await?;
 
 					// commit config marker updates
 					for (config_key, config_value) in config_key_map.iter() {
@@ -373,12 +376,13 @@ impl Networks {
 
 						match config_key {
 							ConfigKey::IndexerLatestBlock(_) => {
-								let value = json_parse::<u64>(config_value.clone())?;
-								Config::set::<u64>(db, key, value).await?;
+								let value = json_parse::<BlockHeight>(config_value.clone())?;
+								Config::set::<BlockHeight>(db, key, value).await?;
 							}
 							ConfigKey::IndexerSyncBlocks(_, _) => {
-								let value = json_parse::<(u64, u64)>(config_value.clone())?;
-								Config::set::<(u64, u64)>(db, key, value).await?;
+								let value =
+									json_parse::<(BlockHeight, BlockHeight)>(config_value.clone())?;
+								Config::set::<(BlockHeight, BlockHeight)>(db, key, value).await?;
 							}
 							ConfigKey::IndexerSynced(_, _) => {
 								let value = json_parse::<u8>(config_value.clone())?;
@@ -388,8 +392,14 @@ impl Networks {
 						}
 					}
 
-					// @TODO if IndexerSynced is preset, delete the associated range (it's not
-					// needed anymore)
+					// if `config_key_map` contains a key indicating a certain module has been
+					// fully synced, it's safe to delete config for its range markers
+					for (config_key, _) in config_key_map.iter() {
+						if let ConfigKey::IndexerSynced(nid, mid) = config_key {
+							let ck_block_range = ConfigKey::IndexerSyncBlocks(*nid, *mid);
+							Config::delete(&self.app_state.db, ck_block_range).await?;
+						}
+					}
 
 					config_key_map.clear();
 				}

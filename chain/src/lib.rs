@@ -12,7 +12,7 @@ use tokio::sync::{mpsc::Sender, oneshot::Receiver};
 pub use crate::bitcoin::Bitcoin;
 use barreleye_common::{
 	models::{Link, Network, PrimaryId, Transfer},
-	utils, ChainModuleId, Warehouse,
+	utils, BlockHeight, ChainModuleId, Warehouse,
 };
 pub use evm::Evm;
 pub use networks::Networks;
@@ -54,21 +54,21 @@ pub trait ChainTrait: Send + Sync {
 	fn get_network(&self) -> Network;
 	fn get_rpc(&self) -> Option<String>;
 	fn get_module_ids(&self) -> Vec<ChainModuleId>;
-	async fn get_block_height(&self) -> Result<u64>;
-	async fn get_last_processed_block(&self) -> Result<u64>;
+	async fn get_block_height(&self) -> Result<BlockHeight>;
+	async fn get_last_processed_block(&self) -> Result<BlockHeight>;
 	async fn process_blocks(
 		&self,
-		starting_block: u64,
-		ending_block: Option<u64>,
+		starting_block: BlockHeight,
+		ending_block: Option<BlockHeight>,
 		modules: Vec<ChainModuleId>,
 		should_keep_going: Arc<AtomicBool>,
 		can_exit: CanExit,
-	) -> Result<(u64, IndexResults)>;
+	) -> Result<(BlockHeight, WarehouseData)>;
 	async fn process_block(
 		&self,
-		block_height: u64,
+		block_height: BlockHeight,
 		modules: Vec<ChainModuleId>,
-	) -> Result<Option<IndexResults>>;
+	) -> Result<Option<WarehouseData>>;
 }
 
 #[async_trait]
@@ -80,13 +80,13 @@ pub trait ModuleTrait {
 }
 
 #[derive(Debug, Default)]
-pub struct IndexResults {
+pub struct WarehouseData {
 	saved_at: NaiveDateTime,
 	transfers: HashSet<Transfer>,
 	links: HashSet<Link>,
 }
 
-impl IndexResults {
+impl WarehouseData {
 	pub fn new() -> Self {
 		Self { saved_at: utils::now(), ..Default::default() }
 	}
@@ -99,8 +99,8 @@ impl IndexResults {
 		self.len() == 0
 	}
 
-	pub fn is_ready_to_commit(&self) -> bool {
-		utils::ago_in_seconds(5) > self.saved_at && self.len() > 5_000
+	pub fn should_commit(&self) -> bool {
+		utils::ago_in_seconds(5) > self.saved_at && self.len() > 2_500
 	}
 
 	pub async fn commit(&mut self, warehouse: &Warehouse) -> Result<()> {
@@ -124,8 +124,8 @@ impl IndexResults {
 	}
 }
 
-impl AddAssign for IndexResults {
-	fn add_assign(&mut self, rhs: IndexResults) {
+impl AddAssign for WarehouseData {
+	fn add_assign(&mut self, rhs: WarehouseData) {
 		self.transfers.extend(rhs.transfers);
 		self.links.extend(rhs.links);
 	}

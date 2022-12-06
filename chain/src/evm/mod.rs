@@ -8,11 +8,11 @@ use std::sync::{
 };
 use tokio::time::{sleep, Duration};
 
-use crate::{CanExit, ChainTrait, IndexResults, ModuleTrait};
+use crate::{CanExit, ChainTrait, ModuleTrait, WarehouseData};
 use barreleye_common::{
 	cache::CacheKey,
 	models::{Network, Transfer},
-	AppState, ChainModuleId,
+	AppState, BlockHeight, ChainModuleId,
 };
 use modules::{EvmModuleTrait, EvmTransfer};
 
@@ -80,11 +80,11 @@ impl ChainTrait for Evm {
 		vec![ChainModuleId::EvmTransfer]
 	}
 
-	async fn get_block_height(&self) -> Result<u64> {
+	async fn get_block_height(&self) -> Result<BlockHeight> {
 		Ok(self.provider.get_block_number().await?.as_u64())
 	}
 
-	async fn get_last_processed_block(&self) -> Result<u64> {
+	async fn get_last_processed_block(&self) -> Result<BlockHeight> {
 		Ok(Transfer::get_block_height(&self.app_state.warehouse, self.network.network_id)
 			.await?
 			.unwrap_or(0))
@@ -92,14 +92,14 @@ impl ChainTrait for Evm {
 
 	async fn process_blocks(
 		&self,
-		starting_block: u64,
-		ending_block: Option<u64>,
+		starting_block: BlockHeight,
+		ending_block: Option<BlockHeight>,
 		modules: Vec<ChainModuleId>,
 		should_keep_going: Arc<AtomicBool>,
 		mut can_exit: CanExit,
-	) -> Result<(u64, IndexResults)> {
+	) -> Result<(BlockHeight, WarehouseData)> {
 		let mut block_height = starting_block;
-		let mut index_results = IndexResults::new();
+		let mut warehouse_data = WarehouseData::new();
 
 		while should_keep_going.load(Ordering::SeqCst) {
 			block_height += 1;
@@ -111,29 +111,29 @@ impl ChainTrait for Evm {
 			}
 
 			match self.process_block(block_height, modules.clone()).await? {
-				Some(data) => index_results += data,
+				Some(data) => warehouse_data += data,
 				None => break,
 			}
 
 			can_exit.notify().await?;
 		}
 
-		Ok((block_height, index_results))
+		Ok((block_height, warehouse_data))
 	}
 
 	async fn process_block(
 		&self,
-		block_height: u64,
+		block_height: BlockHeight,
 		modules: Vec<ChainModuleId>,
-	) -> Result<Option<IndexResults>> {
+	) -> Result<Option<WarehouseData>> {
 		let mut ret = None;
 
 		if let Some(block) = self.provider.get_block_with_txs(block_height).await? {
 			if block.number.is_some() {
-				let mut index_results = IndexResults::new();
+				let mut warehouse_data = WarehouseData::new();
 
 				for tx in block.transactions.into_iter() {
-					index_results += self
+					warehouse_data += self
 						.process_transaction(
 							block_height,
 							block.timestamp.as_u32(),
@@ -143,7 +143,7 @@ impl ChainTrait for Evm {
 						.await?;
 				}
 
-				ret = Some(index_results);
+				ret = Some(warehouse_data);
 			}
 		}
 
@@ -154,12 +154,12 @@ impl ChainTrait for Evm {
 impl Evm {
 	async fn process_transaction(
 		&self,
-		block_height: u64,
+		block_height: BlockHeight,
 		block_time: u32,
 		tx: Transaction,
 		mods: Vec<ChainModuleId>,
-	) -> Result<IndexResults> {
-		let mut ret = IndexResults::new();
+	) -> Result<WarehouseData> {
+		let mut ret = WarehouseData::new();
 
 		let mut modules: Vec<Box<dyn EvmModuleTrait>> =
 			vec![Box::new(EvmTransfer::new(self.network.network_id))];
@@ -183,9 +183,7 @@ impl Evm {
 			Some(v) => v,
 			_ => {
 				let is_smart_contract = !self.provider.get_code(*address, None).await?.is_empty();
-
 				self.app_state.cache.set::<bool>(cache_key, is_smart_contract).await?;
-
 				is_smart_contract
 			}
 		})
