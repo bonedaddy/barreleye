@@ -1,13 +1,13 @@
 use axum::{extract::State, Json};
+use sea_orm::TryIntoModel;
 use serde::Deserialize;
-use serde_json::json;
 use std::sync::Arc;
 
 use crate::{errors::ServerError, AppState, ServerResult};
 use barreleye_chain::{Bitcoin, ChainTrait, Evm};
 use barreleye_common::{
 	models::{BasicModel, Network},
-	utils, Blockchain, Env,
+	Blockchain, Env,
 };
 
 #[derive(Deserialize)]
@@ -48,31 +48,26 @@ pub async fn handler(
 	}
 
 	// check rpc connection
-	let n = Network {
-		network_id: 0,
-		id: "".to_string(),
-		name: payload.name.clone(),
-		tag: payload.tag.clone(),
-		env: payload.env,
-		blockchain: payload.blockchain,
-		chain_id: payload.chain_id as i64,
-		block_time_ms: 0,
-		rpc_endpoints: json!(payload.rpc_endpoints.clone()),
-		updated_at: None,
-		created_at: utils::now(),
-	};
-	let service_name = n.name.clone();
-	let a = app.clone();
+	let n = Network::new_model(
+		&payload.name.clone(),
+		&payload.tag.clone(),
+		payload.env,
+		payload.blockchain,
+		payload.chain_id as i64,
+		0,
+		payload.rpc_endpoints.clone(),
+	)
+	.try_into_model()?;
 	let _: Box<dyn ChainTrait> = match payload.blockchain {
 		Blockchain::Bitcoin => Box::new(
-			Bitcoin::new(a, n, None)
+			Bitcoin::new(app.clone(), n.clone(), None)
 				.await
-				.map_err(|_| ServerError::InvalidService { name: service_name.clone() })?,
+				.map_err(|_| ServerError::InvalidService { name: n.name })?,
 		),
 		Blockchain::Evm => Box::new(
-			Evm::new(a, n, None)
+			Evm::new(app.clone(), n.clone(), None)
 				.await
-				.map_err(|_| ServerError::InvalidService { name: service_name.clone() })?,
+				.map_err(|_| ServerError::InvalidService { name: n.name })?,
 		),
 	};
 

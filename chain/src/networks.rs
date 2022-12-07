@@ -457,7 +457,8 @@ impl Networks {
 
 									if block_range.1 > block_range.0 {
 										let indexed = block_height -
-											tail_block - (block_range.1 - block_range.0);
+											(block_height - tail_block) - (block_range.1 -
+											block_range.0);
 										scores.push(indexed as f64 / block_height as f64);
 									}
 								}

@@ -23,6 +23,7 @@ pub struct Payload {
 	chain_id: Option<u64>,
 	block_time_ms: Option<u64>,
 	rpc_endpoints: Option<Vec<String>>,
+	is_active: Option<bool>,
 }
 
 pub async fn handler(
@@ -67,6 +68,7 @@ pub async fn handler(
 		chain_id: optional_set(payload.chain_id.map(|v| v as i64)),
 		block_time_ms: optional_set(payload.block_time_ms.map(|v| v as i64)),
 		rpc_endpoints: optional_set(payload.rpc_endpoints.map(|v| json!(v))),
+		is_active: optional_set(payload.is_active),
 		..Default::default()
 	};
 

@@ -28,6 +28,7 @@ pub struct Model {
 	pub chain_id: i64,
 	pub block_time_ms: i64,
 	pub rpc_endpoints: Json,
+	pub is_active: bool,
 	#[sea_orm(nullable)]
 	#[serde(skip_serializing)]
 	pub updated_at: Option<DateTime>,
@@ -71,12 +72,17 @@ impl Model {
 			chain_id: Set(chain_id),
 			block_time_ms: Set(block_time_ms),
 			rpc_endpoints: Set(json!(rpc_endpoints)),
+			is_active: Set(true),
 			..Default::default()
 		}
 	}
 
 	pub async fn get_all_by_env(db: &Db, env: Env) -> Result<Vec<Self>> {
-		Ok(Entity::find().filter(Column::Env.eq(env)).all(db.get()).await?)
+		Ok(Entity::find()
+			.filter(Column::Env.eq(env))
+			.filter(Column::IsActive.eq(true))
+			.all(db.get())
+			.await?)
 	}
 
 	pub async fn get_by_name(db: &Db, name: &str) -> Result<Option<Self>> {
