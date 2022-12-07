@@ -5,7 +5,7 @@ use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use itertools::{Either, Itertools};
 use serde_json::{from_value as json_parse, json};
 use std::{
-	collections::HashMap,
+	collections::{HashMap, HashSet},
 	sync::{
 		atomic::{AtomicBool, Ordering},
 		Arc,
@@ -163,7 +163,7 @@ impl Networks {
 				self.sync_networks().await?;
 			}
 
-			let networks_map = self.networks_map.lock().await.clone();
+			let networks_map = self.networks_map.lock().await;
 			if !networks_map.is_empty() {
 				let mut network_params_map = HashMap::new();
 
@@ -175,16 +175,10 @@ impl Networks {
 						let config_key = ConfigKey::IndexerTailBlock(nid);
 						match config_key_map.contains_key(&config_key) {
 							true => json_parse::<BlockHeight>(config_key_map[&config_key].clone())?,
-							_ => {
-								let index_latest_block =
-									Config::get::<BlockHeight>(&self.app_state.db, config_key);
-
-								if let Some(hit) = index_latest_block.await? {
-									hit.value
-								} else {
-									chain.get_last_processed_block().await?
-								}
-							}
+							_ => Config::get::<BlockHeight>(&self.app_state.db, config_key)
+								.await?
+								.map(|v| v.value)
+								.unwrap_or(chain.get_last_processed_block().await?),
 						}
 					};
 					let block_height = {
@@ -240,12 +234,14 @@ impl Networks {
 											_ => {
 												let block_range = (0, last_read_block);
 
-												Config::set::<(BlockHeight, BlockHeight)>(
-													&self.app_state.db,
-													ck_block_range,
-													block_range,
-												)
-												.await?;
+												if last_read_block > 0 {
+													Config::set::<(BlockHeight, BlockHeight)>(
+														&self.app_state.db,
+														ck_block_range,
+														block_range,
+													)
+													.await?;
+												}
 
 												block_range
 											}
@@ -294,7 +290,7 @@ impl Networks {
 								.process_blocks(
 									block_range_min,
 									block_range_max,
-									network_params.modules,
+									network_params.modules.clone(),
 									should_keep_going,
 									can_exit,
 								)
@@ -311,7 +307,7 @@ impl Networks {
 								style(chain.get_network().name).yellow(),
 								match block_range_max {
 									None => "block".to_string(),
-									_ => "blocks".to_string(),
+									_ => format!("mod {}", network_params.modules[0]),
 								},
 								style(match block_range_max {
 									None => format!("{block_height}…"),
@@ -366,6 +362,8 @@ impl Networks {
 
 				// batch save in warehouse
 				if warehouse_data.should_commit() {
+					let mut updated_network_ids = HashSet::new();
+
 					// push to warehouse
 					warehouse_data.commit(&self.app_state.warehouse).await?;
 
@@ -373,20 +371,26 @@ impl Networks {
 					for (config_key, config_value) in config_key_map.iter() {
 						let db = &self.app_state.db;
 						let key = *config_key;
+						let value = config_value.clone();
 
 						match config_key {
-							ConfigKey::IndexerTailBlock(_) => {
-								let value = json_parse::<BlockHeight>(config_value.clone())?;
+							ConfigKey::IndexerTailBlock(nid) => {
+								let value = json_parse::<BlockHeight>(value)?;
 								Config::set::<BlockHeight>(db, key, value).await?;
+
+								updated_network_ids.insert(*nid);
 							}
-							ConfigKey::IndexerHeadBlocks(_, _) => {
-								let value =
-									json_parse::<(BlockHeight, BlockHeight)>(config_value.clone())?;
+							ConfigKey::IndexerHeadBlocks(nid, _) => {
+								let value = json_parse::<(BlockHeight, BlockHeight)>(value)?;
 								Config::set::<(BlockHeight, BlockHeight)>(db, key, value).await?;
+
+								updated_network_ids.insert(*nid);
 							}
-							ConfigKey::IndexerSynced(_, _) => {
-								let value = json_parse::<u8>(config_value.clone())?;
+							ConfigKey::IndexerSynced(nid, _) => {
+								let value = json_parse::<u8>(value)?;
 								Config::set::<u8>(db, key, value).await?;
+
+								updated_network_ids.insert(*nid);
 							}
 							_ => {}
 						}
@@ -402,6 +406,62 @@ impl Networks {
 					}
 
 					config_key_map.clear();
+
+					// update progress for each network
+					for network_id in updated_network_ids.into_iter() {
+						let nid = network_id;
+						let mut progress = vec![];
+
+						let block_height = Config::get::<BlockHeight>(
+							&self.app_state.db,
+							ConfigKey::BlockHeight(nid),
+						)
+						.await?
+						.map(|v| v.value)
+						.unwrap_or(0);
+
+						if block_height == 0 {
+							progress.push(0.0);
+						} else {
+							let tail_block = Config::get::<BlockHeight>(
+								&self.app_state.db,
+								ConfigKey::IndexerTailBlock(nid),
+							)
+							.await?
+							.map(|v| v.value)
+							.unwrap_or(0);
+
+							progress.push(tail_block as f64 / block_height as f64);
+
+							let module_ids = networks_map[&(network_id as i64)].get_module_ids();
+							for module_id in module_ids.into_iter() {
+								let mid = module_id as u16;
+
+								let ck_synced = ConfigKey::IndexerSynced(nid, mid);
+								if Config::get::<u8>(&self.app_state.db, ck_synced).await?.is_none()
+								{
+									let block_range = Config::get::<(BlockHeight, BlockHeight)>(
+										&self.app_state.db,
+										ConfigKey::IndexerHeadBlocks(nid, mid),
+									)
+									.await?
+									.map(|v| v.value)
+									.unwrap_or((0, tail_block));
+
+									if block_range.1 > block_range.0 {
+										let indexed =
+											block_height - (block_range.1 - block_range.0);
+										progress.push(indexed as f64 / block_height as f64);
+									}
+								}
+							}
+						}
+
+						Config::set::<f64>(&self.app_state.db, ConfigKey::IndexerProgress(nid), {
+							progress.iter().sum::<f64>() / progress.len() as f64
+						})
+						.await?;
+					}
 				}
 			}
 		}

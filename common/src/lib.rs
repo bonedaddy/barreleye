@@ -167,7 +167,7 @@ pub enum Risk {
 }
 
 #[repr(u16)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+#[derive(Display, Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum ChainModuleId {
 	BitcoinTransfer = 1,
 	BitcoinLink = 2,

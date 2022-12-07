@@ -20,6 +20,8 @@ pub enum ConfigKey {
 	IndexerHeadBlocks(u64, u16),
 	#[display(fmt = "indexer_n{}_m{}_synced", "_0", "_1")]
 	IndexerSynced(u64, u16),
+	#[display(fmt = "indexer_n{}_progress", "_0")]
+	IndexerProgress(u64),
 	#[display(fmt = "block_height_n{}", "_0")]
 	BlockHeight(u64),
 }
