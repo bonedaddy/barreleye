@@ -129,13 +129,23 @@ impl Networks {
 		let all_networks = Network::get_all_by_env(&self.app_state.db, self.app_state.env).await?;
 
 		// drop removed networks
-		let all_networks_ids: Vec<PrimaryId> = all_networks.iter().map(|n| n.network_id).collect();
-		self.networks_map.retain(|network_id, _| all_networks_ids.contains(network_id));
+		let all_active_network_ids: Vec<PrimaryId> = all_networks
+			.iter()
+			.filter_map(|n| match n.is_active {
+				true => Some(n.network_id),
+				_ => None,
+			})
+			.collect();
+		self.networks_map.retain(|network_id, _| all_active_network_ids.contains(network_id));
 
 		// add new networks
 		for network in all_networks
 			.into_iter()
-			.filter(|n| !self.networks_map.contains_key(&n.network_id))
+			.filter(|n| {
+				n.is_active &&
+					(!self.networks_map.contains_key(&n.network_id) ||
+						self.networks_map[&n.network_id].get_network() != *n)
+			})
 			.collect::<Vec<Network>>()
 			.into_iter()
 		{
@@ -179,7 +189,7 @@ impl Networks {
 				let mut network_params_map = HashMap::new();
 
 				for (network_id, chain) in self.networks_map.iter() {
-					let nid = *network_id as u64;
+					let nid = *network_id;
 
 					// push all modules to retrieve latest blocks
 					let last_read_block = {
@@ -430,7 +440,7 @@ impl Networks {
 					for network_id in updated_network_ids.into_iter() {
 						let nid = network_id;
 						let mut scores = vec![];
-						let chain = self.networks_map[&(network_id as i64)].clone();
+						let chain = self.networks_map[&network_id].clone();
 
 						let block_height = Config::get::<BlockHeight>(
 							&self.app_state.db,

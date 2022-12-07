@@ -11,10 +11,10 @@ mod rocksdb;
 #[derive(Display, Debug, Clone)]
 pub enum CacheKey {
 	#[display(fmt = "ex:{}:{}", "_0", "_1")]
-	EvmSmartContract(u64, String), /* network_id, address ->
+	EvmSmartContract(u64, String), /* (network_id, address) ->
 	                                * is_smart_contract: bool */
 	#[display(fmt = "bx:{}:{}", "_0", "_1")]
-	BitcoinTxIndex(u64, String), // network_id, txid[:8] -> block_height: u64
+	BitcoinTxIndex(u64, String), // (network_id, txid) -> block_height: u64
 }
 
 impl From<CacheKey> for String {

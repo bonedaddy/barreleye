@@ -25,7 +25,7 @@ pub async fn handler(State(app): State<Arc<AppState>>) -> ServerResult<Json<Resp
 	let mut networks = vec![];
 
 	for network in Network::get_all(&app.db).await?.into_iter() {
-		let nid = network.network_id as u64;
+		let nid = network.network_id;
 
 		let block_height = Config::get::<u64>(&app.db, ConfigKey::BlockHeight(nid))
 			.await?

@@ -15,16 +15,16 @@ log = "0.4.17"
 config = "0.13.2"
 derive_more = "0.99.17"
 serde_json = "1.0.89"
-chrono =  "0.4.23"
+chrono = "0.4.23"
 url = "2.3.1"
 console = "0.15.2"
 exitcode = "1.1.2"
-ethers = "1.0.2"
 bitcoin = "0.29.2"
 primitive-types = "0.12.1"
 directories = "4.0.1"
 rocksdb = "0.19.0"
 rmp-serde = "1.1.1"
+ethers = { version = "1.0.2", features = ["rustls"] }
 clickhouse = { version = "0.11.1", features = ["uuid"] }
 clap = { version = "4.0.29", features = ["cargo"] }
 uuid = { version = "1.2.2", features = ["v4", "fast-rng"] }

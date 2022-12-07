@@ -15,15 +15,15 @@ pub enum ConfigKey {
 	#[display(fmt = "label_fetched_l{}", "_0")]
 	LabelFetched(PrimaryId),
 	#[display(fmt = "indexer_tail_n{}_block", "_0")]
-	IndexerTailBlock(u64),
+	IndexerTailBlock(PrimaryId),
 	#[display(fmt = "indexer_head_n{}_m{}_blocks", "_0", "_1")]
-	IndexerHeadBlocks(u64, u16),
+	IndexerHeadBlocks(PrimaryId, u16),
 	#[display(fmt = "indexer_n{}_m{}_synced", "_0", "_1")]
-	IndexerSynced(u64, u16),
+	IndexerSynced(PrimaryId, u16),
 	#[display(fmt = "indexer_n{}_progress", "_0")]
-	IndexerProgress(u64),
+	IndexerProgress(PrimaryId),
 	#[display(fmt = "block_height_n{}", "_0")]
-	BlockHeight(u64),
+	BlockHeight(PrimaryId),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, DeriveEntityModel)]

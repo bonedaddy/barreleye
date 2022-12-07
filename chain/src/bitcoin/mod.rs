@@ -261,7 +261,7 @@ impl Bitcoin {
 			if let Some(address) = self.get_address(tx, i as u32)? {
 				let cache_key = CacheKey::BitcoinTxIndex(
 					self.network.network_id as u64,
-					tx.txid().as_hash().to_string()[..8].to_string(),
+					tx.txid().as_hash().to_string(),
 				);
 
 				self.app_state.cache.set::<u64>(cache_key, block_height).await?;
@@ -274,10 +274,8 @@ impl Bitcoin {
 	}
 
 	async fn get_utxo(&self, txid: Txid, vout: u32) -> Result<Option<(String, u64)>> {
-		let cache_key = CacheKey::BitcoinTxIndex(
-			self.network.network_id as u64,
-			txid.as_hash().to_string()[..8].to_string(),
-		);
+		let cache_key =
+			CacheKey::BitcoinTxIndex(self.network.network_id as u64, txid.as_hash().to_string());
 
 		let mut block_hash = None;
 		if let Some(block_height) = self.app_state.cache.get::<u64>(cache_key.clone()).await? {

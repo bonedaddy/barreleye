@@ -81,11 +81,7 @@ impl Model {
 	}
 
 	pub async fn get_all_by_env(db: &Db, env: Env) -> Result<Vec<Self>> {
-		Ok(Entity::find()
-			.filter(Column::Env.eq(env))
-			.filter(Column::IsActive.eq(true))
-			.all(db.get())
-			.await?)
+		Ok(Entity::find().filter(Column::Env.eq(env)).all(db.get()).await?)
 	}
 
 	pub async fn get_by_name(db: &Db, name: &str) -> Result<Option<Self>> {
