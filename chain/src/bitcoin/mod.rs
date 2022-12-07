@@ -15,7 +15,7 @@ use std::{
 };
 use url::Url;
 
-use crate::{CanExit, ChainTrait, ModuleTrait, WarehouseData};
+use crate::{CanExit, ChainTrait, ModuleTrait, RateLimiter, WarehouseData};
 use barreleye_common::{
 	cache::CacheKey,
 	models::{Network, Transfer},
@@ -31,12 +31,14 @@ pub struct Bitcoin {
 	rpc: Option<String>,
 	client: Arc<Client>,
 	bitcoin_network: BitcoinNetwork,
+	rate_limiter: Option<Arc<RateLimiter>>,
 }
 
 impl Bitcoin {
 	pub async fn new(
 		app_state: Arc<AppState>,
 		network: Network,
+		rate_limiter: Option<Arc<RateLimiter>>,
 		pb: Option<&ProgressBar>,
 	) -> Result<Self> {
 		let mut rpc: Option<String> = None;
@@ -83,6 +85,7 @@ impl Bitcoin {
 			rpc,
 			client: Arc::new(maybe_client.unwrap()),
 			bitcoin_network,
+			rate_limiter,
 		})
 	}
 }
@@ -106,6 +109,10 @@ impl ChainTrait for Bitcoin {
 	}
 
 	async fn get_block_height(&self) -> Result<BlockHeight> {
+		if let Some(rate_limiter) = &self.rate_limiter {
+			rate_limiter.until_ready().await;
+		}
+
 		Ok(self.client.get_block_count()?)
 	}
 
@@ -153,7 +160,15 @@ impl ChainTrait for Bitcoin {
 	) -> Result<Option<WarehouseData>> {
 		let mut ret = None;
 
+		if let Some(rate_limiter) = &self.rate_limiter {
+			rate_limiter.until_ready().await;
+		}
+
 		if let Ok(block_hash) = self.client.get_block_hash(block_height) {
+			if let Some(rate_limiter) = &self.rate_limiter {
+				rate_limiter.until_ready().await;
+			}
+
 			if let Ok(block) = self.client.get_block(&block_hash) {
 				let mut warehouse_data = WarehouseData::new();
 
@@ -266,6 +281,10 @@ impl Bitcoin {
 
 		let mut block_hash = None;
 		if let Some(block_height) = self.app_state.cache.get::<u64>(cache_key.clone()).await? {
+			if let Some(rate_limiter) = &self.rate_limiter {
+				rate_limiter.until_ready().await;
+			}
+
 			block_hash = Some(self.client.get_block_hash(block_height)?);
 			// @NOTE do not delete the "used up" utxo here; modules are stateless and another one
 			// might need to use it
@@ -273,6 +292,9 @@ impl Bitcoin {
 
 		// `block_hash` will always be *some value* for those modules that have
 		// started indexing from block 1; for all others -txindex is needed
+		if let Some(rate_limiter) = &self.rate_limiter {
+			rate_limiter.until_ready().await;
+		}
 		let tx = self.client.get_raw_transaction(&txid, block_hash.as_ref())?;
 		let ret = self.get_address(&tx, vout)?.map(|a| {
 			let v = tx.output[vout as usize].value;

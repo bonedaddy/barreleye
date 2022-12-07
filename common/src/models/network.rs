@@ -28,6 +28,7 @@ pub struct Model {
 	pub chain_id: i64,
 	pub block_time_ms: i64,
 	pub rpc_endpoints: Json,
+	pub rps: i32,
 	pub is_active: bool,
 	#[sea_orm(nullable)]
 	#[serde(skip_serializing)]
@@ -62,6 +63,7 @@ impl Model {
 		chain_id: i64,
 		block_time_ms: i64,
 		rpc_endpoints: Vec<String>,
+		rps: i32,
 	) -> ActiveModel {
 		ActiveModel {
 			id: Set(utils::new_unique_id(IdPrefix::Network)),
@@ -73,6 +75,7 @@ impl Model {
 			block_time_ms: Set(block_time_ms),
 			rpc_endpoints: Set(json!(rpc_endpoints)),
 			is_active: Set(true),
+			rps: Set(rps),
 			..Default::default()
 		}
 	}

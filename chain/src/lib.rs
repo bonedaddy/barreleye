@@ -1,6 +1,11 @@
 use async_trait::async_trait;
 use chrono::NaiveDateTime;
 use eyre::Result;
+use governor::{
+	clock::DefaultClock,
+	state::{direct::NotKeyed, InMemoryState},
+	RateLimiter as GovernorRateLimiter,
+};
 use std::{
 	borrow::BorrowMut,
 	collections::HashSet,
@@ -20,6 +25,8 @@ pub use networks::Networks;
 mod bitcoin;
 mod evm;
 mod networks;
+
+pub type RateLimiter = GovernorRateLimiter<NotKeyed, InMemoryState, DefaultClock>;
 
 pub struct CanExit {
 	network_id: PrimaryId,

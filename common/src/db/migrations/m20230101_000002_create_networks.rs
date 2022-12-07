@@ -27,6 +27,7 @@ impl MigrationTrait for Migration {
 					.col(ColumnDef::new(Networks::ChainId).big_integer().not_null())
 					.col(ColumnDef::new(Networks::BlockTimeMs).big_integer().not_null())
 					.col(ColumnDef::new(Networks::RpcEndpoints).json().not_null())
+					.col(ColumnDef::new(Networks::Rps).integer().not_null())
 					.col(ColumnDef::new(Networks::IsActive).boolean().not_null())
 					.col(ColumnDef::new(Networks::UpdatedAt).date_time().null())
 					.col(
@@ -58,6 +59,7 @@ enum Networks {
 	ChainId,
 	BlockTimeMs,
 	RpcEndpoints,
+	Rps,
 	IsActive,
 	UpdatedAt,
 	CreatedAt,

@@ -40,6 +40,7 @@ pub struct Model {
 	pub created_at: DateTime,
 }
 
+#[derive(Debug)]
 pub struct Value<T: for<'a> Deserialize<'a>> {
 	pub value: T,
 	pub updated_at: DateTime,

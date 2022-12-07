@@ -20,6 +20,7 @@ pub struct Payload {
 	chain_id: u64,
 	block_time_ms: u64,
 	rpc_endpoints: Vec<String>,
+	rps: u32,
 }
 
 pub async fn handler(
@@ -54,18 +55,19 @@ pub async fn handler(
 		payload.env,
 		payload.blockchain,
 		payload.chain_id as i64,
-		0,
+		payload.block_time_ms as i64,
 		payload.rpc_endpoints.clone(),
+		payload.rps as i32,
 	)
 	.try_into_model()?;
 	let _: Box<dyn ChainTrait> = match payload.blockchain {
 		Blockchain::Bitcoin => Box::new(
-			Bitcoin::new(app.clone(), n.clone(), None)
+			Bitcoin::new(app.clone(), n.clone(), None, None)
 				.await
 				.map_err(|_| ServerError::InvalidService { name: n.name })?,
 		),
 		Blockchain::Evm => Box::new(
-			Evm::new(app.clone(), n.clone(), None)
+			Evm::new(app.clone(), n.clone(), None, None)
 				.await
 				.map_err(|_| ServerError::InvalidService { name: n.name })?,
 		),
@@ -82,6 +84,7 @@ pub async fn handler(
 			payload.chain_id as i64,
 			payload.block_time_ms as i64,
 			payload.rpc_endpoints,
+			payload.rps as i32,
 		),
 	)
 	.await?;

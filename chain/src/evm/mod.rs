@@ -8,7 +8,7 @@ use std::sync::{
 };
 use tokio::time::{sleep, Duration};
 
-use crate::{CanExit, ChainTrait, ModuleTrait, WarehouseData};
+use crate::{CanExit, ChainTrait, ModuleTrait, RateLimiter, WarehouseData};
 use barreleye_common::{
 	cache::CacheKey,
 	models::{Network, Transfer},
@@ -23,12 +23,14 @@ pub struct Evm {
 	network: Network,
 	rpc: Option<String>,
 	provider: Arc<Provider<Http>>,
+	rate_limiter: Option<Arc<RateLimiter>>,
 }
 
 impl Evm {
 	pub async fn new(
 		app_state: Arc<AppState>,
 		network: Network,
+		rate_limiter: Option<Arc<RateLimiter>>,
 		pb: Option<&ProgressBar>,
 	) -> Result<Self> {
 		let mut rpc: Option<String> = None;
@@ -62,7 +64,13 @@ impl Evm {
 			bail!(format!("{}: Could not connect to any RPC endpoint.", network.name));
 		}
 
-		Ok(Self { app_state, network, rpc, provider: Arc::new(maybe_provider.unwrap()) })
+		Ok(Self {
+			app_state,
+			rate_limiter,
+			network,
+			rpc,
+			provider: Arc::new(maybe_provider.unwrap()),
+		})
 	}
 }
 
@@ -81,6 +89,10 @@ impl ChainTrait for Evm {
 	}
 
 	async fn get_block_height(&self) -> Result<BlockHeight> {
+		if let Some(rate_limiter) = &self.rate_limiter {
+			rate_limiter.until_ready().await;
+		}
+
 		Ok(self.provider.get_block_number().await?.as_u64())
 	}
 
@@ -127,6 +139,10 @@ impl ChainTrait for Evm {
 		modules: Vec<ChainModuleId>,
 	) -> Result<Option<WarehouseData>> {
 		let mut ret = None;
+
+		if let Some(rate_limiter) = &self.rate_limiter {
+			rate_limiter.until_ready().await;
+		}
 
 		if let Some(block) = self.provider.get_block_with_txs(block_height).await? {
 			if block.number.is_some() {
@@ -182,6 +198,10 @@ impl Evm {
 		Ok(match self.app_state.cache.get::<bool>(cache_key.clone()).await? {
 			Some(v) => v,
 			_ => {
+				if let Some(rate_limiter) = &self.rate_limiter {
+					rate_limiter.until_ready().await;
+				}
+
 				let is_smart_contract = !self.provider.get_code(*address, None).await?.is_empty();
 				self.app_state.cache.set::<bool>(cache_key, is_smart_contract).await?;
 				is_smart_contract

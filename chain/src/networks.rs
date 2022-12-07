@@ -1,11 +1,13 @@
 use console::style;
 use eyre::{ErrReport, Result};
 use futures::future::join_all;
+use governor::{Quota, RateLimiter as GovernorRateLimiter};
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use itertools::{Either, Itertools};
 use serde_json::{from_value as json_parse, json};
 use std::{
 	collections::{HashMap, HashSet},
+	num::NonZeroU32,
 	sync::{
 		atomic::{AtomicBool, Ordering},
 		Arc,
@@ -16,15 +18,13 @@ use tokio::{
 	time::{sleep, Duration},
 };
 
-use crate::{Bitcoin, CanExit, ChainModuleId, ChainTrait, Evm, WarehouseData};
+use crate::{Bitcoin, CanExit, ChainModuleId, ChainTrait, Evm, RateLimiter, WarehouseData};
 use barreleye_common::{
 	models::{Config, ConfigKey, Network, PrimaryId},
 	progress,
 	progress::Step,
 	utils, AppError, AppState, BlockHeight, Blockchain, Verbosity,
 };
-
-type BoxedChain = Arc<Box<dyn ChainTrait>>;
 
 #[derive(Clone)]
 struct NetworkParams {
@@ -44,10 +44,9 @@ impl NetworkParams {
 	}
 }
 
-#[derive(Clone)]
 pub struct Networks {
 	app_state: Arc<AppState>,
-	networks_map: HashMap<PrimaryId, BoxedChain>,
+	networks_map: HashMap<PrimaryId, Arc<Box<dyn ChainTrait>>>,
 }
 
 impl Networks {
@@ -55,32 +54,40 @@ impl Networks {
 		Self { app_state, networks_map: HashMap::new() }
 	}
 
+	fn get_rate_limiter(&self, rps: u32) -> Option<Arc<RateLimiter>> {
+		NonZeroU32::new(rps).map(|non_zero_rps| {
+			Arc::new(GovernorRateLimiter::direct(Quota::per_second(non_zero_rps)))
+		})
+	}
+
 	pub async fn connect(mut self) -> Result<Self> {
 		progress::show(Step::Networks).await;
 
-		let spinner_style =
-			ProgressStyle::with_template("       {spinner}  ↳ {prefix:.bold.dim}: {wide_msg}")
-				.unwrap()
-				.tick_chars("⠁⠂⠄⡀⢀⠠⠐⠈ ");
+		let template = "       {spinner}  ↳ {prefix:.bold.dim}: {wide_msg}";
+		let spinner_style = ProgressStyle::with_template(template).unwrap().tick_chars("⠁⠂⠄⡀⢀⠠⠐⠈ ");
 
 		let m = MultiProgress::new();
 		let threads = Network::get_all_by_env(&self.app_state.db, self.app_state.env)
 			.await?
 			.into_iter()
-			.map(|n| {
+			.map(|network| {
 				let pb = m.add(ProgressBar::new(1_000_000));
 				pb.set_style(spinner_style.clone());
-				pb.set_prefix(n.name.clone());
+				pb.set_prefix(network.name.clone());
 				pb.enable_steady_tick(Duration::from_millis(50));
 
 				tokio::spawn({
 					let app_state = self.app_state.clone();
+					let rate_limiter = self.get_rate_limiter(network.rps as u32);
+
 					async move {
-						let boxed_chain: Box<dyn ChainTrait> = match n.blockchain {
-							Blockchain::Bitcoin => {
-								Box::new(Bitcoin::new(app_state, n, Some(&pb)).await?)
-							}
-							Blockchain::Evm => Box::new(Evm::new(app_state, n, Some(&pb)).await?),
+						let boxed_chain: Box<dyn ChainTrait> = match network.blockchain {
+							Blockchain::Bitcoin => Box::new(
+								Bitcoin::new(app_state, network, rate_limiter, Some(&pb)).await?,
+							),
+							Blockchain::Evm => Box::new(
+								Evm::new(app_state, network, rate_limiter, Some(&pb)).await?,
+							),
 						};
 
 						if let Some(rpc) = boxed_chain.get_rpc() {
@@ -92,7 +99,7 @@ impl Networks {
 							pb.finish_with_message("could not connect");
 						}
 
-						Ok::<_, ErrReport>(boxed_chain)
+						Ok::<_, ErrReport>(Arc::new(boxed_chain))
 					}
 				})
 			})
@@ -100,9 +107,9 @@ impl Networks {
 
 		let (networks_map, failures): (HashMap<_, _>, Vec<_>) =
 			join_all(threads).await.into_iter().partition_map(|result| match result.unwrap() {
-				Ok(boxed_chain) => {
-					let network_id = boxed_chain.get_network().network_id;
-					Either::Left((network_id, Arc::new(boxed_chain)))
+				Ok(chain) => {
+					let network_id = chain.get_network().network_id;
+					Either::Left((network_id, chain))
 				}
 				Err(e) => Either::Right(e),
 			});
@@ -126,18 +133,24 @@ impl Networks {
 		self.networks_map.retain(|network_id, _| all_networks_ids.contains(network_id));
 
 		// add new networks
-		for n in all_networks
+		for network in all_networks
 			.into_iter()
 			.filter(|n| !self.networks_map.contains_key(&n.network_id))
 			.collect::<Vec<Network>>()
 			.into_iter()
 		{
 			let app_state = self.app_state.clone();
+			let rate_limiter = self.get_rate_limiter(network.rps as u32);
+
 			self.networks_map.insert(
-				n.network_id,
-				Arc::new(match n.blockchain {
-					Blockchain::Bitcoin => Box::new(Bitcoin::new(app_state, n, None).await?),
-					Blockchain::Evm => Box::new(Evm::new(app_state, n, None).await?),
+				network.network_id,
+				Arc::new(match network.blockchain {
+					Blockchain::Bitcoin => {
+						Box::new(Bitcoin::new(app_state, network, rate_limiter, None).await?)
+					}
+					Blockchain::Evm => {
+						Box::new(Evm::new(app_state, network, rate_limiter, None).await?)
+					}
 				}),
 			);
 		}
@@ -173,12 +186,15 @@ impl Networks {
 						let config_key = ConfigKey::IndexerTailBlock(nid);
 						match config_key_map.contains_key(&config_key) {
 							true => json_parse::<BlockHeight>(config_key_map[&config_key].clone())?,
-							_ => Config::get::<BlockHeight>(&self.app_state.db, config_key)
+							_ => match Config::get::<BlockHeight>(&self.app_state.db, config_key)
 								.await?
-								.map(|v| v.value)
-								.unwrap_or(chain.get_last_processed_block().await?),
+							{
+								Some(hit) => hit.value,
+								_ => chain.get_last_processed_block().await?,
+							},
 						}
 					};
+
 					let block_height = {
 						let config_key = ConfigKey::BlockHeight(nid);
 						match Config::get::<BlockHeight>(&self.app_state.db, config_key).await? {
@@ -197,6 +213,7 @@ impl Networks {
 							}
 						}
 					};
+
 					if last_read_block < block_height {
 						network_params_map.insert(
 							(*network_id, None),
@@ -216,37 +233,35 @@ impl Networks {
 						let ck_synced = ConfigKey::IndexerSynced(nid, mid);
 						if Config::get::<u8>(&self.app_state.db, ck_synced).await?.is_none() {
 							let ck_block_range = ConfigKey::IndexerHeadBlocks(nid, mid);
-							let block_range = {
-								match config_key_map.contains_key(&ck_block_range) {
-									true => json_parse::<(BlockHeight, BlockHeight)>(
-										config_key_map[&ck_block_range].clone(),
-									)?,
+							let block_range = if config_key_map.contains_key(&ck_block_range) {
+								json_parse::<(BlockHeight, BlockHeight)>(
+									config_key_map[&ck_block_range].clone(),
+								)?
+							} else {
+								match Config::get::<(BlockHeight, BlockHeight)>(
+									&self.app_state.db,
+									ck_block_range,
+								)
+								.await?
+								{
+									Some(hit) => hit.value,
 									_ => {
-										match Config::get::<(BlockHeight, BlockHeight)>(
-											&self.app_state.db,
-											ck_block_range,
-										)
-										.await?
-										{
-											Some(v) => v.value,
-											_ => {
-												let block_range = (0, last_read_block);
+										let block_range = (0, last_read_block);
 
-												if last_read_block > 0 {
-													Config::set::<(BlockHeight, BlockHeight)>(
-														&self.app_state.db,
-														ck_block_range,
-														block_range,
-													)
-													.await?;
-												}
-
-												block_range
-											}
+										if last_read_block > 0 {
+											Config::set::<(BlockHeight, BlockHeight)>(
+												&self.app_state.db,
+												ck_block_range,
+												block_range,
+											)
+											.await?;
 										}
+
+										block_range
 									}
 								}
 							};
+
 							if block_range.0 >= block_range.1 {
 								config_key_map.insert(ck_synced, json!(1));
 							} else {
@@ -303,7 +318,7 @@ impl Networks {
 										_ => "↺".to_string(),
 									})
 									.bold(),
-									style(chain.get_network().name).yellow(),
+									style(chain.get_network().name).bold(),
 									match block_range_max {
 										None => "".to_string(),
 										_ => format!(" ({})", network_params.modules[0]),
@@ -473,7 +488,7 @@ impl Networks {
 						println!(
 							"{}: {} @ {:.4}%…",
 							style("Indexing").cyan().bold(),
-							style(chain.get_network().name).yellow(),
+							style(chain.get_network().name).bold(),
 							progress * 100.0,
 						);
 					}
