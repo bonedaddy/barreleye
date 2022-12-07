@@ -5,7 +5,7 @@ use axum::{
 use std::sync::Arc;
 
 use crate::{errors::ServerError, AppState, ServerResult};
-use barreleye_common::models::{BasicModel, Label, LabeledAddress};
+use barreleye_common::models::{BasicModel, Config, Label, LabeledAddress};
 
 pub async fn handler(
 	State(app): State<Arc<AppState>>,
@@ -38,6 +38,7 @@ pub async fn handler(
 
 	// delete
 	if Label::delete_by_id(&app.db, &label_id).await? {
+		Config::delete_all_by_keyword(&app.db, &format!("l{label_id}")).await?;
 		Ok(StatusCode::NO_CONTENT)
 	} else {
 		Err(ServerError::NotFound)

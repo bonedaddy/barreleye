@@ -12,7 +12,7 @@ use std::{
 	},
 };
 use tokio::{
-	sync::{mpsc, oneshot, oneshot::Sender, Mutex},
+	sync::{mpsc, oneshot, oneshot::Sender},
 	time::{sleep, Duration},
 };
 
@@ -47,12 +47,12 @@ impl NetworkParams {
 #[derive(Clone)]
 pub struct Networks {
 	app_state: Arc<AppState>,
-	networks_map: Arc<Mutex<HashMap<PrimaryId, BoxedChain>>>,
+	networks_map: HashMap<PrimaryId, BoxedChain>,
 }
 
 impl Networks {
 	pub fn new(app_state: Arc<AppState>) -> Self {
-		Self { app_state, networks_map: Arc::new(Mutex::new(HashMap::new())) }
+		Self { app_state, networks_map: HashMap::new() }
 	}
 
 	pub async fn connect(mut self) -> Result<Self> {
@@ -113,7 +113,7 @@ impl Networks {
 			});
 		}
 
-		self.networks_map = Arc::new(Mutex::new(networks_map));
+		self.networks_map = networks_map;
 
 		Ok(self)
 	}
@@ -121,21 +121,19 @@ impl Networks {
 	pub async fn sync_networks(&mut self) -> Result<()> {
 		let all_networks = Network::get_all_by_env(&self.app_state.db, self.app_state.env).await?;
 
-		let mut networks_map = self.networks_map.lock().await;
-
 		// drop removed networks
 		let all_networks_ids: Vec<PrimaryId> = all_networks.iter().map(|n| n.network_id).collect();
-		networks_map.retain(|network_id, _| all_networks_ids.contains(network_id));
+		self.networks_map.retain(|network_id, _| all_networks_ids.contains(network_id));
 
 		// add new networks
 		for n in all_networks
 			.into_iter()
-			.filter(|n| !networks_map.contains_key(&n.network_id))
+			.filter(|n| !self.networks_map.contains_key(&n.network_id))
 			.collect::<Vec<Network>>()
 			.into_iter()
 		{
 			let app_state = self.app_state.clone();
-			networks_map.insert(
+			self.networks_map.insert(
 				n.network_id,
 				Arc::new(match n.blockchain {
 					Blockchain::Bitcoin => Box::new(Bitcoin::new(app_state, n, None).await?),
@@ -164,11 +162,10 @@ impl Networks {
 				self.sync_networks().await?;
 			}
 
-			let networks_map = self.networks_map.lock().await;
-			if !networks_map.is_empty() {
+			if !self.networks_map.is_empty() {
 				let mut network_params_map = HashMap::new();
 
-				for (network_id, chain) in networks_map.iter() {
+				for (network_id, chain) in self.networks_map.iter() {
 					let nid = *network_id as u64;
 
 					// push all modules to retrieve latest blocks
@@ -279,7 +276,7 @@ impl Networks {
 					receipts.insert(network_id, rtx);
 
 					futures.push(tokio::spawn({
-						let chain = networks_map[&network_id].clone();
+						let chain = self.networks_map[&network_id].clone();
 						let should_keep_going = should_keep_going.clone();
 						let can_exit = CanExit::new(network_id, module_id, done.clone(), receipt);
 
@@ -418,7 +415,7 @@ impl Networks {
 					for network_id in updated_network_ids.into_iter() {
 						let nid = network_id;
 						let mut scores = vec![];
-						let chain = networks_map[&(network_id as i64)].clone();
+						let chain = self.networks_map[&(network_id as i64)].clone();
 
 						let block_height = Config::get::<BlockHeight>(
 							&self.app_state.db,

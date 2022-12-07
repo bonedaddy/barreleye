@@ -1,6 +1,6 @@
 use derive_more::Display;
 use eyre::Result;
-use sea_orm::{entity::prelude::*, Set};
+use sea_orm::{entity::prelude::*, Condition, Set};
 use sea_orm_migration::prelude::OnConflict;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -145,6 +145,19 @@ impl Model {
 
 	pub async fn delete(db: &Db, key: ConfigKey) -> Result<()> {
 		Entity::delete_many().filter(Column::Key.eq(key.to_string())).exec(db.get()).await?;
+		Ok(())
+	}
+
+	pub async fn delete_all_by_keyword(db: &Db, keyword: &str) -> Result<()> {
+		Entity::delete_many()
+			.filter(
+				Condition::any()
+					.add(Column::Key.like(&format!("%_{keyword}_%")))
+					.add(Column::Key.like(&format!("%_{keyword}"))),
+			)
+			.exec(db.get())
+			.await?;
+
 		Ok(())
 	}
 }
