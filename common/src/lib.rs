@@ -38,6 +38,7 @@ pub struct AppState {
 	pub db: Arc<Db>,
 	pub warehouse: Arc<Warehouse>,
 	pub env: Env,
+	pub verbosity: Verbosity,
 	pub is_indexer: bool,
 	pub is_server: bool,
 	is_ready: Arc<AtomicBool>,
@@ -51,20 +52,22 @@ impl AppState {
 		db: Arc<Db>,
 		warehouse: Arc<Warehouse>,
 		env: Env,
+		verbosity: Verbosity,
 		is_indexer: bool,
 		is_server: bool,
 	) -> Self {
 		AppState {
-			is_indexer,
-			is_server,
-			is_ready: Arc::new(AtomicBool::new(false)),
-			is_leader: Arc::new(AtomicBool::new(false)),
 			uuid: utils::new_uuid(),
 			settings,
 			cache,
 			db,
 			warehouse,
 			env,
+			verbosity,
+			is_indexer,
+			is_server,
+			is_ready: Arc::new(AtomicBool::new(false)),
+			is_leader: Arc::new(AtomicBool::new(false)),
 		}
 	}
 
@@ -87,6 +90,15 @@ impl AppState {
 	pub fn set_is_leader(&self, is_leader: bool) {
 		self.is_leader.store(is_leader, Ordering::SeqCst);
 	}
+}
+
+#[derive(Display, Debug, Copy, Clone)]
+pub enum Verbosity {
+	Silent = 0,
+	Warnings = 1,
+	Info = 2,
+	Debug = 3,
+	Trace = 4,
 }
 
 #[derive(Display, Debug, Serialize, Deserialize)]

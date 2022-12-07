@@ -21,7 +21,7 @@ use barreleye_common::{
 	models::{Config, ConfigKey, Network, PrimaryId},
 	progress,
 	progress::Step,
-	utils, AppError, AppState, BlockHeight, Blockchain,
+	utils, AppError, AppState, BlockHeight, Blockchain, Verbosity,
 };
 
 type BoxedChain = Arc<Box<dyn ChainTrait>>;
@@ -151,6 +151,7 @@ impl Networks {
 		let mut last_sync_at = utils::now();
 		let mut warehouse_data = WarehouseData::new();
 		let mut config_key_map = HashMap::<ConfigKey, serde_json::Value>::new();
+		let verbosity = self.app_state.verbosity;
 
 		'indexing: loop {
 			if !self.app_state.is_leading() {
@@ -296,25 +297,31 @@ impl Networks {
 								)
 								.await?;
 
-							println!(
-								"{}: {} {} @ {} {}",
-								style("Indexing").cyan().bold(),
-								style(match block_range_max {
-									None => "↗".to_string(),
-									_ => "↺".to_string(),
-								})
-								.bold(),
-								style(chain.get_network().name).yellow(),
-								match block_range_max {
-									None => "block".to_string(),
-									_ => format!("mod {}", network_params.modules[0]),
-								},
-								style(match block_range_max {
-									None => format!("{block_height}…"),
-									_ => format!("{block_range_min}…{block_height}"),
-								})
-								.bold(),
-							);
+							if verbosity as u8 > Verbosity::Silent as u8 {
+								println!(
+									"{}: {} {}{} @ {} {}",
+									style("Indexing").cyan().bold(),
+									style(match block_range_max {
+										None => "↗".to_string(),
+										_ => "↺".to_string(),
+									})
+									.bold(),
+									style(chain.get_network().name).yellow(),
+									match block_range_max {
+										None => "".to_string(),
+										_ => format!(" ({})", network_params.modules[0]),
+									},
+									match block_range_max {
+										None => "block".to_string(),
+										_ => "blocks".to_string(),
+									},
+									style(match block_range_max {
+										None => format!("{block_height}…"),
+										_ => format!("{block_range_min}…{block_height}"),
+									})
+									.bold(),
+								);
+							}
 
 							let config_key = network_params.config_key;
 							let config_value = match config_key {
@@ -410,7 +417,8 @@ impl Networks {
 					// update progress for each network
 					for network_id in updated_network_ids.into_iter() {
 						let nid = network_id;
-						let mut progress = vec![];
+						let mut scores = vec![];
+						let chain = networks_map[&(network_id as i64)].clone();
 
 						let block_height = Config::get::<BlockHeight>(
 							&self.app_state.db,
@@ -421,7 +429,7 @@ impl Networks {
 						.unwrap_or(0);
 
 						if block_height == 0 {
-							progress.push(0.0);
+							scores.push(0.0);
 						} else {
 							let tail_block = Config::get::<BlockHeight>(
 								&self.app_state.db,
@@ -431,10 +439,9 @@ impl Networks {
 							.map(|v| v.value)
 							.unwrap_or(0);
 
-							progress.push(tail_block as f64 / block_height as f64);
+							scores.push(tail_block as f64 / block_height as f64);
 
-							let module_ids = networks_map[&(network_id as i64)].get_module_ids();
-							for module_id in module_ids.into_iter() {
+							for module_id in chain.get_module_ids().into_iter() {
 								let mid = module_id as u16;
 
 								let ck_synced = ConfigKey::IndexerSynced(nid, mid);
@@ -449,18 +456,28 @@ impl Networks {
 									.unwrap_or((0, tail_block));
 
 									if block_range.1 > block_range.0 {
-										let indexed =
-											block_height - (block_range.1 - block_range.0);
-										progress.push(indexed as f64 / block_height as f64);
+										let indexed = block_height -
+											tail_block - (block_range.1 - block_range.0);
+										scores.push(indexed as f64 / block_height as f64);
 									}
 								}
 							}
 						}
 
-						Config::set::<f64>(&self.app_state.db, ConfigKey::IndexerProgress(nid), {
-							progress.iter().sum::<f64>() / progress.len() as f64
-						})
+						let progress = scores.iter().sum::<f64>() / scores.len() as f64;
+						Config::set::<f64>(
+							&self.app_state.db,
+							ConfigKey::IndexerProgress(nid),
+							progress,
+						)
 						.await?;
+
+						println!(
+							"{}: {} @ {:.4}%…",
+							style("Indexing").cyan().bold(),
+							style(chain.get_network().name).yellow(),
+							progress * 100.0,
+						);
 					}
 				}
 			}

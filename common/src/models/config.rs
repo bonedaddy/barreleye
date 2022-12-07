@@ -26,12 +26,6 @@ pub enum ConfigKey {
 	BlockHeight(u64),
 }
 
-impl From<ConfigKey> for String {
-	fn from(config_key: ConfigKey) -> String {
-		config_key.to_string()
-	}
-}
-
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, DeriveEntityModel)]
 #[sea_orm(table_name = "configs")]
 #[serde(rename_all = "camelCase")]

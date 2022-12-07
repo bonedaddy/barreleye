@@ -13,7 +13,7 @@ use barreleye_common::{
 	models::{Config, ConfigKey},
 	progress,
 	progress::Step,
-	utils, AppError, AppState, Cache, Db, Env, Settings, Warehouse,
+	utils, AppError, AppState, Cache, Db, Env, Settings, Verbosity, Warehouse,
 };
 use barreleye_server::Server;
 
@@ -32,11 +32,16 @@ async fn main() -> Result<()> {
 		.arg(arg!(-e --env <ENV> "Network types to connect to").value_parser(value_parser!(Env)))
 		.arg(arg!(--indexer "Run only indexer, without the server"))
 		.arg(arg!(--server "Run only server, without the indexer"))
-		.arg(arg!(-p --plain "No ASCII banner"))
+		.arg(arg!(-v --verbose "Show warnings and info"))
+		.arg(arg!(-p --plain "Hide ASCII banner"))
 		.get_matches();
 
-	let env: Env = *matches.get_one("env").unwrap_or(&Env::Mainnet);
-	let skip_ascii: bool = *matches.get_one("plain").unwrap_or(&false);
+	let env = *matches.get_one("env").unwrap_or(&Env::Mainnet);
+	let skip_ascii = *matches.get_one("plain").unwrap_or(&false);
+	let verbosity = match *matches.get_one("verbose").unwrap_or(&false) {
+		true => Verbosity::Info,
+		_ => Verbosity::Silent,
+	};
 
 	let (is_indexer, is_server) = match (
 		*matches.get_one("indexer").unwrap_or(&false),
@@ -93,8 +98,9 @@ async fn main() -> Result<()> {
 			.await?,
 	);
 
-	let app_state =
-		Arc::new(AppState::new(settings, cache, db, warehouse, env, is_indexer, is_server));
+	let app_state = Arc::new(AppState::new(
+		settings, cache, db, warehouse, env, verbosity, is_indexer, is_server,
+	));
 
 	let mut networks = Networks::new(app_state.clone()).connect().await?;
 	let server = Server::new(app_state.clone());

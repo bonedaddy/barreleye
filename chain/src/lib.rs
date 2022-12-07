@@ -100,7 +100,7 @@ impl WarehouseData {
 	}
 
 	pub fn should_commit(&self) -> bool {
-		utils::ago_in_seconds(5) > self.saved_at && self.len() > 2_500
+		utils::ago_in_seconds(5) > self.saved_at && self.len() > 1_000
 	}
 
 	pub async fn commit(&mut self, warehouse: &Warehouse) -> Result<()> {
