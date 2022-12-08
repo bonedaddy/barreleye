@@ -292,54 +292,76 @@ impl Networks {
 				let (done, mut is_done) = mpsc::channel(network_params_map.len());
 				let mut futures = vec![];
 				let should_keep_going = Arc::new(AtomicBool::new(true));
-				let mut receipts = HashMap::<PrimaryId, Sender<()>>::new();
+				let mut receipts = HashMap::<(PrimaryId, Option<ChainModuleId>), Sender<()>>::new();
 
 				for ((network_id, module_id), network_params) in
 					network_params_map.clone().into_iter()
 				{
 					let (rtx, receipt) = oneshot::channel();
-					receipts.insert(network_id, rtx);
+					receipts.insert((network_id, module_id), rtx);
 
 					futures.push(tokio::spawn({
 						let chain = self.networks_map[&network_id].clone();
 						let should_keep_going = should_keep_going.clone();
-						let can_exit = CanExit::new(network_id, module_id, done.clone(), receipt);
+						let mut can_exit =
+							CanExit::new(network_id, module_id, done.clone(), receipt);
 
 						async move {
-							let block_range_min = network_params.range.0;
-							let block_range_max = network_params.range.1;
+							let modules = network_params.modules;
 
-							let (block_height, warehouse_data) = chain
-								.process_blocks(
-									block_range_min,
-									block_range_max,
-									network_params.modules.clone(),
-									should_keep_going,
-									can_exit,
-								)
-								.await?;
+							let block_height_min = network_params.range.0;
+							let block_height_max = {
+								// capped block height is to avoid wasting resources when a single
+								// thread fails to terminate in time or never finishes (while others
+								// continue to run)
+								let capped_block_height = block_height_min + 100;
+								match network_params.range.1 {
+									Some(block_height) if capped_block_height > block_height => {
+										block_height
+									}
+									_ => capped_block_height,
+								}
+							};
+
+							let mut warehouse_data = WarehouseData::new();
+
+							let mut block_height = block_height_min;
+							while should_keep_going.load(Ordering::SeqCst) {
+								block_height += 1;
+
+								if block_height > block_height_max {
+									break;
+								}
+
+								match chain.process_block(block_height, modules.clone()).await? {
+									Some(data) => warehouse_data += data,
+									None => break,
+								}
+
+								can_exit.notify().await?;
+							}
 
 							if verbosity as u8 > Verbosity::Silent as u8 {
 								println!(
 									"{}: {} {}{} @ {} {}",
 									style("Indexing").cyan().bold(),
-									style(match block_range_max {
+									style(match module_id {
 										None => "↗".to_string(),
 										_ => "↺".to_string(),
 									})
 									.bold(),
 									style(chain.get_network().name).bold(),
-									match block_range_max {
+									match module_id {
 										None => "".to_string(),
-										_ => format!(" ({})", network_params.modules[0]),
+										_ => format!(" ({})", modules.clone()[0]),
 									},
-									match block_range_max {
+									match module_id {
 										None => "block".to_string(),
 										_ => "blocks".to_string(),
 									},
-									style(match block_range_max {
+									style(match module_id {
 										None => format!("{block_height}…"),
-										_ => format!("{block_range_min}…{block_height}"),
+										_ => format!("{block_height_min}…{block_height}"),
 									})
 									.bold(),
 								);
@@ -348,8 +370,10 @@ impl Networks {
 							let config_key = network_params.config_key;
 							let config_value = match config_key {
 								ConfigKey::IndexerTailBlock(_) => json!(block_height),
-								ConfigKey::IndexerHeadBlocks(_, _) if block_range_max.is_some() => {
-									json!((block_height, block_range_max.unwrap()))
+								ConfigKey::IndexerHeadBlocks(_, _)
+									if network_params.range.1.is_some() =>
+								{
+									json!((block_height, network_params.range.1.unwrap()))
 								}
 								_ => json!(()),
 							};
@@ -367,7 +391,7 @@ impl Networks {
 						should_keep_going.store(false, Ordering::SeqCst);
 					}
 
-					if let Some(receipt) = receipts.remove(&network_id) {
+					if let Some(receipt) = receipts.remove(&(network_id, module_id)) {
 						receipt.send(()).unwrap();
 					}
 				}

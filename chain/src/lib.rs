@@ -6,12 +6,7 @@ use governor::{
 	state::{direct::NotKeyed, InMemoryState},
 	RateLimiter as GovernorRateLimiter,
 };
-use std::{
-	borrow::BorrowMut,
-	collections::HashSet,
-	ops::AddAssign,
-	sync::{atomic::AtomicBool, Arc},
-};
+use std::{borrow::BorrowMut, collections::HashSet, ops::AddAssign};
 use tokio::sync::{mpsc::Sender, oneshot::Receiver};
 
 pub use crate::bitcoin::Bitcoin;
@@ -63,14 +58,6 @@ pub trait ChainTrait: Send + Sync {
 	fn get_module_ids(&self) -> Vec<ChainModuleId>;
 	async fn get_block_height(&self) -> Result<BlockHeight>;
 	async fn get_last_processed_block(&self) -> Result<BlockHeight>;
-	async fn process_blocks(
-		&self,
-		starting_block: BlockHeight,
-		ending_block: Option<BlockHeight>,
-		modules: Vec<ChainModuleId>,
-		should_keep_going: Arc<AtomicBool>,
-		can_exit: CanExit,
-	) -> Result<(BlockHeight, WarehouseData)>;
 	async fn process_block(
 		&self,
 		block_height: BlockHeight,

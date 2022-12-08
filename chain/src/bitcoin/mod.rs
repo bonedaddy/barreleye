@@ -6,16 +6,10 @@ use bitcoin::{
 use bitcoincore_rpc::{Auth, Client, RpcApi};
 use eyre::{bail, Result};
 use indicatif::ProgressBar;
-use std::{
-	collections::HashMap,
-	sync::{
-		atomic::{AtomicBool, Ordering},
-		Arc,
-	},
-};
+use std::{collections::HashMap, sync::Arc};
 use url::Url;
 
-use crate::{CanExit, ChainTrait, ModuleTrait, RateLimiter, WarehouseData};
+use crate::{ChainTrait, ModuleTrait, RateLimiter, WarehouseData};
 use barreleye_common::{
 	cache::CacheKey,
 	models::{Network, Transfer},
@@ -120,37 +114,6 @@ impl ChainTrait for Bitcoin {
 		Ok(Transfer::get_block_height(&self.app_state.warehouse, self.network.network_id)
 			.await?
 			.unwrap_or(0))
-	}
-
-	async fn process_blocks(
-		&self,
-		starting_block: BlockHeight,
-		ending_block: Option<BlockHeight>,
-		modules: Vec<ChainModuleId>,
-		should_keep_going: Arc<AtomicBool>,
-		mut can_exit: CanExit,
-	) -> Result<(BlockHeight, WarehouseData)> {
-		let mut block_height = starting_block;
-		let mut warehouse_data = WarehouseData::new();
-
-		while should_keep_going.load(Ordering::SeqCst) {
-			block_height += 1;
-
-			if let Some(max_block_height) = ending_block {
-				if block_height > max_block_height {
-					break;
-				}
-			}
-
-			match self.process_block(block_height, modules.clone()).await? {
-				Some(data) => warehouse_data += data,
-				None => break,
-			}
-
-			can_exit.notify().await?;
-		}
-
-		Ok((block_height, warehouse_data))
 	}
 
 	async fn process_block(
