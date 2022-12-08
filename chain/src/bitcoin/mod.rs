@@ -102,11 +102,12 @@ impl ChainTrait for Bitcoin {
 		]
 	}
 
-	async fn get_block_height(&self) -> Result<BlockHeight> {
-		if let Some(rate_limiter) = &self.rate_limiter {
-			rate_limiter.until_ready().await;
-		}
+	fn get_rate_limiter(&self) -> Option<Arc<RateLimiter>> {
+		self.rate_limiter.clone()
+	}
 
+	async fn get_block_height(&self) -> Result<BlockHeight> {
+		self.rate_limit().await;
 		Ok(self.client.get_block_count()?)
 	}
 
@@ -123,15 +124,9 @@ impl ChainTrait for Bitcoin {
 	) -> Result<Option<WarehouseData>> {
 		let mut ret = None;
 
-		if let Some(rate_limiter) = &self.rate_limiter {
-			rate_limiter.until_ready().await;
-		}
-
+		self.rate_limit().await;
 		if let Ok(block_hash) = self.client.get_block_hash(block_height) {
-			if let Some(rate_limiter) = &self.rate_limiter {
-				rate_limiter.until_ready().await;
-			}
-
+			self.rate_limit().await;
 			if let Ok(block) = self.client.get_block(&block_hash) {
 				let mut warehouse_data = WarehouseData::new();
 
@@ -242,10 +237,7 @@ impl Bitcoin {
 
 		let mut block_hash = None;
 		if let Some(block_height) = self.app_state.cache.get::<u64>(cache_key.clone()).await? {
-			if let Some(rate_limiter) = &self.rate_limiter {
-				rate_limiter.until_ready().await;
-			}
-
+			self.rate_limit().await;
 			block_hash = Some(self.client.get_block_hash(block_height)?);
 			// @NOTE do not delete the "used up" utxo here; modules are stateless and another one
 			// might need to use it
@@ -253,9 +245,7 @@ impl Bitcoin {
 
 		// `block_hash` will always be *some value* for those modules that have
 		// started indexing from block 1; for all others -txindex is needed
-		if let Some(rate_limiter) = &self.rate_limiter {
-			rate_limiter.until_ready().await;
-		}
+		self.rate_limit().await;
 		let tx = self.client.get_raw_transaction(&txid, block_hash.as_ref())?;
 		let ret = self.get_address(&tx, vout)?.map(|a| {
 			let v = tx.output[vout as usize].value;

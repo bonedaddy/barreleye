@@ -85,11 +85,12 @@ impl ChainTrait for Evm {
 		vec![ChainModuleId::EvmTransfer]
 	}
 
-	async fn get_block_height(&self) -> Result<BlockHeight> {
-		if let Some(rate_limiter) = &self.rate_limiter {
-			rate_limiter.until_ready().await;
-		}
+	fn get_rate_limiter(&self) -> Option<Arc<RateLimiter>> {
+		self.rate_limiter.clone()
+	}
 
+	async fn get_block_height(&self) -> Result<BlockHeight> {
+		self.rate_limit().await;
 		Ok(self.provider.get_block_number().await?.as_u64())
 	}
 
@@ -106,10 +107,7 @@ impl ChainTrait for Evm {
 	) -> Result<Option<WarehouseData>> {
 		let mut ret = None;
 
-		if let Some(rate_limiter) = &self.rate_limiter {
-			rate_limiter.until_ready().await;
-		}
-
+		self.rate_limit().await;
 		if let Some(block) = self.provider.get_block_with_txs(block_height).await? {
 			if block.number.is_some() {
 				let mut warehouse_data = WarehouseData::new();
@@ -164,10 +162,7 @@ impl Evm {
 		Ok(match self.app_state.cache.get::<bool>(cache_key.clone()).await? {
 			Some(v) => v,
 			_ => {
-				if let Some(rate_limiter) = &self.rate_limiter {
-					rate_limiter.until_ready().await;
-				}
-
+				self.rate_limit().await;
 				let is_smart_contract = !self.provider.get_code(*address, None).await?.is_empty();
 				self.app_state.cache.set::<bool>(cache_key, is_smart_contract).await?;
 				is_smart_contract

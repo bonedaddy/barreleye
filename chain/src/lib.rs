@@ -6,7 +6,7 @@ use governor::{
 	state::{direct::NotKeyed, InMemoryState},
 	RateLimiter as GovernorRateLimiter,
 };
-use std::{borrow::BorrowMut, collections::HashSet, ops::AddAssign};
+use std::{borrow::BorrowMut, collections::HashSet, ops::AddAssign, sync::Arc};
 use tokio::sync::{mpsc::Sender, oneshot::Receiver};
 
 pub use crate::bitcoin::Bitcoin;
@@ -56,13 +56,22 @@ pub trait ChainTrait: Send + Sync {
 	fn get_network(&self) -> Network;
 	fn get_rpc(&self) -> Option<String>;
 	fn get_module_ids(&self) -> Vec<ChainModuleId>;
+	fn get_rate_limiter(&self) -> Option<Arc<RateLimiter>>;
+
 	async fn get_block_height(&self) -> Result<BlockHeight>;
 	async fn get_last_processed_block(&self) -> Result<BlockHeight>;
+
 	async fn process_block(
 		&self,
 		block_height: BlockHeight,
 		modules: Vec<ChainModuleId>,
 	) -> Result<Option<WarehouseData>>;
+
+	async fn rate_limit(&self) {
+		if let Some(rate_limiter) = &self.get_rate_limiter() {
+			rate_limiter.until_ready().await;
+		}
+	}
 }
 
 #[async_trait]
