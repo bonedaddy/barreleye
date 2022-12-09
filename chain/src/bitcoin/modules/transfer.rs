@@ -53,8 +53,11 @@ impl BitcoinModuleTrait for BitcoinTransfer {
 			for output in outputs.iter() {
 				let (from, to) = (input.0.clone(), output.0.clone());
 				if from != to {
-					let amount =
-						((*input.1 as f64 / input_amount_total as f64) * *output.1 as f64).round();
+					let amount = match input_amount_total > 0 {
+						true => ((*input.1 as f64 / input_amount_total as f64) * *output.1 as f64)
+							.round(),
+						_ => 0.0,
+					};
 
 					ret.transfers.insert(Transfer::new(
 						ChainModuleId::BitcoinTransfer,
