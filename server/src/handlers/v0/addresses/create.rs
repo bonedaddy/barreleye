@@ -44,7 +44,7 @@ pub async fn handler(
 			.addresses
 			.clone()
 			.iter()
-			.map(|address| LabeledAddress::new_model(label.label_id, Address::new(address)))
+			.map(|a| LabeledAddress::new_model(label.label_id, Address::new(a)))
 			.collect(),
 	)
 	.await?;

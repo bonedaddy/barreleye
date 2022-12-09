@@ -149,7 +149,7 @@ impl Lists {
 	async fn regex_extract(&self, url: &str, regex: &str) -> Result<Vec<String>> {
 		Ok(Regex::new(regex)?
 			.captures_iter(minreq::get(url).send()?.as_str()?)
-			.filter_map(|cap| cap.get(2).map(|v| v.as_str().to_lowercase()))
+			.filter_map(|c| c.get(2).map(|v| v.as_str().to_lowercase()))
 			.collect::<Vec<String>>())
 	}
 }

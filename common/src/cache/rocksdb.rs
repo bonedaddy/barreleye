@@ -26,7 +26,7 @@ impl RocksDb {
 		opts.set_level_zero_stop_writes_trigger(2_000);
 		opts.set_level_zero_slowdown_writes_trigger(0);
 		opts.set_compaction_style(DBCompactionStyle::Universal);
-		opts.set_disable_auto_compactions(true);
+		opts.set_disable_auto_compactions(false);
 		opts.set_log_level(LogLevel::Warn);
 
 		let db = DBWithThreadMode::<MultiThreaded>::open(

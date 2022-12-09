@@ -71,24 +71,24 @@ impl Networks {
 			.await?
 			.into_iter()
 			.filter(|n| n.is_active)
-			.map(|network| {
+			.map(|n| {
 				let pb = m.add(ProgressBar::new(1_000_000));
 				pb.set_style(spinner_style.clone());
-				pb.set_prefix(network.name.clone());
+				pb.set_prefix(n.name.clone());
 				pb.enable_steady_tick(Duration::from_millis(50));
 
 				tokio::spawn({
 					let app_state = self.app_state.clone();
-					let rate_limiter = self.get_rate_limiter(network.rps as u32);
+					let rate_limiter = self.get_rate_limiter(n.rps as u32);
 
 					async move {
-						let boxed_chain: Box<dyn ChainTrait> = match network.blockchain {
-							Blockchain::Bitcoin => Box::new(
-								Bitcoin::new(app_state, network, rate_limiter, Some(&pb)).await?,
-							),
-							Blockchain::Evm => Box::new(
-								Evm::new(app_state, network, rate_limiter, Some(&pb)).await?,
-							),
+						let boxed_chain: Box<dyn ChainTrait> = match n.blockchain {
+							Blockchain::Bitcoin => {
+								Box::new(Bitcoin::new(app_state, n, rate_limiter, Some(&pb)).await?)
+							}
+							Blockchain::Evm => {
+								Box::new(Evm::new(app_state, n, rate_limiter, Some(&pb)).await?)
+							}
 						};
 
 						if let Some(rpc) = boxed_chain.get_rpc() {
@@ -107,7 +107,7 @@ impl Networks {
 			.collect::<Vec<_>>();
 
 		let (networks_map, failures): (HashMap<_, _>, Vec<_>) =
-			join_all(threads).await.into_iter().partition_map(|result| match result.unwrap() {
+			join_all(threads).await.into_iter().partition_map(|r| match r.unwrap() {
 				Ok(chain) => {
 					let network_id = chain.get_network().network_id;
 					Either::Left((network_id, chain))
