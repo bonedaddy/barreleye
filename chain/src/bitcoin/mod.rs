@@ -3,15 +3,10 @@ use bitcoin::{
 	blockdata::transaction::Transaction, hash_types::Txid, util::address::Address,
 	Network as BitcoinNetwork,
 };
-use bitcoincore_rpc::{
-	jsonrpc::Error as JsonRpcError, Auth, Client, Error as BitcoinRpcError,
-	Result as BitcoinRpcResult, RpcApi,
-};
+use bitcoincore_rpc::{Auth, Client, RpcApi};
 use eyre::{bail, Result};
 use indicatif::ProgressBar;
-use serde::de::Deserialize;
-use serde_json::Value as JsonValue;
-use std::{collections::HashMap, sync::Arc, thread::sleep, time::Duration};
+use std::{collections::HashMap, sync::Arc};
 use url::Url;
 
 use crate::{ChainTrait, ModuleTrait, RateLimiter, WarehouseData};
@@ -20,8 +15,10 @@ use barreleye_common::{
 	models::{Network, Transfer},
 	AppState, BlockHeight, ChainModuleId,
 };
+use client::RetryClient;
 use modules::{BitcoinCoinbase, BitcoinLink, BitcoinModuleTrait, BitcoinTransfer};
 
+mod client;
 mod modules;
 
 pub struct Bitcoin {
@@ -65,7 +62,7 @@ impl Bitcoin {
 
 					if client.get_blockchain_info().is_ok() {
 						rpc = Some(url);
-						maybe_client = Some(RetryClient { client });
+						maybe_client = Some(RetryClient::new(client));
 					}
 				}
 			}
@@ -282,46 +279,5 @@ impl Bitcoin {
 
 	fn is_valid_address(&self, address: &str) -> bool {
 		!address.contains(':')
-	}
-}
-
-// source: `https://github.com/bitcoin/bitcoin/blob/master/src/rpc/protocol.h`
-const RPC_IN_WARMUP: i32 = -28;
-const RPC_TIMEOUT: u64 = 1_000;
-
-pub struct RetryClient {
-	client: Client,
-}
-
-impl RpcApi for RetryClient {
-	fn call<T: for<'a> Deserialize<'a>>(
-		&self,
-		cmd: &str,
-		args: &[JsonValue],
-	) -> BitcoinRpcResult<T> {
-		for _ in 0..10 {
-			match self.client.call(cmd, args) {
-				Ok(ret) => return Ok(ret),
-				Err(BitcoinRpcError::JsonRpc(JsonRpcError::Transport(e))) => {
-					// @TODO until pattern matching for boxed types is in stable,
-					// doing this hacky thing
-					if e.to_string().contains("timed out") {
-						sleep(Duration::from_millis(RPC_TIMEOUT));
-						continue;
-					}
-
-					return Err(BitcoinRpcError::JsonRpc(JsonRpcError::Transport(e)));
-				}
-				Err(BitcoinRpcError::JsonRpc(JsonRpcError::Rpc(ref e)))
-					if e.code == RPC_IN_WARMUP =>
-				{
-					sleep(Duration::from_millis(RPC_TIMEOUT));
-					continue;
-				}
-				Err(e) => return Err(e),
-			}
-		}
-
-		self.client.call(cmd, args)
 	}
 }
