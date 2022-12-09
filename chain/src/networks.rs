@@ -70,6 +70,7 @@ impl Networks {
 		let threads = Network::get_all_by_env(&self.app_state.db, self.app_state.env)
 			.await?
 			.into_iter()
+			.filter(|n| n.is_active)
 			.map(|network| {
 				let pb = m.add(ProgressBar::new(1_000_000));
 				pb.set_style(spinner_style.clone());
