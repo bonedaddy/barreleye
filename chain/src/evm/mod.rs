@@ -3,7 +3,6 @@ use ethers::{prelude::*, types::Transaction, utils};
 use eyre::{bail, Result};
 use indicatif::ProgressBar;
 use std::sync::Arc;
-use tokio::time::{sleep, Duration};
 
 use crate::{ChainTrait, ModuleTrait, RateLimiter, WarehouseData};
 use barreleye_common::{
@@ -19,7 +18,7 @@ pub struct Evm {
 	app_state: Arc<AppState>,
 	network: Network,
 	rpc: Option<String>,
-	provider: Arc<Provider<Http>>,
+	provider: Arc<Provider<RetryClient<Http>>>,
 	rate_limiter: Option<Arc<RateLimiter>>,
 }
 
@@ -31,7 +30,7 @@ impl Evm {
 		pb: Option<&ProgressBar>,
 	) -> Result<Self> {
 		let mut rpc: Option<String> = None;
-		let mut maybe_provider: Option<Provider<Http>> = None;
+		let mut maybe_provider: Option<Provider<RetryClient<Http>>> = None;
 
 		let rpc_endpoints: Vec<String> = serde_json::from_value(network.rpc_endpoints.clone())?;
 
@@ -40,13 +39,12 @@ impl Evm {
 		}
 
 		for url in rpc_endpoints.into_iter() {
-			if let Ok(provider) = Provider::<Http>::try_from(url.clone()) {
-				let can_connect = tokio::select! {
-					_ = sleep(Duration::from_secs(5)) => false,
-					block = provider.get_block_number() => block.is_ok()
-				};
+			if let Ok(provider) = Provider::<RetryClient<Http>>::new_client(&url, 10, 1_000) {
+				if let Some(rate_limiter) = &rate_limiter {
+					rate_limiter.until_ready().await;
+				}
 
-				if can_connect {
+				if provider.get_block_number().await.is_ok() {
 					rpc = Some(url);
 					maybe_provider = Some(provider);
 				}
