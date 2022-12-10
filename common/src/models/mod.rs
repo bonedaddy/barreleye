@@ -15,6 +15,7 @@ pub use labeled_address::{LabeledAddress, LabeledAddressActiveModel};
 pub use link::{Link, Reason as LinkReason};
 pub use network::{Network, NetworkActiveModel};
 pub use transfer::Transfer;
+pub use tx_amount::TxAmount;
 
 pub mod api_key;
 pub mod config;
@@ -23,6 +24,7 @@ pub mod labeled_address;
 pub mod link;
 pub mod network;
 pub mod transfer;
+pub mod tx_amount;
 
 // @TODO `https://github.com/SeaQL/sea-orm/issues/1068`
 pub type PrimaryId = i64;

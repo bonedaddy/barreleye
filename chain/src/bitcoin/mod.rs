@@ -16,7 +16,7 @@ use barreleye_common::{
 	AppState, BlockHeight, ChainModuleId,
 };
 use client::RetryClient;
-use modules::{BitcoinCoinbase, BitcoinLink, BitcoinModuleTrait, BitcoinTransfer};
+use modules::{BitcoinCoinbase, BitcoinLink, BitcoinModuleTrait, BitcoinTransfer, BitcoinTxAmount};
 
 mod client;
 mod modules;
@@ -103,6 +103,7 @@ impl ChainTrait for Bitcoin {
 	fn get_module_ids(&self) -> Vec<ChainModuleId> {
 		vec![
 			ChainModuleId::BitcoinTransfer,
+			ChainModuleId::BitcoinTxAmount,
 			ChainModuleId::BitcoinLink,
 			ChainModuleId::BitcoinCoinbase,
 		]
@@ -162,6 +163,7 @@ impl Bitcoin {
 
 		let mut modules: Vec<Box<dyn BitcoinModuleTrait>> = vec![
 			Box::new(BitcoinTransfer::new(self.network.network_id)),
+			Box::new(BitcoinTxAmount::new(self.network.network_id)),
 			Box::new(BitcoinLink::new(self.network.network_id)),
 			Box::new(BitcoinCoinbase::new(self.network.network_id)),
 		];
@@ -175,12 +177,8 @@ impl Bitcoin {
 				let (address, value) = p;
 				let address_key = address.to_string();
 
-				let initial_value = match m.contains_key(&address_key) {
-					true => m[&address_key],
-					_ => 0,
-				};
-
-				m.insert(address_key, initial_value + value);
+				let initial_value = m.get(&address_key).unwrap_or(&0);
+				m.insert(address_key, *initial_value + value);
 			}
 
 			m

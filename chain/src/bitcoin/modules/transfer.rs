@@ -60,7 +60,7 @@ impl BitcoinModuleTrait for BitcoinTransfer {
 					};
 
 					ret.transfers.insert(Transfer::new(
-						ChainModuleId::BitcoinTransfer,
+						self.get_id(),
 						self.network_id,
 						block_height,
 						tx_hash.clone(),

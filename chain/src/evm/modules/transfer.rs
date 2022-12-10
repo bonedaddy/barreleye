@@ -74,7 +74,7 @@ impl EvmModuleTrait for EvmTransfer {
 		}
 
 		ret.transfers.insert(Transfer::new(
-			ChainModuleId::EvmTransfer,
+			self.get_id(),
 			self.network_id,
 			block_height,
 			tx.hash.encode_hex(),

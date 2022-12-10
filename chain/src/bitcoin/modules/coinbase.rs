@@ -47,7 +47,7 @@ impl BitcoinModuleTrait for BitcoinCoinbase {
 
 			for (to, amount) in outputs.into_iter() {
 				ret.transfers.insert(Transfer::new(
-					ChainModuleId::BitcoinCoinbase,
+					self.get_id(),
 					self.network_id,
 					block_height,
 					tx_hash.clone(),

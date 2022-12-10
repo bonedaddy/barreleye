@@ -8,10 +8,12 @@ use barreleye_common::BlockHeight;
 pub use coinbase::BitcoinCoinbase;
 pub use link::BitcoinLink;
 pub use transfer::BitcoinTransfer;
+pub use tx_amount::BitcoinTxAmount;
 
 mod coinbase;
 mod link;
 mod transfer;
+mod tx_amount;
 
 #[async_trait]
 pub trait BitcoinModuleTrait: ModuleTrait + Send + Sync {

@@ -62,7 +62,7 @@ impl BitcoinModuleTrait for BitcoinLink {
 						bitcoin.is_valid_address(&to)
 					{
 						ret.links.insert(Link::new(
-							ChainModuleId::BitcoinLink,
+							self.get_id(),
 							self.network_id,
 							block_height,
 							tx_hash.clone(),
