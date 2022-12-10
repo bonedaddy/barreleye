@@ -9,6 +9,7 @@ use sea_orm::{
 
 pub use self::config::{Config, ConfigKey};
 use crate::{utils, Db};
+pub use amount::Amount;
 pub use api_key::{ApiKey, ApiKeyActiveModel};
 pub use label::{Label, LabelActiveModel};
 pub use labeled_address::{LabeledAddress, LabeledAddressActiveModel};
@@ -17,6 +18,7 @@ pub use network::{Network, NetworkActiveModel};
 pub use transfer::Transfer;
 pub use tx_amount::TxAmount;
 
+pub mod amount;
 pub mod api_key;
 pub mod config;
 pub mod label;

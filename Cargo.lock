@@ -361,6 +361,7 @@ dependencies = [
  "eyre",
  "hyper",
  "log",
+ "primitive-types",
  "sea-orm",
  "serde",
  "serde_json",

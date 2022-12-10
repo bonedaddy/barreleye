@@ -15,6 +15,7 @@ serde = "1.0.149"
 console = "0.15.2"
 serde_json = "1.0.89"
 hyper = "0.14.23"
+primitive-types = "0.12.1"
 uuid = { version = "1.2.2", features = ["v4", "fast-rng"] }
 tower = { version = "0.4.13", features = ["timeout"] }
 
