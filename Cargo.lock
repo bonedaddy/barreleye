@@ -313,6 +313,8 @@ dependencies = [
  "governor",
  "indicatif 0.17.2",
  "itertools",
+ "num-format",
+ "num_cpus",
  "primitive-types",
  "serde",
  "serde_json",
@@ -339,6 +341,7 @@ dependencies = [
  "log",
  "nanoid",
  "primitive-types",
+ "regex",
  "rmp-serde",
  "rocksdb",
  "sea-orm",
@@ -457,6 +460,28 @@ dependencies = [
  "regex",
  "rustc-hash",
  "shlex",
+]
+
+[[package]]
+name = "bindgen"
+version = "0.63.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "36d860121800b2a9a94f9b5604b332d5cffb234ce17609ea479d723dbc9d3885"
+dependencies = [
+ "bitflags",
+ "cexpr",
+ "clang-sys",
+ "lazy_static",
+ "lazycell",
+ "log",
+ "peeking_take_while",
+ "proc-macro2",
+ "quote",
+ "regex",
+ "rustc-hash",
+ "shlex",
+ "syn",
+ "which",
 ]
 
 [[package]]
@@ -2530,9 +2555,9 @@ dependencies = [
 
 [[package]]
 name = "ipnet"
-version = "2.6.0"
+version = "2.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ec947b7a4ce12e3b87e353abae7ce124d025b6c7d6c5aea5cc0bcf92e9510ded"
+checksum = "11b0d96e660696543b251e58030cf9787df56da39dab19ad60eae7353040917e"
 
 [[package]]
 name = "is-terminal"
@@ -2699,7 +2724,7 @@ version = "0.8.0+7.4.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "611804e4666a25136fcc5f8cf425ab4d26c7f74ea245ffe92ea23b85b6420b5d"
 dependencies = [
- "bindgen",
+ "bindgen 0.60.1",
  "bzip2-sys",
  "cc",
  "glob",
@@ -2966,6 +2991,32 @@ dependencies = [
  "rand",
  "smallvec",
  "zeroize",
+]
+
+[[package]]
+name = "num-format"
+version = "0.4.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a652d9771a63711fd3c3deb670acfbe5c30a4072e664d7a3bf5a9e1056ac72c3"
+dependencies = [
+ "arrayvec",
+ "cfg-if",
+ "encoding_rs",
+ "itoa",
+ "lazy_static",
+ "libc",
+ "num-format-windows",
+ "widestring",
+ "winapi",
+]
+
+[[package]]
+name = "num-format-windows"
+version = "0.4.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9b1e07f67225c1eb911d16c2f72492669c1fb08212dbfaa1f6cfbeb119152cfa"
+dependencies = [
+ "bindgen 0.63.0",
 ]
 
 [[package]]
@@ -4301,9 +4352,9 @@ checksum = "930c0acf610d3fdb5e2ab6213019aaa04e227ebe9547b0649ba599b16d788bd7"
 
 [[package]]
 name = "serde"
-version = "1.0.149"
+version = "1.0.150"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "256b9932320c590e707b94576e3cc1f7c9024d0ee6612dfbcf1cb106cbe8e055"
+checksum = "e326c9ec8042f1b5da33252c8a37e9ffbd2c9bef0155215b6e6c80c790e05f91"
 dependencies = [
  "serde_derive",
 ]
@@ -4320,9 +4371,9 @@ dependencies = [
 
 [[package]]
 name = "serde_derive"
-version = "1.0.149"
+version = "1.0.150"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b4eae9b04cbffdfd550eb462ed33bc6a1b68c935127d008b27444d08380f94e4"
+checksum = "42a3df25b0713732468deadad63ab9da1f1fd75a48a15024b50363f128db627e"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -5451,6 +5502,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "which"
+version = "4.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1c831fbbee9e129a8cf93e7747a82da9d95ba8e16621cae60ec2cdc849bacb7b"
+dependencies = [
+ "either",
+ "libc",
+ "once_cell",
+]
+
+[[package]]
 name = "whoami"
 version = "1.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5460,6 +5522,12 @@ dependencies = [
  "wasm-bindgen",
  "web-sys",
 ]
+
+[[package]]
+name = "widestring"
+version = "1.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "653f141f39ec16bba3c5abe400a0c60da7468261cc2cbf36805022876bc721a8"
 
 [[package]]
 name = "winapi"

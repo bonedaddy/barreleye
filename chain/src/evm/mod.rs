@@ -6,9 +6,7 @@ use std::sync::Arc;
 
 use crate::{ChainTrait, ModuleTrait, RateLimiter, WarehouseData};
 use barreleye_common::{
-	cache::CacheKey,
-	models::{Network, Transfer},
-	AppState, BlockHeight, ChainModuleId,
+	cache::CacheKey, models::Network, AppState, BlockHeight, ChainModuleId, Warehouse,
 };
 use modules::{EvmModuleTrait, EvmTransfer};
 
@@ -71,6 +69,10 @@ impl Evm {
 
 #[async_trait]
 impl ChainTrait for Evm {
+	fn get_warehouse(&self) -> Arc<Warehouse> {
+		self.app_state.warehouse.clone()
+	}
+
 	fn get_network(&self) -> Network {
 		self.network.clone()
 	}
@@ -90,12 +92,6 @@ impl ChainTrait for Evm {
 	async fn get_block_height(&self) -> Result<BlockHeight> {
 		self.rate_limit().await;
 		Ok(self.provider.get_block_number().await?.as_u64())
-	}
-
-	async fn get_last_processed_block(&self) -> Result<BlockHeight> {
-		Ok(Transfer::get_block_height(&self.app_state.warehouse, self.network.network_id)
-			.await?
-			.unwrap_or(0))
 	}
 
 	async fn process_block(

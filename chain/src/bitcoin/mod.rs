@@ -11,9 +11,7 @@ use url::Url;
 
 use crate::{ChainTrait, ModuleTrait, RateLimiter, WarehouseData};
 use barreleye_common::{
-	cache::CacheKey,
-	models::{Network, Transfer},
-	AppState, BlockHeight, ChainModuleId,
+	cache::CacheKey, models::Network, AppState, BlockHeight, ChainModuleId, Warehouse,
 };
 use client::RetryClient;
 use modules::{BitcoinCoinbase, BitcoinLink, BitcoinModuleTrait, BitcoinTransfer, BitcoinTxAmount};
@@ -92,6 +90,10 @@ impl Bitcoin {
 
 #[async_trait]
 impl ChainTrait for Bitcoin {
+	fn get_warehouse(&self) -> Arc<Warehouse> {
+		self.app_state.warehouse.clone()
+	}
+
 	fn get_network(&self) -> Network {
 		self.network.clone()
 	}
@@ -116,12 +118,6 @@ impl ChainTrait for Bitcoin {
 	async fn get_block_height(&self) -> Result<BlockHeight> {
 		self.rate_limit().await;
 		Ok(self.client.get_block_count()?)
-	}
-
-	async fn get_last_processed_block(&self) -> Result<BlockHeight> {
-		Ok(Transfer::get_block_height(&self.app_state.warehouse, self.network.network_id)
-			.await?
-			.unwrap_or(0))
 	}
 
 	async fn process_block(

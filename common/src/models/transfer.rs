@@ -64,23 +64,4 @@ impl Model {
 
 		Ok(insert.end().await?)
 	}
-
-	pub async fn get_block_height(
-		warehouse: &Warehouse,
-		network_id: PrimaryId,
-	) -> Result<Option<u64>> {
-		let record = warehouse
-			.get()
-			.query(&format!(
-				"SELECT ?fields FROM {TABLE} WHERE network_id = ? ORDER BY block_height DESC"
-			))
-			.bind(network_id)
-			.fetch_one::<Model>()
-			.await;
-
-		Ok(match record {
-			Ok(row) => Some(row.block_height),
-			_ => None,
-		})
-	}
 }

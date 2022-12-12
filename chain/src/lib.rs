@@ -6,12 +6,13 @@ use governor::{
 	state::{direct::NotKeyed, InMemoryState},
 	RateLimiter as GovernorRateLimiter,
 };
-use std::{borrow::BorrowMut, collections::HashSet, ops::AddAssign, sync::Arc};
-use tokio::sync::{mpsc::Sender, oneshot::Receiver};
+use serde_json::Value as JsonValue;
+use std::{collections::HashSet, ops::AddAssign, sync::Arc};
+use tokio::sync::mpsc::{Receiver, Sender};
 
 pub use crate::bitcoin::Bitcoin;
 use barreleye_common::{
-	models::{Link, Network, PrimaryId, Transfer, TxAmount},
+	models::{ConfigKey, Link, Network, PrimaryId, Transfer, TxAmount},
 	utils, BlockHeight, ChainModuleId, Warehouse,
 };
 pub use evm::Evm;
@@ -23,29 +24,28 @@ mod networks;
 
 pub type RateLimiter = GovernorRateLimiter<NotKeyed, InMemoryState, DefaultClock>;
 
-pub struct CanExit {
-	network_id: PrimaryId,
-	module_id: Option<ChainModuleId>,
-	notified: bool,
-	done: Sender<(PrimaryId, Option<ChainModuleId>)>,
-	receipt: Receiver<()>,
+pub struct Pipe {
+	config_key: ConfigKey,
+	s: Sender<(ConfigKey, JsonValue, WarehouseData)>,
+	r: Receiver<()>,
 }
 
-impl CanExit {
+impl Pipe {
 	pub fn new(
-		network_id: PrimaryId,
-		module_id: Option<ChainModuleId>,
-		done: Sender<(PrimaryId, Option<ChainModuleId>)>,
-		receipt: Receiver<()>,
+		config_key: ConfigKey,
+		s: Sender<(ConfigKey, JsonValue, WarehouseData)>,
+		r: Receiver<()>,
 	) -> Self {
-		Self { network_id, module_id, notified: false, done, receipt }
+		Self { config_key, s, r }
 	}
 
-	pub async fn notify(&mut self) -> Result<()> {
-		if !self.notified {
-			self.done.send((self.network_id, self.module_id)).await?;
-			self.notified = self.receipt.borrow_mut().await.is_ok();
-		}
+	pub async fn push(
+		&mut self,
+		config_value: JsonValue,
+		warehouse_data: WarehouseData,
+	) -> Result<()> {
+		self.s.send((self.config_key, config_value, warehouse_data)).await?;
+		self.r.recv().await;
 
 		Ok(())
 	}
@@ -53,13 +53,13 @@ impl CanExit {
 
 #[async_trait]
 pub trait ChainTrait: Send + Sync {
+	fn get_warehouse(&self) -> Arc<Warehouse>;
 	fn get_network(&self) -> Network;
 	fn get_rpc(&self) -> Option<String>;
 	fn get_module_ids(&self) -> Vec<ChainModuleId>;
 	fn get_rate_limiter(&self) -> Option<Arc<RateLimiter>>;
 
 	async fn get_block_height(&self) -> Result<BlockHeight>;
-	async fn get_last_processed_block(&self) -> Result<BlockHeight>;
 
 	async fn process_block(
 		&self,
@@ -82,7 +82,7 @@ pub trait ModuleTrait {
 	fn get_id(&self) -> ChainModuleId;
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct WarehouseData {
 	saved_at: NaiveDateTime,
 	transfers: HashSet<Transfer>,
@@ -104,7 +104,7 @@ impl WarehouseData {
 	}
 
 	pub fn should_commit(&self) -> bool {
-		utils::ago_in_seconds(5) > self.saved_at && self.len() > 10_000
+		utils::ago_in_seconds(5) > self.saved_at && self.len() > 25_000
 	}
 
 	pub async fn commit(&mut self, warehouse: &Warehouse) -> Result<()> {
@@ -120,11 +120,12 @@ impl WarehouseData {
 			Link::create_many(warehouse, self.links.clone().into_iter().collect()).await?;
 		}
 
-		self.reset();
+		self.clear();
+
 		Ok(())
 	}
 
-	pub fn reset(&mut self) {
+	pub fn clear(&mut self) {
 		self.saved_at = utils::now();
 
 		self.transfers.clear();
