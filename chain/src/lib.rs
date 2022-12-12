@@ -8,7 +8,10 @@ use governor::{
 };
 use serde_json::Value as JsonValue;
 use std::{collections::HashSet, ops::AddAssign, sync::Arc};
-use tokio::sync::mpsc::{Receiver, Sender};
+use tokio::sync::{
+	broadcast,
+	mpsc::{self, Sender},
+};
 
 pub use crate::bitcoin::Bitcoin;
 use barreleye_common::{
@@ -26,17 +29,19 @@ pub type RateLimiter = GovernorRateLimiter<NotKeyed, InMemoryState, DefaultClock
 
 pub struct Pipe {
 	config_key: ConfigKey,
-	s: Sender<(ConfigKey, JsonValue, WarehouseData)>,
-	r: Receiver<()>,
+	sender: Sender<(ConfigKey, JsonValue, WarehouseData)>,
+	receipt: mpsc::Receiver<()>,
+	pub abort: broadcast::Receiver<()>,
 }
 
 impl Pipe {
 	pub fn new(
 		config_key: ConfigKey,
-		s: Sender<(ConfigKey, JsonValue, WarehouseData)>,
-		r: Receiver<()>,
+		sender: Sender<(ConfigKey, JsonValue, WarehouseData)>,
+		receipt: mpsc::Receiver<()>,
+		abort: broadcast::Receiver<()>,
 	) -> Self {
-		Self { config_key, s, r }
+		Self { config_key, sender, receipt, abort }
 	}
 
 	pub async fn push(
@@ -44,8 +49,12 @@ impl Pipe {
 		config_value: JsonValue,
 		warehouse_data: WarehouseData,
 	) -> Result<()> {
-		self.s.send((self.config_key, config_value, warehouse_data)).await?;
-		self.r.recv().await;
+		self.sender.send((self.config_key, config_value, warehouse_data)).await?;
+
+		tokio::select! {
+			_ = self.receipt.recv() => {}
+			_ = self.abort.recv() => {}
+		}
 
 		Ok(())
 	}
