@@ -5,6 +5,14 @@ use uuid::Uuid;
 
 use crate::IdPrefix;
 
+pub fn exp_timeout(timeout: u64, attempt: u64) -> u64 {
+	if attempt > 0 {
+		2 * exp_timeout(timeout, attempt - 1)
+	} else {
+		timeout
+	}
+}
+
 pub fn new_unique_id(prefix: IdPrefix) -> String {
 	unique_id(
 		prefix,

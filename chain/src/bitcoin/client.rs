@@ -1,56 +1,160 @@
-use bitcoincore_rpc::{
-	jsonrpc::Error as JsonRpcError, Client, Error as BitcoinRpcError, Result as BitcoinRpcResult,
-	RpcApi,
+use bitcoin::{Block, BlockHash, Transaction, Txid};
+use bitcoincore_rpc_json::{
+	bitcoin::{
+		consensus::{Decodable, ReadExt},
+		hashes::hex::HexIterator,
+	},
+	GetBlockchainInfoResult,
 };
-use serde::de::Deserialize;
-use serde_json::Value as JsonValue;
-use std::{thread::sleep, time::Duration};
+use derive_more::{Display, Error};
+use eyre::{eyre, Result};
+use reqwest::header::AUTHORIZATION;
+use serde::Deserialize;
+use serde_json::{json, Value as JsonValue};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use tokio::time::{sleep, Duration};
+
+use barreleye_common::utils;
 
 // source: `https://github.com/bitcoin/bitcoin/blob/master/src/rpc/protocol.h`
 const RPC_IN_WARMUP: i32 = -28;
 
-const RETRY_ATTEMPTS: u8 = 10;
-const RPC_TIMEOUT: u64 = 1_000;
+const RETRY_ATTEMPTS: u64 = 10;
+const RPC_TIMEOUT: u64 = 250;
 
-pub struct RetryClient {
-	client: Client,
+#[derive(Debug, Display, Error)]
+pub enum ClientError {
+	#[display(fmt = "{message}")]
+	General { message: String },
+	#[display(fmt = "Could not connect to rpc endpoint")]
+	Connection,
+	#[display(fmt = "RPC error: {message}")]
+	Rpc { message: String },
+	#[display(fmt = "Nonce mismatch")]
+	NonceMismatch,
 }
 
-impl RetryClient {
-	pub fn new(client: Client) -> Self {
-		Self { client }
+pub enum Auth {
+	None,
+	UserPass(String, String),
+}
+
+#[derive(Debug, Deserialize)]
+struct RpcError {
+	code: i32,
+	message: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct Response {
+	result: JsonValue,
+	error: Option<RpcError>,
+	id: Option<String>,
+}
+
+// @NOTE using custom client because `bitcoincore-rpc@0.16.0` is not async + doesn't support https
+pub struct Client {
+	url: String,
+	auth: Auth,
+	id: AtomicUsize,
+}
+
+impl Client {
+	pub fn new(url: &str, auth: Auth) -> Result<Self> {
+		Ok(Self { url: url.to_string(), auth, id: AtomicUsize::new(1) })
 	}
-}
 
-impl RpcApi for RetryClient {
-	fn call<T: for<'a> Deserialize<'a>>(
+	pub async fn get_blockchain_info(&self) -> Result<GetBlockchainInfoResult> {
+		let result = self.request("getblockchaininfo", &[]).await?;
+		Ok(serde_json::from_value(result)?)
+	}
+
+	pub async fn get_block_count(&self) -> Result<u64> {
+		let result = self.request("getblockcount", &[]).await?;
+		Ok(serde_json::from_value(result)?)
+	}
+
+	pub async fn get_block_hash(&self, block_height: u64) -> Result<BlockHash> {
+		let result = self.request("getblockhash", &[JsonValue::from(block_height)]).await?;
+		Ok(serde_json::from_value(result)?)
+	}
+
+	pub async fn get_block(&self, hash: &BlockHash) -> Result<Block> {
+		let result =
+			self.request("getblock", &[JsonValue::from(hash.to_string()), 0.into()]).await?;
+		deserialize_hex(result.as_str().unwrap())
+	}
+
+	pub async fn get_raw_transaction(
 		&self,
-		cmd: &str,
-		args: &[JsonValue],
-	) -> BitcoinRpcResult<T> {
-		for _ in 0..RETRY_ATTEMPTS {
-			match self.client.call(cmd, args) {
-				Ok(ret) => return Ok(ret),
-				Err(BitcoinRpcError::JsonRpc(JsonRpcError::Transport(e))) => {
-					// @TODO until pattern matching for boxed types is in stable,
-					// doing this hacky thing
-					if e.to_string().contains("timed out") {
-						sleep(Duration::from_millis(RPC_TIMEOUT));
-						continue;
-					}
+		txid: &Txid,
+		block_hash: Option<&BlockHash>,
+	) -> Result<Transaction> {
+		let mut params = vec![JsonValue::from(txid.as_hash().to_string()), false.into()];
+		if let Some(block_hash) = block_hash {
+			params.push(JsonValue::from(block_hash.to_string()));
+		}
 
-					return Err(BitcoinRpcError::JsonRpc(JsonRpcError::Transport(e)));
+		let result = self.request("getrawtransaction", &params).await?;
+		deserialize_hex(result.as_str().unwrap())
+	}
+
+	async fn request(&self, method: &str, params: &[JsonValue]) -> Result<JsonValue> {
+		let client = reqwest::Client::new();
+		let mut req = client.post(&self.url);
+
+		if let Auth::UserPass(username, password) = &self.auth {
+			let token = base64::encode(format!("{username}:{password}"));
+			req = req.header(AUTHORIZATION, format!("Basic {token}"));
+		}
+
+		for attempt in 0..RETRY_ATTEMPTS {
+			let id = self.id.fetch_add(1, Ordering::Relaxed).to_string();
+			let timeout = Duration::from_millis(utils::exp_timeout(RPC_TIMEOUT, attempt));
+
+			let body = json!({
+				"jsonrpc": "2.0",
+				"method": method,
+				"params": params,
+				"id": id,
+			});
+
+			match req.try_clone().unwrap().json(&body).send().await {
+				Ok(response) => {
+					let json = response.json::<Response>().await?;
+					match json.error {
+						Some(error) if error.code == RPC_IN_WARMUP => {
+							sleep(timeout).await;
+							continue;
+						}
+						Some(error) => {
+							return Err(ClientError::Rpc { message: error.message }.into())
+						}
+						None if json.id.is_none() || json.id.unwrap() != id => {
+							return Err(ClientError::NonceMismatch.into())
+						}
+						None => return Ok(json.result),
+					}
 				}
-				Err(BitcoinRpcError::JsonRpc(JsonRpcError::Rpc(ref e)))
-					if e.code == RPC_IN_WARMUP =>
-				{
-					sleep(Duration::from_millis(RPC_TIMEOUT));
+				Err(e) if e.is_connect() => {
+					sleep(timeout).await;
 					continue;
 				}
-				Err(e) => return Err(e),
+				Err(e) => return Err(ClientError::General { message: e.to_string() }.into()),
 			}
 		}
 
-		self.client.call(cmd, args)
+		Err(ClientError::Connection.into())
+	}
+}
+
+fn deserialize_hex<T: Decodable>(hex: &str) -> Result<T> {
+	let mut reader = HexIterator::new(hex)?;
+	let object = Decodable::consensus_decode(&mut reader)?;
+
+	if reader.read_u8().is_ok() {
+		Err(eyre!("could not deserialize output"))
+	} else {
+		Ok(object)
 	}
 }

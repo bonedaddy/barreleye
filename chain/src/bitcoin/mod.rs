@@ -3,7 +3,6 @@ use bitcoin::{
 	blockdata::transaction::Transaction, hash_types::Txid, util::address::Address,
 	Network as BitcoinNetwork,
 };
-use bitcoincore_rpc::{Auth, Client, RpcApi};
 use eyre::{bail, Result};
 use indicatif::ProgressBar;
 use std::{collections::HashMap, sync::Arc};
@@ -13,7 +12,7 @@ use crate::{ChainTrait, ModuleTrait, RateLimiter, WarehouseData};
 use barreleye_common::{
 	cache::CacheKey, models::Network, AppState, BlockHeight, ChainModuleId, Warehouse,
 };
-use client::RetryClient;
+use client::{Auth, Client};
 use modules::{BitcoinCoinbase, BitcoinLink, BitcoinModuleTrait, BitcoinTransfer, BitcoinTxAmount};
 
 mod client;
@@ -23,7 +22,7 @@ pub struct Bitcoin {
 	app_state: Arc<AppState>,
 	network: Network,
 	rpc: Option<String>,
-	client: Arc<RetryClient>,
+	client: Arc<Client>,
 	bitcoin_network: BitcoinNetwork,
 	rate_limiter: Option<Arc<RateLimiter>>,
 }
@@ -36,7 +35,7 @@ impl Bitcoin {
 		pb: Option<&ProgressBar>,
 	) -> Result<Self> {
 		let mut rpc: Option<String> = None;
-		let mut maybe_client: Option<RetryClient> = None;
+		let mut maybe_client: Option<Client> = None;
 
 		let rpc_endpoints: Vec<String> = serde_json::from_value(network.rpc_endpoints.clone())?;
 
@@ -58,9 +57,9 @@ impl Bitcoin {
 						rate_limiter.until_ready().await;
 					}
 
-					if client.get_blockchain_info().is_ok() {
+					if client.get_blockchain_info().await.is_ok() {
 						rpc = Some(url);
-						maybe_client = Some(RetryClient::new(client));
+						maybe_client = Some(client);
 					}
 				}
 			}
@@ -117,7 +116,7 @@ impl ChainTrait for Bitcoin {
 
 	async fn get_block_height(&self) -> Result<BlockHeight> {
 		self.rate_limit().await;
-		Ok(self.client.get_block_count()?)
+		Ok(self.client.get_block_count().await?)
 	}
 
 	async fn process_block(
@@ -128,9 +127,9 @@ impl ChainTrait for Bitcoin {
 		let mut ret = None;
 
 		self.rate_limit().await;
-		if let Ok(block_hash) = self.client.get_block_hash(block_height) {
+		if let Ok(block_hash) = self.client.get_block_hash(block_height).await {
 			self.rate_limit().await;
-			if let Ok(block) = self.client.get_block(&block_hash) {
+			if let Ok(block) = self.client.get_block(&block_hash).await {
 				let mut warehouse_data = WarehouseData::new();
 
 				for tx in block.txdata.into_iter() {
@@ -238,7 +237,7 @@ impl Bitcoin {
 		let mut block_hash = None;
 		if let Some(block_height) = self.app_state.cache.get::<u64>(cache_key.clone()).await? {
 			self.rate_limit().await;
-			block_hash = Some(self.client.get_block_hash(block_height)?);
+			block_hash = Some(self.client.get_block_hash(block_height).await?);
 			// @NOTE do not delete the "used up" utxo here; modules are stateless and another one
 			// might need to use it
 		}
@@ -246,7 +245,7 @@ impl Bitcoin {
 		// `block_hash` will always be *some value* for those modules that have
 		// started indexing from block 1; for all others -txindex is needed
 		self.rate_limit().await;
-		let tx = self.client.get_raw_transaction(&txid, block_hash.as_ref())?;
+		let tx = self.client.get_raw_transaction(&txid, block_hash.as_ref()).await?;
 		let ret = self.get_address(&tx, vout)?.map(|a| {
 			let v = tx.output[vout as usize].value;
 			(a, v)

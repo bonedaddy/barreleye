@@ -40,7 +40,8 @@ curl -i -X POST \
     "blockchain": "bitcoin",
     "chainId": 0,
     "blockTimeMs": 600000,
-    "rpcEndpoints": ["http://username:password@127.0.0.1:8332"]
+    "rpcEndpoints": ["http://username:password@127.0.0.1:8332"],
+    "rps": 100
   }' \
   http://localhost:22775/v0/networks
 ```
@@ -58,7 +59,8 @@ curl -i -X POST \
     "blockchain": "evm",
     "chainId": 1,
     "blockTimeMs": 12000,
-    "rpcEndpoints": ["http://127.0.0.1:8545"]
+    "rpcEndpoints": ["http://127.0.0.1:8545"],
+    "rps": 100
   }' \
   http://localhost:22775/v0/networks
 ```
