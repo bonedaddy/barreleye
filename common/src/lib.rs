@@ -16,6 +16,7 @@ pub use address::Address;
 pub use cache::Cache;
 pub use db::Db;
 pub use errors::AppError;
+pub use progress::{ReadyType as ProgressReadyType, Step as ProgressStep};
 pub use settings::Settings;
 pub use warehouse::Warehouse;
 
@@ -30,6 +31,7 @@ pub mod u256;
 pub mod utils;
 pub mod warehouse;
 
+pub type Warnings = Vec<String>;
 pub type BlockHeight = u64;
 
 #[derive(Clone)]

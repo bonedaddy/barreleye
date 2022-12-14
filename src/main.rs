@@ -12,9 +12,8 @@ use crate::lists::Lists;
 use barreleye_chain::Networks;
 use barreleye_common::{
 	models::{Config, ConfigKey},
-	progress,
-	progress::Step,
-	utils, AppError, AppState, Cache, Db, Env, Settings, Verbosity, Warehouse,
+	progress, utils, AppError, AppState, Cache, Db, Env, ProgressReadyType, ProgressStep, Settings,
+	Verbosity, Warehouse, Warnings,
 };
 use barreleye_server::Server;
 
@@ -54,7 +53,7 @@ async fn main() -> Result<()> {
 	};
 
 	banner::show(env, is_indexer, is_server, skip_ascii)?;
-	progress::show(Step::Setup).await;
+	progress::show(ProgressStep::Setup).await;
 
 	let settings = Arc::new(Settings::new()?);
 
@@ -107,12 +106,16 @@ async fn main() -> Result<()> {
 	let server = Server::new(app_state.clone());
 	let lists = Lists::new(app_state.clone());
 
+	let warnings = networks.get_warnings().await?;
+
 	let (server_done, watcher_done, lists_done, _, _) = tokio::join! {
 		tokio::spawn({
 			let app_state = app_state.clone();
+			let warnings = warnings.clone();
+
 			async move {
 				match is_server {
-					true => server.start().await,
+					true => server.start(warnings).await,
 					_ => {
 						app_state.set_is_ready();
 						Ok(())
@@ -148,10 +151,12 @@ async fn main() -> Result<()> {
 		}),
 		tokio::spawn({
 			let app_state = app_state.clone();
+			let warnings = warnings.clone();
+
 			async move {
 				match is_indexer {
 					true => tokio::select! {
-						v = leader_check(app_state) => v,
+						v = leader_check(app_state, warnings) => v,
 						_ = signal::ctrl_c() => Ok(()),
 					},
 					_ => Ok(())
@@ -167,11 +172,11 @@ async fn main() -> Result<()> {
 	server_done.and(watcher_done).and(lists_done)?
 }
 
-async fn leader_check(app_state: Arc<AppState>) -> Result<()> {
+async fn leader_check(app_state: Arc<AppState>, warnings: Warnings) -> Result<()> {
 	let leader_promotion = app_state.settings.leader_promotion;
 
 	if app_state.is_indexer && !app_state.is_server {
-		progress::show(Step::IndexerReady).await;
+		progress::show(ProgressStep::Ready(ProgressReadyType::Indexer, warnings)).await;
 	}
 
 	loop {

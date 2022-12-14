@@ -1,7 +1,7 @@
 use console::{style, Emoji};
 use std::process;
 
-use crate::AppError;
+use crate::{AppError, Warnings};
 
 static SETUP: Emoji<'_, '_> = Emoji("💾  ", "");
 static MIGRATIONS: Emoji<'_, '_> = Emoji("🚐  ", "");
@@ -9,13 +9,17 @@ static NETWORKS: Emoji<'_, '_> = Emoji("📢  ", "");
 static READY: Emoji<'_, '_> = Emoji("🟢  ", "");
 static QUIT: Emoji<'_, '_> = Emoji("🛑  ", "");
 
+pub enum ReadyType {
+	All(String),
+	Server(String),
+	Indexer,
+}
+
 pub enum Step {
 	Setup,
 	Migrations,
 	Networks,
-	Ready(String),
-	IndexerReady,
-	ServerReady(String),
+	Ready(ReadyType, Warnings),
 }
 
 pub async fn show(step: Step) {
@@ -27,9 +31,29 @@ pub async fn show(step: Step) {
 		Step::Setup => out(1, SETUP, "Checking setup…"),
 		Step::Migrations => out(2, MIGRATIONS, "Running migrations…"),
 		Step::Networks => out(3, NETWORKS, "Pinging networks…"),
-		Step::Ready(addr) => out(4, READY, &format!("Indexing & listening on {addr}…")),
-		Step::IndexerReady => out(4, READY, "Indexing…"),
-		Step::ServerReady(addr) => out(4, READY, &format!("Listening on {addr}…")),
+		Step::Ready(ready_type, warnings) => {
+			out(
+				4,
+				READY,
+				&match ready_type {
+					ReadyType::All(addr) => format!("Indexing & listening on {addr}…\n"),
+					ReadyType::Server(addr) => format!("Listening on {addr}…\n"),
+					ReadyType::Indexer => "Indexing…\n".to_string(),
+				},
+			);
+
+			if !warnings.is_empty() {
+				println!(
+					"{}\n{}\n",
+					style("Warnings:").yellow().bold(),
+					warnings
+						.iter()
+						.map(|v| format!("{} {v}", style("↳").dim().bold()))
+						.collect::<Warnings>()
+						.join("\n"),
+				);
+			}
+		}
 	}
 }
 

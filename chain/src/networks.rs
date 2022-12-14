@@ -65,8 +65,12 @@ impl Networks {
 	pub async fn connect(mut self) -> Result<Self> {
 		progress::show(Step::Networks).await;
 
-		let template = "       {spinner}  ↳ {prefix:.bold.dim}: {wide_msg}";
-		let spinner_style = ProgressStyle::with_template(template).unwrap().tick_chars("⠁⠂⠄⡀⢀⠠⠐⠈ ");
+		let template = format!(
+			"       {{spinner}}  {} {{prefix:.bold}}: {{wide_msg:.bold.dim}}",
+			style("↳").bold().dim()
+		);
+		let spinner_style =
+			ProgressStyle::with_template(&template).unwrap().tick_chars("⠁⠂⠄⡀⢀⠠⠐⠈ ");
 
 		let m = MultiProgress::new();
 		let threads = Network::get_all_by_env(&self.app_state.db, self.app_state.env)
@@ -128,6 +132,21 @@ impl Networks {
 		Ok(self)
 	}
 
+	pub async fn get_warnings(&self) -> Result<Vec<String>> {
+		Ok(self
+			.networks_map
+			.iter()
+			.filter_map(|(_, chain)| {
+				let network = chain.get_network();
+				if network.rps == 0 && self.app_state.is_indexer {
+					Some(format!("{} rpc requests are not rate-limited", network.name))
+				} else {
+					None
+				}
+			})
+			.collect())
+	}
+
 	pub async fn sync_networks(&mut self) -> Result<()> {
 		let all_networks = Network::get_all_by_env(&self.app_state.db, self.app_state.env).await?;
 
@@ -169,32 +188,6 @@ impl Networks {
 		}
 
 		Ok(())
-	}
-
-	pub async fn networks_have_changed(&self) -> Result<bool> {
-		let all_active_networks: HashMap<PrimaryId, Network> =
-			Network::get_all_by_env(&self.app_state.db, self.app_state.env)
-				.await?
-				.into_iter()
-				.filter_map(|n| match n.is_active {
-					true => Some((n.network_id, n)),
-					_ => None,
-				})
-				.collect();
-
-		if all_active_networks.len() != self.networks_map.len() {
-			return Ok(true);
-		}
-
-		for (network_id, chain) in self.networks_map.iter() {
-			match all_active_networks.get(network_id) {
-				Some(network) if *network != chain.get_network() => return Ok(true),
-				None => return Ok(true),
-				_ => {}
-			}
-		}
-
-		Ok(false)
 	}
 
 	pub async fn index(&mut self) -> Result<()> {

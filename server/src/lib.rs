@@ -22,7 +22,9 @@ use tower::ServiceBuilder;
 use uuid::Uuid;
 
 use crate::errors::ServerError;
-use barreleye_common::{models::ApiKey, progress, progress::Step, AppError, AppState};
+use barreleye_common::{
+	models::ApiKey, progress, AppError, AppState, ProgressReadyType, ProgressStep, Warnings,
+};
 
 mod errors;
 mod handlers;
@@ -94,7 +96,7 @@ impl Server {
 		}
 	}
 
-	pub async fn start(&self) -> Result<()> {
+	pub async fn start(&self, warnings: Warnings) -> Result<()> {
 		let settings = self.app_state.settings.clone();
 
 		async fn handle_404() -> ServerResult<StatusCode> {
@@ -123,10 +125,14 @@ impl Server {
 		let ipv4 = SocketAddr::new(settings.server.ip_v4.parse()?, settings.server.port);
 
 		let show_progress = |addr: &str| {
-			progress::show(match self.app_state.is_indexer && self.app_state.is_server {
-				true => Step::Ready(addr.to_string()),
-				_ => Step::ServerReady(addr.to_string()),
-			})
+			progress::show(ProgressStep::Ready(
+				if self.app_state.is_indexer && self.app_state.is_server {
+					ProgressReadyType::All(addr.to_string())
+				} else {
+					ProgressReadyType::Server(addr.to_string())
+				},
+				warnings,
+			))
 		};
 
 		if settings.server.ip_v6.is_empty() {
