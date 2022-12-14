@@ -6,7 +6,7 @@ use std::sync::Arc;
 use crate::{errors::ServerError, AppState, ServerResult};
 use barreleye_chain::{Bitcoin, ChainTrait, Evm};
 use barreleye_common::{
-	models::{BasicModel, Network},
+	models::{BasicModel, Config, ConfigKey, Network},
 	Blockchain, Env,
 };
 
@@ -88,6 +88,9 @@ pub async fn handler(
 		),
 	)
 	.await?;
+
+	// update config
+	Config::set::<u8>(&app.db, ConfigKey::NetworksUpdated, 1).await?;
 
 	// return newly created
 	Ok(Network::get(&app.db, network_id).await?.unwrap().into())

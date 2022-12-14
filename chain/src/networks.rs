@@ -507,8 +507,15 @@ impl Networks {
 				// drop the original non-cloned
 				drop(pipe_sender);
 
+				// vars to keep network in sync
+				let mut networks_checked_at = utils::now();
+				let mut networks_updated_at =
+					Config::get::<u8>(&self.app_state.db, ConfigKey::NetworksUpdated)
+						.await?
+						.map(|v| v.updated_at)
+						.unwrap_or_else(utils::now);
+
 				// process thread returns + their outputs
-				let mut last_networks_check_at = utils::now();
 				loop {
 					tokio::select! {
 						result = futures.join_next() => {
@@ -524,18 +531,25 @@ impl Networks {
 							// abort if not a leader anymore or networks have recently changed
 							let should_abort = if !self.app_state.is_leading() {
 								true
-							} else if utils::ago_in_seconds(5) > last_networks_check_at {
-								last_networks_check_at = utils::now();
+							} else if utils::ago_in_seconds(1) > networks_checked_at {
+								networks_checked_at = utils::now();
 
-								let networks_udpated = self.networks_have_changed().await?;
-								if networks_udpated && detailed_logging {
-									log("Networks updated; restarting…");
+								match Config::get::<u8>(&self.app_state.db, ConfigKey::NetworksUpdated).await? {
+									Some(value) if value.updated_at != networks_updated_at => {
+										networks_updated_at = value.updated_at;
+
+										if detailed_logging {
+											log("Networks updated; restarting…");
+										}
+
+										true
+									},
+									_ => false
 								}
-
-								networks_udpated
 							} else {
 								false
 							};
+
 							if should_abort {
 								should_keep_going.store(false, Ordering::SeqCst);
 								abort_sender.send(())?;

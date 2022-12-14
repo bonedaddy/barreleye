@@ -27,6 +27,8 @@ pub enum ConfigKey {
 	IndexerProgress(PrimaryId),
 	#[display(fmt = "block_height_n{}", "_0")]
 	BlockHeight(PrimaryId),
+	#[display(fmt = "networks_updated")]
+	NetworksUpdated,
 }
 
 impl From<String> for ConfigKey {
@@ -49,6 +51,7 @@ impl From<String> for ConfigKey {
 			"indexer_n{}_m{}_synced" if n.len() == 2 => Self::IndexerSynced(n[0], n[1] as u16),
 			"indexer_n{}_progress" if n.len() == 1 => Self::IndexerProgress(n[0]),
 			"block_height_n{}" if n.len() == 1 => Self::BlockHeight(n[0]),
+			"networks_updated" => Self::NetworksUpdated,
 			_ => panic!("no match in From<String> for ConfigKey"),
 		}
 	}
@@ -69,6 +72,7 @@ mod tests {
 			(ConfigKey::IndexerSynced(123, 456), "indexer_n123_m456_synced"),
 			(ConfigKey::IndexerProgress(123), "indexer_n123_progress"),
 			(ConfigKey::BlockHeight(123), "block_height_n123"),
+			(ConfigKey::NetworksUpdated, "networks_updated"),
 		]);
 
 		for (config_key, config_key_str) in config_keys.into_iter() {

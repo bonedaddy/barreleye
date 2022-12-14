@@ -9,7 +9,7 @@ use std::sync::Arc;
 
 use crate::{errors::ServerError, AppState, ServerResult};
 use barreleye_common::{
-	models::{optional_set, BasicModel, Network, NetworkActiveModel},
+	models::{optional_set, BasicModel, Config, ConfigKey, Network, NetworkActiveModel},
 	Blockchain, Env,
 };
 
@@ -62,19 +62,33 @@ pub async fn handler(
 	}
 
 	let update_data = NetworkActiveModel {
-		name: optional_set(payload.name),
-		tag: optional_set(payload.tag),
+		name: optional_set(payload.name.clone()),
+		tag: optional_set(payload.tag.clone()),
 		env: optional_set(payload.env),
 		blockchain: optional_set(payload.blockchain),
 		chain_id: optional_set(payload.chain_id.map(|v| v as i64)),
 		block_time_ms: optional_set(payload.block_time_ms.map(|v| v as i64)),
-		rpc_endpoints: optional_set(payload.rpc_endpoints.map(|v| json!(v))),
+		rpc_endpoints: optional_set(payload.rpc_endpoints.clone().map(|v| json!(v))),
 		rps: optional_set(payload.rps.map(|v| v as i32)),
 		is_active: optional_set(payload.is_active),
 		..Default::default()
 	};
 
 	if Network::update_by_id(&app.db, &network_id, update_data).await? {
+		// update config
+		if payload.name.is_some() ||
+			payload.tag.is_some() ||
+			payload.env.is_some() ||
+			payload.blockchain.is_some() ||
+			payload.chain_id.is_some() ||
+			payload.block_time_ms.is_some() ||
+			payload.rpc_endpoints.is_some() ||
+			payload.rps.is_some() ||
+			payload.is_active.is_some()
+		{
+			Config::set::<u8>(&app.db, ConfigKey::NetworksUpdated, 1).await?;
+		}
+
 		Ok(StatusCode::NO_CONTENT)
 	} else {
 		Err(ServerError::NotFound)
