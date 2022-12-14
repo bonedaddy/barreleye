@@ -193,7 +193,7 @@ impl Networks {
 	pub async fn index(&mut self) -> Result<()> {
 		let mut warehouse_data = WarehouseData::new();
 		let mut config_key_map = HashMap::<ConfigKey, serde_json::Value>::new();
-		let detailed_logging = self.app_state.verbosity as u8 > Verbosity::Silent as u8;
+		let verbose = self.app_state.verbosity as u8 > Verbosity::Silent as u8;
 		let mut started_indexing = false;
 
 		let log = |s: &str| println!("{}: {s}", style("Indexer").cyan().bold());
@@ -392,7 +392,7 @@ impl Networks {
 				let mut receipts = HashMap::<ConfigKey, Sender<()>>::new();
 
 				let thread_count = network_params_map.len();
-				if detailed_logging {
+				if verbose {
 					log(&format!("Launching {} thread(s)", style(num(thread_count)?).bold(),));
 				}
 
@@ -419,12 +419,31 @@ impl Networks {
 							let mut block_height = network_params.range.0;
 							let block_height_max = network_params.range.1;
 
+							let config_value = |block_height| match config_key {
+								ConfigKey::IndexerTailBlock(_) => json!(block_height),
+								ConfigKey::IndexerTailSyncBlocks(_, _) |
+								ConfigKey::IndexerHeadBlocks(_, _)
+									if block_height_max.is_some() =>
+								{
+									json!((block_height, block_height_max.unwrap()))
+								}
+								_ => panic!("no return value for {config_key}"),
+							};
+
 							while should_keep_going.load(Ordering::SeqCst) {
 								match block_height_max {
 									Some(block_height_max)
 										if block_height + 1 > block_height_max =>
 									{
-										break
+										if !warehouse_data.is_empty() {
+											pipe.push(
+												config_value(block_height),
+												warehouse_data.clone(),
+											)
+											.await?;
+										}
+
+										break;
 									}
 									None => {
 										let config_key = ConfigKey::BlockHeight(nid);
@@ -472,18 +491,8 @@ impl Networks {
 								};
 
 								if is_done || warehouse_data.len() > 100 {
-									let config_value = match config_key {
-										ConfigKey::IndexerTailBlock(_) => json!(block_height),
-										ConfigKey::IndexerTailSyncBlocks(_, _) |
-										ConfigKey::IndexerHeadBlocks(_, _)
-											if block_height_max.is_some() =>
-										{
-											json!((block_height, block_height_max.unwrap()))
-										}
-										_ => panic!("no return value for {config_key}"),
-									};
-
-									pipe.push(config_value, warehouse_data.clone()).await?;
+									pipe.push(config_value(block_height), warehouse_data.clone())
+										.await?;
 									warehouse_data.clear();
 								}
 
@@ -521,7 +530,6 @@ impl Networks {
 							}
 						}
 						Some((config_key, config_value, new_data)) = pipe_receiver.recv() => {
-							// abort if not a leader anymore or networks have recently changed
 							let should_abort = if !self.app_state.is_leading() {
 								true
 							} else if utils::ago_in_seconds(1) > networks_checked_at {
@@ -531,7 +539,7 @@ impl Networks {
 									Some(value) if value.updated_at != networks_updated_at => {
 										networks_updated_at = value.updated_at;
 
-										if detailed_logging {
+										if verbose {
 											log("Restarting… (networks updated)");
 										}
 
@@ -549,7 +557,7 @@ impl Networks {
 								break;
 							}
 
-							if detailed_logging {
+							if verbose {
 								log(&format!(
 									"Thread {} produced {} record(s)",
 									style(config_key).bold(),
@@ -570,7 +578,7 @@ impl Networks {
 							if warehouse_data.should_commit() {
 								let mut updated_network_ids = HashSet::new();
 
-								if detailed_logging {
+								if verbose {
 									log(&format!(
 										"Pushing {} record(s) to warehouse",
 										style(num(warehouse_data.len())?).bold(),

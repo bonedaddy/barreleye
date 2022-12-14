@@ -27,7 +27,7 @@ A default API key is created on the first run, so to get it:
 select uuid from api_keys;
 ```
 
-Add Bitcoin (HTTPS is not supported yet):
+Add Bitcoin:
 
 ```bash
 curl -i -X POST \
