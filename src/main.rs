@@ -3,6 +3,7 @@ use eyre::Result;
 use std::{env, sync::Arc};
 use tokio::{
 	signal,
+	sync::RwLock,
 	time::{sleep, Duration},
 };
 use uuid::Uuid;
@@ -57,7 +58,7 @@ async fn main() -> Result<()> {
 
 	let settings = Arc::new(Settings::new()?);
 
-	let cache = Arc::new(
+	let cache = Arc::new(RwLock::new(
 		Cache::new(settings.clone())
 			.await
 			.map_err(|url| {
@@ -67,7 +68,7 @@ async fn main() -> Result<()> {
 				});
 			})
 			.unwrap(),
-	);
+	));
 
 	let warehouse = Arc::new(
 		Warehouse::new(settings.clone())
@@ -167,7 +168,6 @@ async fn main() -> Result<()> {
 }
 
 async fn leader_check(app_state: Arc<AppState>) -> Result<()> {
-	let leader_ping = app_state.settings.leader_ping;
 	let leader_promotion = app_state.settings.leader_promotion;
 
 	if app_state.is_indexer && !app_state.is_server {
@@ -175,27 +175,31 @@ async fn leader_check(app_state: Arc<AppState>) -> Result<()> {
 	}
 
 	loop {
-		let active_at = utils::ago_in_seconds(leader_ping + 1);
-		let promoted_at = utils::ago_in_seconds(leader_promotion);
+		let db = &app_state.db;
+		let cool_down_period = utils::ago_in_seconds(leader_promotion / 2);
 
-		let check_in = Config::set::<Uuid>(&app_state.db, ConfigKey::Leader, app_state.uuid);
-
-		match Config::get::<Uuid>(&app_state.db, ConfigKey::Leader).await? {
+		let last_leader = Config::get::<Uuid>(&app_state.db, ConfigKey::Leader).await?;
+		match last_leader {
 			None => {
-				check_in.await?;
+				// first run ever
+				Config::set::<Uuid>(db, ConfigKey::Leader, app_state.uuid).await?;
 			}
-			Some(hit) if hit.value == app_state.uuid && hit.updated_at >= active_at => {
-				check_in.await?;
-				app_state.set_is_leader(true);
+			Some(hit) if hit.value == app_state.uuid && hit.updated_at >= cool_down_period => {
+				// if leader, check-in only if cool-down period has not started yet ↑
+				if Config::set_where::<Uuid>(db, ConfigKey::Leader, app_state.uuid, hit).await? {
+					app_state.set_is_leader(true).await?;
+				}
 			}
-			Some(hit) if hit.updated_at < promoted_at => {
-				check_in.await?;
+			Some(hit) if utils::ago_in_seconds(leader_promotion) > hit.updated_at => {
+				// attempt to take over as a leader (set is_leader on the next iteration)
+				Config::set_where::<Uuid>(db, ConfigKey::Leader, app_state.uuid, hit).await?;
 			}
 			_ => {
-				app_state.set_is_leader(false);
+				// either cool-down period has started or some other node is leading
+				app_state.set_is_leader(false).await?;
 			}
 		}
 
-		sleep(Duration::from_secs(leader_ping)).await
+		sleep(Duration::from_secs(app_state.settings.leader_ping)).await
 	}
 }

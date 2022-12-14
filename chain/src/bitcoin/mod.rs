@@ -221,7 +221,7 @@ impl Bitcoin {
 					tx.txid().as_hash().to_string(),
 				);
 
-				self.app_state.cache.set::<u64>(cache_key, block_height).await?;
+				self.app_state.cache.read().await.set::<u64>(cache_key, block_height).await?;
 
 				ret.push((address, txout.value));
 			}
@@ -235,7 +235,9 @@ impl Bitcoin {
 			CacheKey::BitcoinTxIndex(self.network.network_id as u64, txid.as_hash().to_string());
 
 		let mut block_hash = None;
-		if let Some(block_height) = self.app_state.cache.get::<u64>(cache_key.clone()).await? {
+		if let Some(block_height) =
+			self.app_state.cache.read().await.get::<u64>(cache_key.clone()).await?
+		{
 			self.rate_limit().await;
 			block_hash = Some(self.client.get_block_hash(block_height).await?);
 			// @NOTE do not delete the "used up" utxo here; modules are stateless and another one

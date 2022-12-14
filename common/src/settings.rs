@@ -13,7 +13,7 @@ use crate::{
 pub static DEFAULT_SETTINGS_FILENAME: &str = "barreleye.toml";
 pub static DEFAULT_SETTINGS_CONTENT: &str = r#"
 sdn_refresh_rate = 3600 # in seconds
-leader_ping = 4 # in seconds
+leader_ping = 2 # in seconds
 leader_promotion = 20 # in seconds
 
 [server]

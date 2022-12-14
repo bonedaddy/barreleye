@@ -514,18 +514,15 @@ impl Networks {
 						result = futures.join_next() => {
 							if let Some(task_result) = result {
 								if let Err(e) = task_result? {
-									println!("breaking {:?}", e);
 									break 'indexing Err(e);
 								}
 							} else {
-								println!("none");
 								break;
 							}
-						},
+						}
 						Some((config_key, config_value, new_data)) = pipe_receiver.recv() => {
 							// abort if not a leader anymore or networks have recently changed
 							let should_abort = if !self.app_state.is_leading() {
-								println!("not a leader {:?} {:?}", self.app_state.is_ready(), self.app_state.is_leader());
 								true
 							} else if utils::ago_in_seconds(5) > last_networks_check_at {
 								last_networks_check_at = utils::now();
@@ -607,7 +604,8 @@ impl Networks {
 											updated_network_ids.insert(*nid);
 										}
 										ConfigKey::IndexerHeadBlocks(nid, mid) => {
-											let value = json_parse::<(BlockHeight, BlockHeight)>(value)?;
+											let value =
+												json_parse::<(BlockHeight, BlockHeight)>(value)?;
 											Config::set::<(BlockHeight, BlockHeight)>(db, key, value)
 												.await?;
 
@@ -632,8 +630,9 @@ impl Networks {
 									}
 								}
 
-								// cleanup: if `config_key_map` contains a key indicating a certain module
-								// has been fully synced, it's safe to delete config for its range markers
+								// cleanup: if `config_key_map` contains a key indicating a certain
+								// module has been fully synced, it's safe to delete config for its
+								// range markers
 								for (config_key, _) in config_key_map.iter() {
 									if let ConfigKey::IndexerSynced(nid, mid) = config_key {
 										let ck_block_range = ConfigKey::IndexerHeadBlocks(*nid, *mid);
@@ -700,8 +699,8 @@ impl Networks {
 													.unwrap_or((0, tail_block));
 
 												if block_range_max > block_range_min {
-													let indexed =
-														done_blocks - (block_range_max - block_range_min);
+													let indexed = done_blocks -
+														(block_range_max - block_range_min);
 													scores.push(indexed as f64 / block_height as f64);
 												}
 											}

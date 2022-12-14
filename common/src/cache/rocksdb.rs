@@ -10,7 +10,7 @@ pub struct RocksDb {
 }
 
 impl RocksDb {
-	pub async fn new(settings: Arc<Settings>) -> Result<Self> {
+	pub async fn new(settings: Arc<Settings>, is_read_only: bool) -> Result<Self> {
 		let mut opts = Options::default();
 
 		opts.create_if_missing(true);
@@ -29,10 +29,12 @@ impl RocksDb {
 		opts.set_disable_auto_compactions(false);
 		opts.set_log_level(LogLevel::Warn);
 
-		let db = DBWithThreadMode::<MultiThreaded>::open(
-			&opts,
-			utils::get_db_path(&settings.dsn.rocksdb),
-		)?;
+		let path = utils::get_db_path(&settings.dsn.rocksdb);
+		let db = if is_read_only {
+			DBWithThreadMode::<MultiThreaded>::open_for_read_only(&opts, path, false)?
+		} else {
+			DBWithThreadMode::<MultiThreaded>::open(&opts, path)?
+		};
 
 		Ok(Self { db })
 	}

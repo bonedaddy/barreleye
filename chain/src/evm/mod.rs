@@ -153,12 +153,12 @@ impl Evm {
 			utils::to_checksum(address, None),
 		);
 
-		Ok(match self.app_state.cache.get::<bool>(cache_key.clone()).await? {
+		Ok(match self.app_state.cache.read().await.get::<bool>(cache_key.clone()).await? {
 			Some(v) => v,
 			_ => {
 				self.rate_limit().await;
 				let is_smart_contract = !self.provider.get_code(*address, None).await?.is_empty();
-				self.app_state.cache.set::<bool>(cache_key, is_smart_contract).await?;
+				self.app_state.cache.read().await.set::<bool>(cache_key, is_smart_contract).await?;
 				is_smart_contract
 			}
 		})

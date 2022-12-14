@@ -1,5 +1,6 @@
 use clap::{builder, ValueEnum};
 use derive_more::Display;
+use eyre::Result;
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -9,6 +10,7 @@ use std::{
 		Arc,
 	},
 };
+use tokio::sync::RwLock;
 
 pub use address::Address;
 pub use cache::Cache;
@@ -34,7 +36,7 @@ pub type BlockHeight = u64;
 pub struct AppState {
 	pub uuid: Uuid,
 	pub settings: Arc<Settings>,
-	pub cache: Arc<Cache>,
+	pub cache: Arc<RwLock<Cache>>,
 	pub db: Arc<Db>,
 	pub warehouse: Arc<Warehouse>,
 	pub env: Env,
@@ -48,7 +50,7 @@ pub struct AppState {
 impl AppState {
 	pub fn new(
 		settings: Arc<Settings>,
-		cache: Arc<Cache>,
+		cache: Arc<RwLock<Cache>>,
 		db: Arc<Db>,
 		warehouse: Arc<Warehouse>,
 		env: Env,
@@ -87,8 +89,13 @@ impl AppState {
 		self.is_leader.load(Ordering::SeqCst)
 	}
 
-	pub fn set_is_leader(&self, is_leader: bool) {
-		self.is_leader.store(is_leader, Ordering::SeqCst);
+	pub async fn set_is_leader(&self, is_leader: bool) -> Result<()> {
+		if is_leader != self.is_leader() {
+			self.is_leader.store(is_leader, Ordering::SeqCst);
+			self.cache.write().await.set_read_only(!is_leader).await?;
+		}
+
+		Ok(())
 	}
 }
 

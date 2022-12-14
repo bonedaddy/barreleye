@@ -38,18 +38,30 @@ pub trait CacheTrait: Send + Sync {
 }
 
 pub struct Cache {
+	settings: Arc<Settings>,
 	cache: Box<dyn CacheTrait>,
 }
 
 impl Cache {
 	pub async fn new(settings: Arc<Settings>) -> Result<Self> {
-		let rocksdb_url = settings.dsn.rocksdb.clone();
-
 		Ok(Self {
+			settings: settings.clone(),
 			cache: match settings.cache.driver {
-				Driver::RocksDB => Box::new(RocksDb::new(settings).await.wrap_err(rocksdb_url)?),
+				Driver::RocksDB => Box::new(
+					RocksDb::new(settings.clone(), true)
+						.await
+						.wrap_err(settings.dsn.rocksdb.clone())?,
+				),
 			},
 		})
+	}
+
+	pub async fn set_read_only(&mut self, is_read_only: bool) -> Result<()> {
+		self.cache = match self.settings.cache.driver {
+			Driver::RocksDB => Box::new(RocksDb::new(self.settings.clone(), is_read_only).await?),
+		};
+
+		Ok(())
 	}
 
 	pub async fn set<T>(&self, cache_key: CacheKey, value: T) -> Result<()>

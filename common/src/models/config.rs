@@ -2,7 +2,7 @@ use derive_more::Display;
 use eyre::Result;
 use regex::Regex;
 use sea_orm::{entity::prelude::*, Condition, Set};
-use sea_orm_migration::prelude::OnConflict;
+use sea_orm_migration::prelude::{Expr, OnConflict};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::collections::HashMap;
@@ -133,6 +133,27 @@ impl Model {
 		.await?;
 
 		Ok(())
+	}
+
+	pub async fn set_where<T>(
+		db: &Db,
+		key: ConfigKey,
+		value: T,
+		where_value: Value<T>,
+	) -> Result<bool>
+	where
+		T: Serialize + for<'a> Deserialize<'a>,
+	{
+		let update_result = Entity::update_many()
+			.col_expr(Column::Value, Expr::value(json!(value).to_string()))
+			.col_expr(Column::UpdatedAt, Expr::value(utils::now()))
+			.filter(Column::Key.eq(key.to_string()))
+			.filter(Column::Value.eq(json!(where_value.value).to_string()))
+			.filter(Column::UpdatedAt.eq(where_value.updated_at))
+			.exec(db.get())
+			.await?;
+
+		Ok(update_result.rows_affected == 1)
 	}
 
 	pub async fn set_many<T>(db: &Db, values: HashMap<ConfigKey, T>) -> Result<()>
