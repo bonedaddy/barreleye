@@ -532,7 +532,7 @@ impl Networks {
 										networks_updated_at = value.updated_at;
 
 										if detailed_logging {
-											log("Networks updated; restarting…");
+											log("Restarting… (networks updated)");
 										}
 
 										true

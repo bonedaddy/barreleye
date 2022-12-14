@@ -14,12 +14,10 @@ use serde_json::{json, Value as JsonValue};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use tokio::time::{sleep, Duration};
 
-use barreleye_common::utils;
-
 // source: `https://github.com/bitcoin/bitcoin/blob/master/src/rpc/protocol.h`
 const RPC_IN_WARMUP: i32 = -28;
 
-const RETRY_ATTEMPTS: u64 = 10;
+const RETRY_ATTEMPTS: u32 = 13;
 const RPC_TIMEOUT: u64 = 250;
 
 #[derive(Debug, Display, Error)]
@@ -110,7 +108,7 @@ impl Client {
 
 		for attempt in 0..RETRY_ATTEMPTS {
 			let id = self.id.fetch_add(1, Ordering::Relaxed).to_string();
-			let timeout = Duration::from_millis(utils::exp_timeout(RPC_TIMEOUT, attempt));
+			let timeout = Duration::from_millis(RPC_TIMEOUT * 2_i32.pow(attempt) as u64);
 
 			let body = json!({
 				"jsonrpc": "2.0",
