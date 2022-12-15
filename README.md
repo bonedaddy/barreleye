@@ -64,3 +64,9 @@ curl -i -X POST \
   }' \
   http://localhost:22775/v0/networks
 ```
+
+## Notes
+
+- You can run multiple indexers in parallel, but only one will be active at a time. They'll pick a leader among themselves, and if one crashes -- another one will take over.
+
+- For indexing, you might have to set Clickhouse's `max_server_memory_usage_to_ram_ratio` to `2`. [Read more](https://github.com/ClickHouse/ClickHouse/issues/17631).

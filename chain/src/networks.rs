@@ -559,7 +559,7 @@ impl Networks {
 
 							if verbose {
 								log(&format!(
-									"Thread {} produced {} record(s)",
+									"Thread {} returned {} record(s)",
 									style(config_key).bold(),
 									num(new_data.len())?,
 								));
