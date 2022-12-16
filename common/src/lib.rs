@@ -93,8 +93,8 @@ impl AppState {
 
 	pub async fn set_is_leader(&self, is_leader: bool) -> Result<()> {
 		if is_leader != self.is_leader() {
-			self.is_leader.store(is_leader, Ordering::SeqCst);
 			self.cache.write().await.set_read_only(!is_leader).await?;
+			self.is_leader.store(is_leader, Ordering::SeqCst);
 		}
 
 		Ok(())

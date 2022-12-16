@@ -15,14 +15,14 @@ pub enum ConfigKey {
 	Leader,
 	#[display(fmt = "label_fetched_l{}", "_0")]
 	LabelFetched(PrimaryId),
-	#[display(fmt = "indexer_tail_n{}_block", "_0")]
-	IndexerTailBlock(PrimaryId),
-	#[display(fmt = "indexer_tail_sync_n{}_b{}_blocks", "_0", "_1")]
-	IndexerTailSyncBlocks(PrimaryId, BlockHeight),
-	#[display(fmt = "indexer_head_n{}_m{}_blocks", "_0", "_1")]
-	IndexerHeadBlocks(PrimaryId, u16),
-	#[display(fmt = "indexer_n{}_m{}_synced", "_0", "_1")]
-	IndexerSynced(PrimaryId, u16),
+	#[display(fmt = "indexer_tail_sync_n{}", "_0")]
+	IndexerTailSync(PrimaryId),
+	#[display(fmt = "indexer_chunk_sync_n{}_b{}", "_0", "_1")]
+	IndexerChunkSync(PrimaryId, BlockHeight),
+	#[display(fmt = "indexer_module_sync_n{}_m{}", "_0", "_1")]
+	IndexerModuleSync(PrimaryId, u16),
+	#[display(fmt = "indexer_module_synced_n{}_m{}", "_0", "_1")]
+	IndexerModuleSynced(PrimaryId, u16),
 	#[display(fmt = "indexer_n{}_progress", "_0")]
 	IndexerProgress(PrimaryId),
 	#[display(fmt = "block_height_n{}", "_0")]
@@ -41,14 +41,16 @@ impl From<String> for ConfigKey {
 		match template.to_string().as_str() {
 			"leader" => Self::Leader,
 			"label_fetched_l{}" if n.len() == 1 => Self::LabelFetched(n[0]),
-			"indexer_tail_n{}_block" if n.len() == 1 => Self::IndexerTailBlock(n[0]),
-			"indexer_tail_sync_n{}_b{}_blocks" if n.len() == 2 => {
-				Self::IndexerTailSyncBlocks(n[0], n[1] as BlockHeight)
+			"indexer_tail_sync_n{}" if n.len() == 1 => Self::IndexerTailSync(n[0]),
+			"indexer_chunk_sync_n{}_b{}" if n.len() == 2 => {
+				Self::IndexerChunkSync(n[0], n[1] as BlockHeight)
 			}
-			"indexer_head_n{}_m{}_blocks" if n.len() == 2 => {
-				Self::IndexerHeadBlocks(n[0], n[1] as u16)
+			"indexer_module_sync_n{}_m{}" if n.len() == 2 => {
+				Self::IndexerModuleSync(n[0], n[1] as u16)
 			}
-			"indexer_n{}_m{}_synced" if n.len() == 2 => Self::IndexerSynced(n[0], n[1] as u16),
+			"indexer_module_synced_n{}_m{}" if n.len() == 2 => {
+				Self::IndexerModuleSynced(n[0], n[1] as u16)
+			}
 			"indexer_n{}_progress" if n.len() == 1 => Self::IndexerProgress(n[0]),
 			"block_height_n{}" if n.len() == 1 => Self::BlockHeight(n[0]),
 			"networks_updated" => Self::NetworksUpdated,
@@ -66,10 +68,10 @@ mod tests {
 		let config_keys = HashMap::from([
 			(ConfigKey::Leader, "leader"),
 			(ConfigKey::LabelFetched(123), "label_fetched_l123"),
-			(ConfigKey::IndexerTailBlock(123), "indexer_tail_n123_block"),
-			(ConfigKey::IndexerTailSyncBlocks(123, 456), "indexer_tail_sync_n123_b456_blocks"),
-			(ConfigKey::IndexerHeadBlocks(123, 456), "indexer_head_n123_m456_blocks"),
-			(ConfigKey::IndexerSynced(123, 456), "indexer_n123_m456_synced"),
+			(ConfigKey::IndexerTailSync(123), "indexer_tail_sync_n123"),
+			(ConfigKey::IndexerChunkSync(123, 456), "indexer_chunk_sync_n123_b456"),
+			(ConfigKey::IndexerModuleSync(123, 456), "indexer_module_sync_n123_m456"),
+			(ConfigKey::IndexerModuleSynced(123, 456), "indexer_module_synced_n123_m456"),
 			(ConfigKey::IndexerProgress(123), "indexer_n123_progress"),
 			(ConfigKey::BlockHeight(123), "block_height_n123"),
 			(ConfigKey::NetworksUpdated, "networks_updated"),

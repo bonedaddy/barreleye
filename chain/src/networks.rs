@@ -223,7 +223,7 @@ impl Networks {
 
 					let mut last_read_block = Config::get::<BlockHeight>(
 						&self.app_state.db,
-						ConfigKey::IndexerTailBlock(nid),
+						ConfigKey::IndexerTailSync(nid),
 					)
 					.await?
 					.map(|h| h.value)
@@ -253,7 +253,7 @@ impl Networks {
 					if last_read_block == 0 &&
 						chunks > 0 && Config::get_many_by_keyword::<(BlockHeight, BlockHeight)>(
 						&self.app_state.db,
-						&format!("tail_sync_n{nid}"),
+						&format!("chunk_sync_n{nid}"),
 					)
 					.await?
 					.is_empty()
@@ -273,7 +273,7 @@ impl Networks {
 								}
 
 								ret.insert(
-									ConfigKey::IndexerTailSyncBlocks(nid, block_height_max),
+									ConfigKey::IndexerChunkSync(nid, block_height_max),
 									(block_height_min, block_height_max),
 								);
 
@@ -295,7 +295,7 @@ impl Networks {
 						last_read_block = block_height - 1;
 						Config::set::<BlockHeight>(
 							&self.app_state.db,
-							ConfigKey::IndexerTailBlock(nid),
+							ConfigKey::IndexerTailSync(nid),
 							last_read_block,
 						)
 						.await?;
@@ -308,7 +308,7 @@ impl Networks {
 								.into_iter()
 								.map(|module_id| {
 									let mid = module_id as u16;
-									(ConfigKey::IndexerSynced(nid, mid), 1u8)
+									(ConfigKey::IndexerModuleSynced(nid, mid), 1u8)
 								})
 								.collect::<HashMap<_, _>>(),
 						)
@@ -317,7 +317,7 @@ impl Networks {
 
 					// push tail index to process latest blocks (incl all modules)
 					network_params_map.insert(
-						ConfigKey::IndexerTailBlock(nid),
+						ConfigKey::IndexerTailSync(nid),
 						NetworkParams::new(nid, last_read_block, None, &chain.get_module_ids()),
 					);
 
@@ -325,7 +325,7 @@ impl Networks {
 					for (config_key, block_range) in
 						Config::get_many_by_keyword::<(BlockHeight, BlockHeight)>(
 							&self.app_state.db,
-							&format!("tail_sync_n{nid}"),
+							&format!("chunk_sync_n{nid}"),
 						)
 						.await?
 					{
@@ -344,9 +344,9 @@ impl Networks {
 					for module_id in chain.get_module_ids().into_iter() {
 						let mid = module_id as u16;
 
-						let ck_synced = ConfigKey::IndexerSynced(nid, mid);
+						let ck_synced = ConfigKey::IndexerModuleSynced(nid, mid);
 						if Config::get::<u8>(&self.app_state.db, ck_synced).await?.is_none() {
-							let ck_block_range = ConfigKey::IndexerHeadBlocks(nid, mid);
+							let ck_block_range = ConfigKey::IndexerModuleSync(nid, mid);
 
 							let block_range = match Config::get::<(BlockHeight, BlockHeight)>(
 								&self.app_state.db,
@@ -420,9 +420,9 @@ impl Networks {
 							let block_height_max = network_params.range.1;
 
 							let config_value = |block_height| match config_key {
-								ConfigKey::IndexerTailBlock(_) => json!(block_height),
-								ConfigKey::IndexerTailSyncBlocks(_, _) |
-								ConfigKey::IndexerHeadBlocks(_, _)
+								ConfigKey::IndexerTailSync(_) => json!(block_height),
+								ConfigKey::IndexerChunkSync(_, _) |
+								ConfigKey::IndexerModuleSync(_, _)
 									if block_height_max.is_some() =>
 								{
 									json!((block_height, block_height_max.unwrap()))
@@ -510,16 +510,36 @@ impl Networks {
 				drop(pipe_sender);
 
 				// vars to keep network in sync
-				let mut networks_checked_at = utils::now();
-				let mut networks_updated_at =
+				let networks_updated_at =
 					Config::get::<u8>(&self.app_state.db, ConfigKey::NetworksUpdated)
 						.await?
 						.map(|v| v.updated_at)
 						.unwrap_or_else(utils::now);
 
+				let abort = || -> Result<()> {
+					should_keep_going.store(false, Ordering::SeqCst);
+					abort_sender.send(())?;
+					Ok(())
+				};
+
 				// process thread returns + their outputs
 				loop {
 					tokio::select! {
+						_ = sleep(Duration::from_secs(1)) => {
+							if let Some(value) =
+								Config::get::<u8>(&self.app_state.db, ConfigKey::NetworksUpdated)
+									.await?
+							{
+								if value.updated_at != networks_updated_at {
+									if verbose {
+										log("Restarting… (networks updated)");
+									}
+
+									abort()?;
+									break;
+								}
+							}
+						}
 						result = futures.join_next() => {
 							if let Some(task_result) = result {
 								if let Err(e) = task_result? {
@@ -530,30 +550,8 @@ impl Networks {
 							}
 						}
 						Some((config_key, config_value, new_data)) = pipe_receiver.recv() => {
-							let should_abort = if !self.app_state.is_leading() {
-								true
-							} else if utils::ago_in_seconds(1) > networks_checked_at {
-								networks_checked_at = utils::now();
-
-								match Config::get::<u8>(&self.app_state.db, ConfigKey::NetworksUpdated).await? {
-									Some(value) if value.updated_at != networks_updated_at => {
-										networks_updated_at = value.updated_at;
-
-										if verbose {
-											log("Restarting… (networks updated)");
-										}
-
-										true
-									},
-									_ => false
-								}
-							} else {
-								false
-							};
-
-							if should_abort {
-								should_keep_going.store(false, Ordering::SeqCst);
-								abort_sender.send(())?;
+							if !self.app_state.is_leading() {
+								abort()?;
 								break;
 							}
 
@@ -595,13 +593,13 @@ impl Networks {
 									let value = config_value.clone();
 
 									match config_key {
-										ConfigKey::IndexerTailBlock(nid) => {
+										ConfigKey::IndexerTailSync(nid) => {
 											let value = json_parse::<BlockHeight>(value)?;
 											Config::set::<BlockHeight>(db, key, value).await?;
 
 											updated_network_ids.insert(*nid);
 										}
-										ConfigKey::IndexerTailSyncBlocks(nid, _) => {
+										ConfigKey::IndexerChunkSync(nid, _) => {
 											let (block_range_min, block_range_max) =
 												json_parse::<(BlockHeight, BlockHeight)>(value)?;
 
@@ -618,7 +616,7 @@ impl Networks {
 
 											updated_network_ids.insert(*nid);
 										}
-										ConfigKey::IndexerHeadBlocks(nid, mid) => {
+										ConfigKey::IndexerModuleSync(nid, mid) => {
 											let value =
 												json_parse::<(BlockHeight, BlockHeight)>(value)?;
 											Config::set::<(BlockHeight, BlockHeight)>(db, key, value)
@@ -627,7 +625,7 @@ impl Networks {
 											if value.0 >= value.1 {
 												Config::set::<u8>(
 													db,
-													ConfigKey::IndexerSynced(*nid, *mid),
+													ConfigKey::IndexerModuleSynced(*nid, *mid),
 													1,
 												)
 												.await?;
@@ -635,7 +633,7 @@ impl Networks {
 
 											updated_network_ids.insert(*nid);
 										}
-										ConfigKey::IndexerSynced(nid, _) => {
+										ConfigKey::IndexerModuleSynced(nid, _) => {
 											let value = json_parse::<u8>(value)?;
 											Config::set::<u8>(db, key, value).await?;
 
@@ -649,8 +647,8 @@ impl Networks {
 								// module has been fully synced, it's safe to delete config for its
 								// range markers
 								for (config_key, _) in config_key_map.iter() {
-									if let ConfigKey::IndexerSynced(nid, mid) = config_key {
-										let ck_block_range = ConfigKey::IndexerHeadBlocks(*nid, *mid);
+									if let ConfigKey::IndexerModuleSynced(nid, mid) = config_key {
+										let ck_block_range = ConfigKey::IndexerModuleSync(*nid, *mid);
 										Config::delete(&self.app_state.db, ck_block_range).await?;
 									}
 								}
@@ -677,7 +675,7 @@ impl Networks {
 									} else {
 										let tail_block = Config::get::<BlockHeight>(
 											&self.app_state.db,
-											ConfigKey::IndexerTailBlock(nid),
+											ConfigKey::IndexerTailSync(nid),
 										)
 										.await?
 										.map(|v| v.value)
@@ -687,7 +685,7 @@ impl Networks {
 										for (_, block_range) in
 											Config::get_many_by_keyword::<(BlockHeight, BlockHeight)>(
 												&self.app_state.db,
-												&format!("tail_sync_n{nid}"),
+												&format!("chunk_sync_n{nid}"),
 											)
 											.await?
 										{
@@ -699,7 +697,7 @@ impl Networks {
 										for module_id in chain.get_module_ids().into_iter() {
 											let mid = module_id as u16;
 
-											let ck_synced = ConfigKey::IndexerSynced(nid, mid);
+											let ck_synced = ConfigKey::IndexerModuleSynced(nid, mid);
 											if Config::get::<u8>(&self.app_state.db, ck_synced)
 												.await?
 												.is_none()
@@ -707,7 +705,7 @@ impl Networks {
 												let (block_range_min, block_range_max) =
 													Config::get::<(BlockHeight, BlockHeight)>(
 														&self.app_state.db,
-														ConfigKey::IndexerHeadBlocks(nid, mid),
+														ConfigKey::IndexerModuleSync(nid, mid),
 													)
 													.await?
 													.map(|v| v.value)
