@@ -4,11 +4,11 @@ use axum::{
 };
 use std::sync::Arc;
 
-use crate::{errors::ServerError, AppState, ServerResult};
+use crate::{errors::ServerError, App, ServerResult};
 use barreleye_common::models::{BasicModel, Config, ConfigKey, Network};
 
 pub async fn handler(
-	State(app): State<Arc<AppState>>,
+	State(app): State<Arc<App>>,
 	Path(network_id): Path<String>,
 ) -> ServerResult<StatusCode> {
 	if let Some(network) = Network::get_by_id(&app.db, &network_id).await? {

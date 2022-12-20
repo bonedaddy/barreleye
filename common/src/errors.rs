@@ -17,8 +17,8 @@ pub enum AppError {
 	#[display(fmt = "Could not complete network setup:\n{error}")]
 	NetworkFailure { error: String },
 
-	#[display(fmt = "Leader promotion should be at least 2x leader ping.")]
-	InvalidLeaderConfigs,
+	#[display(fmt = "Primary promotion should be at least 3x primary ping.")]
+	InvalidPrimaryConfigs,
 
 	#[display(fmt = "Indexing failed: {error}")]
 	IndexingFailed { error: String },

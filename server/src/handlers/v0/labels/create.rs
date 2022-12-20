@@ -2,7 +2,7 @@ use axum::{extract::State, Json};
 use serde::Deserialize;
 use std::sync::Arc;
 
-use crate::{errors::ServerError, AppState, ServerResult};
+use crate::{errors::ServerError, App, ServerResult};
 use barreleye_common::models::{BasicModel, Label};
 
 #[derive(Deserialize)]
@@ -13,7 +13,7 @@ pub struct Payload {
 }
 
 pub async fn handler(
-	State(app): State<Arc<AppState>>,
+	State(app): State<Arc<App>>,
 	Json(payload): Json<Payload>,
 ) -> ServerResult<Json<Label>> {
 	// check for duplicate name

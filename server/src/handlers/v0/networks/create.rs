@@ -3,9 +3,9 @@ use sea_orm::TryIntoModel;
 use serde::Deserialize;
 use std::sync::Arc;
 
-use crate::{errors::ServerError, AppState, ServerResult};
-use barreleye_chain::{Bitcoin, ChainTrait, Evm};
+use crate::{errors::ServerError, App, ServerResult};
 use barreleye_common::{
+	chain::{Bitcoin, ChainTrait, Evm},
 	models::{BasicModel, Config, ConfigKey, Network},
 	Blockchain, Env,
 };
@@ -24,7 +24,7 @@ pub struct Payload {
 }
 
 pub async fn handler(
-	State(app): State<Arc<AppState>>,
+	State(app): State<Arc<App>>,
 	Json(payload): Json<Payload>,
 ) -> ServerResult<Json<Network>> {
 	// check for duplicate name
@@ -49,6 +49,7 @@ pub async fn handler(
 	}
 
 	// check rpc connection
+	let c = app.cache.clone();
 	let n = Network::new_model(
 		&payload.name.clone(),
 		&payload.tag.clone(),
@@ -60,18 +61,13 @@ pub async fn handler(
 		payload.rps as i32,
 	)
 	.try_into_model()?;
-	let _: Box<dyn ChainTrait> = match payload.blockchain {
-		Blockchain::Bitcoin => Box::new(
-			Bitcoin::new(app.clone(), n.clone(), None, None)
-				.await
-				.map_err(|_| ServerError::InvalidService { name: n.name })?,
-		),
-		Blockchain::Evm => Box::new(
-			Evm::new(app.clone(), n.clone(), None, None)
-				.await
-				.map_err(|_| ServerError::InvalidService { name: n.name })?,
-		),
+	let mut boxed_chain: Box<dyn ChainTrait> = match payload.blockchain {
+		Blockchain::Bitcoin => Box::new(Bitcoin::new(c, n)),
+		Blockchain::Evm => Box::new(Evm::new(c, n)),
 	};
+	if !boxed_chain.connect().await? {
+		return Err(ServerError::InvalidService { name: boxed_chain.get_network().name });
+	}
 
 	// create new
 	let network_id = Network::create(

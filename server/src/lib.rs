@@ -23,7 +23,7 @@ use uuid::Uuid;
 
 use crate::errors::ServerError;
 use barreleye_common::{
-	models::ApiKey, progress, AppError, AppState, ProgressReadyType, ProgressStep, Warnings,
+	models::ApiKey, quit, App, AppError, Progress, ProgressReadyType, ProgressStep, Warnings,
 };
 
 mod errors;
@@ -57,16 +57,16 @@ impl Accept for CombinedIncoming {
 }
 
 pub struct Server {
-	app_state: Arc<AppState>,
+	app: Arc<App>,
 }
 
 impl Server {
-	pub fn new(app_state: Arc<AppState>) -> Self {
-		Self { app_state }
+	pub fn new(app: Arc<App>) -> Self {
+		Self { app }
 	}
 
 	async fn auth<B>(
-		State(app): State<Arc<AppState>>,
+		State(app): State<Arc<App>>,
 		req: Request<B>,
 		next: Next<B>,
 	) -> ServerResult<Response> {
@@ -96,8 +96,8 @@ impl Server {
 		}
 	}
 
-	pub async fn start(&self, warnings: Warnings) -> Result<()> {
-		let settings = self.app_state.settings.clone();
+	pub async fn start(&self, warnings: Warnings, progress: Progress) -> Result<()> {
+		let settings = self.app.settings.clone();
 
 		async fn handle_404() -> ServerResult<StatusCode> {
 			Err(ServerError::NotFound)
@@ -113,20 +113,20 @@ impl Server {
 
 		let app = Router::new()
 			.nest("/", handlers::get_routes())
-			.route_layer(middleware::from_fn_with_state(self.app_state.clone(), Self::auth))
+			.route_layer(middleware::from_fn_with_state(self.app.clone(), Self::auth))
 			.fallback(handle_404)
 			.layer(
 				ServiceBuilder::new()
 					.layer(HandleErrorLayer::new(handle_timeout_error))
 					.timeout(Duration::from_secs(30)),
 			)
-			.with_state(self.app_state.clone());
+			.with_state(self.app.clone());
 
 		let ipv4 = SocketAddr::new(settings.server.ip_v4.parse()?, settings.server.port);
 
 		let show_progress = |addr: &str| {
-			progress::show(ProgressStep::Ready(
-				if self.app_state.is_indexer && self.app_state.is_server {
+			progress.show(ProgressStep::Ready(
+				if self.app.is_indexer && self.app.is_server {
 					ProgressReadyType::All(addr.to_string())
 				} else {
 					ProgressReadyType::Server(addr.to_string())
@@ -136,15 +136,15 @@ impl Server {
 		};
 
 		if settings.server.ip_v6.is_empty() {
-			show_progress(&style(ipv4).bold().to_string()).await;
+			show_progress(&style(ipv4).bold().to_string());
 
 			match AxumServer::try_bind(&ipv4) {
-				Err(e) => progress::quit(AppError::ServerStartup {
+				Err(e) => quit(AppError::ServerStartup {
 					url: ipv4.to_string(),
 					error: e.message().to_string(),
 				}),
 				Ok(server) => {
-					self.app_state.set_is_ready();
+					self.app.set_is_ready();
 					server
 						.serve(app.into_make_service())
 						.with_graceful_shutdown(Self::shutdown_signal())
@@ -155,19 +155,18 @@ impl Server {
 			let ipv6 = SocketAddr::new(settings.server.ip_v6.parse()?, settings.server.port);
 
 			match (AddrIncoming::bind(&ipv4), AddrIncoming::bind(&ipv6)) {
-				(Err(e), _) => progress::quit(AppError::ServerStartup {
+				(Err(e), _) => quit(AppError::ServerStartup {
 					url: ipv4.to_string(),
 					error: e.message().to_string(),
 				}),
-				(_, Err(e)) => progress::quit(AppError::ServerStartup {
+				(_, Err(e)) => quit(AppError::ServerStartup {
 					url: ipv6.to_string(),
 					error: e.message().to_string(),
 				}),
 				(Ok(a), Ok(b)) => {
-					show_progress(&format!("{} & {}", style(ipv4).bold(), style(ipv6).bold()))
-						.await;
+					show_progress(&format!("{} & {}", style(ipv4).bold(), style(ipv6).bold()));
 
-					self.app_state.set_is_ready();
+					self.app.set_is_ready();
 					AxumServer::builder(CombinedIncoming { a, b })
 						.serve(app.into_make_service())
 						.with_graceful_shutdown(Self::shutdown_signal())
@@ -182,7 +181,7 @@ impl Server {
 	async fn shutdown_signal() {
 		let ctrl_c = async {
 			if signal::ctrl_c().await.is_err() {
-				progress::quit(AppError::SignalHandler);
+				quit(AppError::SignalHandler);
 			}
 		};
 
@@ -192,7 +191,7 @@ impl Server {
 				Ok(mut signal) => {
 					signal.recv().await;
 				}
-				_ => progress::quit(AppError::SignalHandler),
+				_ => quit(AppError::SignalHandler),
 			};
 		};
 

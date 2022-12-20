@@ -2,11 +2,8 @@ use axum::{extract::State, Json};
 use serde::Deserialize;
 use std::sync::Arc;
 
-use crate::{errors::ServerError, AppState, ServerResult};
-use barreleye_common::{
-	models::{BasicModel, Label, LabeledAddress},
-	Address,
-};
+use crate::{errors::ServerError, App, ServerResult};
+use barreleye_common::models::{BasicModel, Label, LabeledAddress};
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -16,7 +13,7 @@ pub struct Payload {
 }
 
 pub async fn handler(
-	State(app): State<Arc<AppState>>,
+	State(app): State<Arc<App>>,
 	Json(payload): Json<Payload>,
 ) -> ServerResult<Json<Vec<LabeledAddress>>> {
 	let label = Label::get_by_id(&app.db, &payload.label)
@@ -44,7 +41,7 @@ pub async fn handler(
 			.addresses
 			.clone()
 			.iter()
-			.map(|a| LabeledAddress::new_model(label.label_id, Address::new(a)))
+			.map(|a| LabeledAddress::new_model(label.label_id, a))
 			.collect(),
 	)
 	.await?;

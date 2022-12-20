@@ -1,71 +1,29 @@
 use async_trait::async_trait;
 use chrono::NaiveDateTime;
 use eyre::Result;
-use governor::{
-	clock::DefaultClock,
-	state::{direct::NotKeyed, InMemoryState},
-	RateLimiter as GovernorRateLimiter,
-};
-use serde_json::Value as JsonValue;
 use std::{collections::HashSet, ops::AddAssign, sync::Arc};
-use tokio::sync::{
-	broadcast,
-	mpsc::{self, Sender},
-};
 
-pub use crate::bitcoin::Bitcoin;
-use barreleye_common::{
-	models::{ConfigKey, Link, Network, PrimaryId, Transfer, TxAmount},
-	utils, BlockHeight, ChainModuleId, Warehouse,
+pub use crate::chain::bitcoin::Bitcoin;
+use crate::{
+	models::{Link, Network, Transfer, TxAmount},
+	utils, BlockHeight, ChainModuleId, PrimaryId, RateLimiter, Warehouse,
 };
 pub use evm::Evm;
-pub use networks::Networks;
 
-mod bitcoin;
-mod evm;
-mod networks;
+pub mod bitcoin;
+pub mod evm;
 
-pub type RateLimiter = GovernorRateLimiter<NotKeyed, InMemoryState, DefaultClock>;
-
-pub struct Pipe {
-	config_key: ConfigKey,
-	sender: Sender<(ConfigKey, JsonValue, WarehouseData)>,
-	receipt: mpsc::Receiver<()>,
-	pub abort: broadcast::Receiver<()>,
-}
-
-impl Pipe {
-	pub fn new(
-		config_key: ConfigKey,
-		sender: Sender<(ConfigKey, JsonValue, WarehouseData)>,
-		receipt: mpsc::Receiver<()>,
-		abort: broadcast::Receiver<()>,
-	) -> Self {
-		Self { config_key, sender, receipt, abort }
-	}
-
-	pub async fn push(
-		&mut self,
-		config_value: JsonValue,
-		warehouse_data: WarehouseData,
-	) -> Result<()> {
-		self.sender.send((self.config_key, config_value, warehouse_data)).await?;
-
-		tokio::select! {
-			_ = self.receipt.recv() => {}
-			_ = self.abort.recv() => {}
-		}
-
-		Ok(())
-	}
-}
+pub type BoxedChain = Box<dyn ChainTrait>;
 
 #[async_trait]
 pub trait ChainTrait: Send + Sync {
-	fn get_warehouse(&self) -> Arc<Warehouse>;
+	async fn connect(&mut self) -> Result<bool>;
+	fn is_connected(&self) -> bool;
+
 	fn get_network(&self) -> Network;
 	fn get_rpc(&self) -> Option<String>;
 	fn get_module_ids(&self) -> Vec<ChainModuleId>;
+	fn format_address(&self, address: &str) -> String;
 	fn get_rate_limiter(&self) -> Option<Arc<RateLimiter>>;
 
 	async fn get_block_height(&self) -> Result<BlockHeight>;

@@ -1,27 +1,41 @@
 use clap::{builder, ValueEnum};
+use console::{style, Emoji};
 use derive_more::Display;
-use eyre::Result;
+use eyre::{bail, eyre, Result};
+use futures::future::join_all;
+use governor::{
+	clock::DefaultClock,
+	state::{direct::NotKeyed, InMemoryState},
+	RateLimiter as GovernorRateLimiter,
+};
+use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
+use itertools::{Either, Itertools};
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::{
+	collections::HashMap,
+	process,
 	str::FromStr,
 	sync::{
 		atomic::{AtomicBool, Ordering},
 		Arc,
 	},
 };
-use tokio::sync::RwLock;
+use tokio::{sync::RwLock, time::Duration};
 
-pub use address::Address;
+use crate::{
+	chain::{Bitcoin, BoxedChain, Evm},
+	models::{Network, PrimaryId},
+};
 pub use cache::Cache;
 pub use db::Db;
 pub use errors::AppError;
-pub use progress::{ReadyType as ProgressReadyType, Step as ProgressStep};
+pub use progress::{Progress, ReadyType as ProgressReadyType, Step as ProgressStep};
 pub use settings::Settings;
 pub use warehouse::Warehouse;
 
-pub mod address;
 pub mod cache;
+pub mod chain;
 pub mod db;
 pub mod errors;
 pub mod models;
@@ -31,12 +45,20 @@ pub mod u256;
 pub mod utils;
 pub mod warehouse;
 
+static EMOJI_SETUP: Emoji<'_, '_> = Emoji("💾  ", "");
+static EMOJI_MIGRATIONS: Emoji<'_, '_> = Emoji("🚐  ", "");
+static EMOJI_NETWORKS: Emoji<'_, '_> = Emoji("📢  ", "");
+static EMOJI_READY: Emoji<'_, '_> = Emoji("🟢  ", "");
+static EMOJI_QUIT: Emoji<'_, '_> = Emoji("🛑  ", "");
+
 pub type Warnings = Vec<String>;
 pub type BlockHeight = u64;
+pub type RateLimiter = GovernorRateLimiter<NotKeyed, InMemoryState, DefaultClock>;
 
 #[derive(Clone)]
-pub struct AppState {
+pub struct App {
 	pub uuid: Uuid,
+	pub networks: Arc<RwLock<HashMap<PrimaryId, Arc<BoxedChain>>>>,
 	pub settings: Arc<Settings>,
 	pub cache: Arc<RwLock<Cache>>,
 	pub db: Arc<Db>,
@@ -46,11 +68,11 @@ pub struct AppState {
 	pub is_indexer: bool,
 	pub is_server: bool,
 	is_ready: Arc<AtomicBool>,
-	is_leader: Arc<AtomicBool>,
+	is_primary: Arc<AtomicBool>,
 }
 
-impl AppState {
-	pub fn new(
+impl App {
+	pub async fn new(
 		settings: Arc<Settings>,
 		cache: Arc<RwLock<Cache>>,
 		db: Arc<Db>,
@@ -59,9 +81,10 @@ impl AppState {
 		verbosity: Verbosity,
 		is_indexer: bool,
 		is_server: bool,
-	) -> Self {
-		AppState {
+	) -> Result<Self> {
+		let mut app = App {
 			uuid: utils::new_uuid(),
+			networks: Arc::new(RwLock::new(HashMap::new())),
 			settings,
 			cache,
 			db,
@@ -71,12 +94,140 @@ impl AppState {
 			is_indexer,
 			is_server,
 			is_ready: Arc::new(AtomicBool::new(false)),
-			is_leader: Arc::new(AtomicBool::new(false)),
+			is_primary: Arc::new(AtomicBool::new(false)),
+		};
+
+		app.networks = Arc::new(RwLock::new(app.get_networks(false).await?));
+
+		Ok(app)
+	}
+
+	pub async fn get_networks(
+		&self,
+		is_connected: bool,
+	) -> Result<HashMap<PrimaryId, Arc<BoxedChain>>> {
+		let mut ret = HashMap::new();
+
+		let networks = Network::get_all_by_env(&self.db, self.env)
+			.await?
+			.into_iter()
+			.filter(|n| n.is_active)
+			.collect::<Vec<Network>>();
+
+		for n in networks.into_iter() {
+			let network_id = n.network_id;
+			let c = self.cache.clone();
+
+			let mut boxed_chain: BoxedChain = match n.blockchain {
+				Blockchain::Bitcoin => Box::new(Bitcoin::new(c, n)),
+				Blockchain::Evm => Box::new(Evm::new(c, n)),
+			};
+
+			if is_connected {
+				boxed_chain.connect().await?;
+			}
+
+			ret.insert(network_id, Arc::new(boxed_chain));
 		}
+
+		Ok(ret)
+	}
+
+	pub async fn connect_networks(&self, silent: bool) -> Result<()> {
+		let template = format!(
+			"       {{spinner}}  {} {{prefix:.bold}}: {{wide_msg:.bold.dim}}",
+			style("↳").bold().dim()
+		);
+		let spinner_style =
+			ProgressStyle::with_template(&template).unwrap().tick_chars("⠁⠂⠄⡀⢀⠠⠐⠈ ");
+
+		let m = MultiProgress::new();
+
+		let networks = Network::get_all_by_env(&self.db, self.env)
+			.await?
+			.into_iter()
+			.filter(|n| n.is_active)
+			.collect::<Vec<Network>>();
+
+		let mut threads = vec![];
+		for n in networks.into_iter() {
+			let pb = m.add(ProgressBar::new(1_000_000));
+			pb.set_style(spinner_style.clone());
+			pb.set_prefix(n.name.clone());
+			pb.enable_steady_tick(Duration::from_millis(50));
+
+			threads.push({
+				let c = self.cache.clone();
+
+				tokio::spawn({
+					let mut boxed_chain: BoxedChain = match n.blockchain {
+						Blockchain::Bitcoin => Box::new(Bitcoin::new(c, n.clone())),
+						Blockchain::Evm => Box::new(Evm::new(c, n.clone())),
+					};
+
+					async move {
+						if !silent {
+							pb.set_message("trying rpc endpoints…");
+						}
+
+						if boxed_chain.connect().await? {
+							if !silent {
+								pb.finish_with_message(format!(
+									"connected to {}",
+									utils::with_masked_auth(&boxed_chain.get_rpc().unwrap())
+								));
+							}
+
+							Ok(Arc::new(boxed_chain))
+						} else {
+							if !silent {
+								pb.finish_with_message("could not connect");
+							}
+
+							Err(eyre!("{}: Could not connect to any RPC endpoint.", n.name))
+						}
+					}
+				})
+			});
+		}
+
+		let (connected_networks, failures): (HashMap<_, _>, Vec<_>) =
+			join_all(threads).await.into_iter().partition_map(|r| match r.unwrap() {
+				Ok(chain) => {
+					let network_id = chain.get_network().network_id;
+					Either::Left((network_id, chain))
+				}
+				Err(e) => Either::Right(e),
+			});
+
+		if !failures.is_empty() {
+			bail!(failures.iter().map(|e| format!("- {}", e)).join("\n"));
+		}
+
+		let mut networks = self.networks.write().await;
+		*networks = connected_networks;
+
+		Ok(())
+	}
+
+	pub async fn get_warnings(&self) -> Result<Vec<String>> {
+		Ok(self
+			.networks
+			.read()
+			.await
+			.iter()
+			.filter_map(|(_, chain)| {
+				if self.is_indexer && chain.get_network().rps == 0 {
+					Some(format!("{} rpc requests are not rate-limited", chain.get_network().name))
+				} else {
+					None
+				}
+			})
+			.collect())
 	}
 
 	pub fn is_leading(&self) -> bool {
-		self.is_ready() && self.is_leader()
+		self.is_ready() && self.is_primary()
 	}
 
 	pub fn is_ready(&self) -> bool {
@@ -87,17 +238,28 @@ impl AppState {
 		self.is_ready.store(true, Ordering::SeqCst);
 	}
 
-	pub fn is_leader(&self) -> bool {
-		self.is_leader.load(Ordering::SeqCst)
+	pub fn is_primary(&self) -> bool {
+		self.is_primary.load(Ordering::SeqCst)
 	}
 
-	pub async fn set_is_leader(&self, is_leader: bool) -> Result<()> {
-		if is_leader != self.is_leader() {
-			self.cache.write().await.set_read_only(!is_leader).await?;
-			self.is_leader.store(is_leader, Ordering::SeqCst);
+	pub async fn set_is_primary(&self, is_primary: bool) -> Result<()> {
+		if is_primary != self.is_primary() {
+			self.cache.write().await.set_read_only(!is_primary).await?;
+			self.is_primary.store(is_primary, Ordering::SeqCst);
 		}
 
 		Ok(())
+	}
+
+	pub async fn format_address(&self, address: &str) -> Result<String> {
+		for (_, chain) in self.networks.read().await.iter() {
+			let formatted_address = chain.format_address(address);
+			if formatted_address != address {
+				return Ok(formatted_address);
+			}
+		}
+
+		Ok(address.to_string())
 	}
 }
 
@@ -195,4 +357,16 @@ pub enum ChainModuleId {
 	BitcoinTxAmount = 3,
 	BitcoinLink = 4,
 	EvmTransfer = 5,
+}
+
+pub fn quit(app_error: AppError) {
+	println!("{} {}Shutting down…\n\n› {}", style("[err]").bold().dim(), EMOJI_QUIT, app_error,);
+
+	process::exit(match app_error {
+		AppError::SignalHandler => exitcode::OSERR,
+		AppError::ServerStartup { .. } => exitcode::OSERR,
+		AppError::InvalidPrimaryConfigs => exitcode::CONFIG,
+		AppError::InvalidSetting { .. } => exitcode::CONFIG,
+		_ => exitcode::UNAVAILABLE,
+	});
 }

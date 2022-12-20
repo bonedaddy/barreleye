@@ -4,7 +4,7 @@ use primitive_types::U256;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{models::PrimaryId, u256, utils, warehouse::Warehouse, Address, ChainModuleId};
+use crate::{models::PrimaryId, u256, utils, warehouse::Warehouse, ChainModuleId};
 
 static TABLE: &str = "transfers";
 
@@ -34,9 +34,9 @@ impl Model {
 		network_id: PrimaryId,
 		block_height: u64,
 		tx_hash: String,
-		from_address: Address,
-		to_address: Address,
-		asset_address: Option<Address>,
+		from_address: String,
+		to_address: String,
+		asset_address: Option<String>,
 		relative_amount: U256,
 		batch_amount: U256,
 		created_at: u32,
@@ -47,9 +47,9 @@ impl Model {
 			network_id: network_id as u64,
 			block_height,
 			tx_hash: tx_hash.to_lowercase(),
-			from_address: from_address.to_string().to_lowercase(),
-			to_address: to_address.to_string().to_lowercase(),
-			asset_address: asset_address.unwrap_or_else(Address::blank).to_string().to_lowercase(),
+			from_address: from_address.to_lowercase(),
+			to_address: to_address.to_lowercase(),
+			asset_address: asset_address.unwrap_or_default().to_lowercase(),
 			relative_amount,
 			batch_amount,
 			created_at,

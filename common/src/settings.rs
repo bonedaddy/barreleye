@@ -6,15 +6,15 @@ use std::{fs, fs::OpenOptions, path::PathBuf};
 use url::Url;
 
 use crate::{
-	cache::Driver as CacheDriver, db::Driver as DatabaseDriver, errors::AppError, progress, utils,
+	cache::Driver as CacheDriver, db::Driver as DatabaseDriver, errors::AppError, quit, utils,
 	warehouse::Driver as WarehouseDriver,
 };
 
 pub static DEFAULT_SETTINGS_FILENAME: &str = "barreleye.toml";
 pub static DEFAULT_SETTINGS_CONTENT: &str = r#"
 sdn_refresh_rate = 3600 # in seconds
-leader_ping = 2 # in seconds
-leader_promotion = 20 # in seconds
+primary_ping = 2 # in seconds
+primary_promotion = 20 # in seconds
 
 [server]
 ip_v4 = "0.0.0.0"
@@ -46,8 +46,8 @@ clickhouse = "" # eg: "http://USERNAME[:PASSWORD]@localhost:8123/database"
 #[derive(Debug, Deserialize)]
 pub struct Settings {
 	pub sdn_refresh_rate: u64,
-	pub leader_ping: u64,
-	pub leader_promotion: u64,
+	pub primary_ping: u64,
+	pub primary_promotion: u64,
 	pub server: Server,
 	pub cache: Cache,
 	pub db: Db,
@@ -122,7 +122,7 @@ impl Settings {
 		if settings.cache.driver == CacheDriver::RocksDB &&
 			utils::get_db_path(&settings.dsn.rocksdb).is_empty()
 		{
-			progress::quit(AppError::InvalidSetting {
+			quit(AppError::InvalidSetting {
 				key: "dsn.rocksdb".to_string(),
 				value: settings.dsn.rocksdb.clone(),
 			});
@@ -132,7 +132,7 @@ impl Settings {
 		if settings.warehouse.driver == WarehouseDriver::Clickhouse &&
 			Url::parse(&settings.dsn.clickhouse).is_err()
 		{
-			progress::quit(AppError::InvalidSetting {
+			quit(AppError::InvalidSetting {
 				key: "dsn.clickhouse".to_string(),
 				value: settings.dsn.clickhouse.clone(),
 			});
@@ -145,15 +145,15 @@ impl Settings {
 			DatabaseDriver::MySQL => settings.dsn.mysql.clone(),
 		};
 		if Url::parse(&db_url).is_err() {
-			progress::quit(AppError::InvalidSetting {
+			quit(AppError::InvalidSetting {
 				key: format!("dsn.{}", settings.db.driver),
 				value: db_url,
 			});
 		}
 
-		// test: leader settings
-		if settings.leader_ping * 2 >= settings.leader_promotion {
-			progress::quit(AppError::InvalidLeaderConfigs);
+		// test: primary settings
+		if settings.primary_promotion < settings.primary_ping * 3 {
+			quit(AppError::InvalidPrimaryConfigs);
 		}
 
 		Ok(settings)

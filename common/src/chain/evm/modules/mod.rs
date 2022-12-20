@@ -2,8 +2,10 @@ use async_trait::async_trait;
 use ethers::types::Transaction;
 use eyre::Result;
 
-use crate::{Evm, ModuleTrait, WarehouseData};
-use barreleye_common::BlockHeight;
+use crate::{
+	chain::{Evm, ModuleTrait, WarehouseData},
+	BlockHeight,
+};
 pub use transfer::EvmTransfer;
 
 mod transfer;

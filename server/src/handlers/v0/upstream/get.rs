@@ -5,7 +5,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use std::{str::FromStr, sync::Arc};
 
-use crate::{AppState, ServerResult};
+use crate::{App, ServerResult};
 use barreleye_common::{
 	models::{BasicModel, Label, LabeledAddress},
 	LabelId, Risk,
@@ -26,7 +26,7 @@ pub struct Response {
 }
 
 pub async fn handler(
-	State(app): State<Arc<AppState>>,
+	State(app): State<Arc<App>>,
 	Query(payload): Query<Payload>,
 ) -> ServerResult<Json<Response>> {
 	let mut response = Response {

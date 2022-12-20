@@ -1,9 +1,16 @@
 use chrono::{offset::Utc, Duration, NaiveDateTime};
+use governor::Quota;
 use nanoid::nanoid;
+use std::{num::NonZeroU32, sync::Arc};
 use url::Url;
 use uuid::Uuid;
 
-use crate::IdPrefix;
+use crate::{GovernorRateLimiter, IdPrefix, RateLimiter};
+
+pub fn get_rate_limiter(rps: u32) -> Option<Arc<RateLimiter>> {
+	NonZeroU32::new(rps)
+		.map(|non_zero_rps| Arc::new(GovernorRateLimiter::direct(Quota::per_second(non_zero_rps))))
+}
 
 pub fn new_unique_id(prefix: IdPrefix) -> String {
 	unique_id(

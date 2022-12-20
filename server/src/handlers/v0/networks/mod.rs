@@ -4,7 +4,7 @@ use axum::{
 };
 use std::sync::Arc;
 
-use crate::AppState;
+use crate::App;
 
 mod create;
 mod delete;
@@ -12,7 +12,7 @@ mod get;
 mod list;
 mod update;
 
-pub fn get_routes() -> Router<Arc<AppState>> {
+pub fn get_routes() -> Router<Arc<App>> {
 	Router::new()
 		.route("/", post(create::handler))
 		.route("/", get(list::handler))

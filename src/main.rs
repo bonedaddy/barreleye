@@ -1,24 +1,15 @@
 use clap::{arg, command, value_parser};
 use eyre::Result;
 use std::{env, sync::Arc};
-use tokio::{
-	signal,
-	sync::RwLock,
-	time::{sleep, Duration},
-};
-use uuid::Uuid;
+use tokio::{signal, sync::RwLock, task::JoinSet};
 
-use crate::lists::Lists;
-use barreleye_chain::Networks;
 use barreleye_common::{
-	models::{Config, ConfigKey},
-	progress, utils, AppError, AppState, Cache, Db, Env, ProgressReadyType, ProgressStep, Settings,
-	Verbosity, Warehouse, Warnings,
+	quit, App, AppError, Cache, Db, Env, Progress, ProgressStep, Settings, Verbosity, Warehouse,
 };
+use barreleye_indexer::Indexer;
 use barreleye_server::Server;
 
 mod banner;
-mod lists;
 mod log;
 
 #[tokio::main]
@@ -53,7 +44,9 @@ async fn main() -> Result<()> {
 	};
 
 	banner::show(env, is_indexer, is_server, skip_ascii)?;
-	progress::show(ProgressStep::Setup).await;
+
+	let progress = Progress::new(is_indexer);
+	progress.show(ProgressStep::Setup);
 
 	let settings = Arc::new(Settings::new()?);
 
@@ -61,7 +54,7 @@ async fn main() -> Result<()> {
 		Cache::new(settings.clone())
 			.await
 			.map_err(|url| {
-				progress::quit(AppError::ServiceConnection {
+				quit(AppError::ServiceConnection {
 					service: settings.cache.driver.to_string(),
 					url: url.to_string(),
 				});
@@ -72,11 +65,8 @@ async fn main() -> Result<()> {
 	let warehouse = Arc::new(
 		Warehouse::new(settings.clone())
 			.await
-			.unwrap()
-			.run_migrations()
-			.await
 			.map_err(|url| {
-				progress::quit(AppError::ServiceConnection {
+				quit(AppError::ServiceConnection {
 					service: settings.warehouse.driver.to_string(),
 					url: url.to_string(),
 				});
@@ -88,123 +78,67 @@ async fn main() -> Result<()> {
 		Db::new(settings.clone())
 			.await
 			.map_err(|url| {
-				progress::quit(AppError::ServiceConnection {
+				quit(AppError::ServiceConnection {
 					service: settings.db.driver.to_string(),
 					url: url.to_string(),
 				});
 			})
-			.unwrap()
-			.run_migrations()
-			.await?,
+			.unwrap(),
 	);
 
-	let app_state = Arc::new(AppState::new(
-		settings, cache, db, warehouse, env, verbosity, is_indexer, is_server,
-	));
+	progress.show(ProgressStep::Migrations);
+	warehouse.run_migrations().await?;
+	db.run_migrations().await?;
 
-	let mut networks = Networks::new(app_state.clone()).connect().await?;
-	let server = Server::new(app_state.clone());
-	let lists = Lists::new(app_state.clone());
+	let app = Arc::new(
+		App::new(settings, cache, db, warehouse, env, verbosity, is_indexer, is_server).await?,
+	);
 
-	let warnings = networks.get_warnings().await?;
+	let warnings = app.get_warnings().await?;
 
-	let (server_done, watcher_done, lists_done, _, _) = tokio::join! {
-		tokio::spawn({
-			let app_state = app_state.clone();
-			let warnings = warnings.clone();
+	let mut set = JoinSet::new();
+	set.spawn(async {
+		signal::ctrl_c().await.ok();
+		println!("\nSIGINT received; bye 👋");
+		Ok(())
+	});
 
-			async move {
-				match is_server {
-					true => server.start(warnings).await,
-					_ => {
-						app_state.set_is_ready();
-						Ok(())
-					}
-				}
-			}
-		}),
-		tokio::spawn(async move {
-			match is_indexer {
-				true => tokio::select! {
-					data = networks.index() => {
-						if data.is_err() {
-							progress::quit(AppError::IndexingFailed {
-								error: data.as_ref().unwrap_err().to_string(),
-							});
-						}
-
-						data
-					},
-					_ = signal::ctrl_c() => Ok(()),
-				},
-				_ => Ok(())
-			}
-		}),
-		tokio::spawn(async move {
-			match is_indexer {
-				true => tokio::select! {
-					v = lists.watch() => v,
-					_ = signal::ctrl_c() => Ok(()),
-				},
-				_ => Ok(())
-			}
-		}),
-		tokio::spawn({
-			let app_state = app_state.clone();
-			let warnings = warnings.clone();
-
-			async move {
-				match is_indexer {
-					true => tokio::select! {
-						v = leader_check(app_state, warnings) => v,
-						_ = signal::ctrl_c() => Ok(()),
-					},
-					_ => Ok(())
-				}
-			}
-		}),
-		tokio::spawn(async {
-			signal::ctrl_c().await.ok();
-			println!("\nSIGINT received; bye 👋");
-		}),
-	};
-
-	server_done.and(watcher_done).and(lists_done)?
-}
-
-async fn leader_check(app_state: Arc<AppState>, warnings: Warnings) -> Result<()> {
-	let leader_promotion = app_state.settings.leader_promotion;
-
-	if app_state.is_indexer && !app_state.is_server {
-		progress::show(ProgressStep::Ready(ProgressReadyType::Indexer, warnings)).await;
-	}
-
-	loop {
-		let db = &app_state.db;
-		let cool_down_period = utils::ago_in_seconds(leader_promotion / 2);
-
-		let last_leader = Config::get::<Uuid>(&app_state.db, ConfigKey::Leader).await?;
-		match last_leader {
-			None => {
-				// first run ever
-				Config::set::<Uuid>(db, ConfigKey::Leader, app_state.uuid).await?;
-			}
-			Some(hit) if hit.value == app_state.uuid && hit.updated_at >= cool_down_period => {
-				// if leader, check-in only if cool-down period has not started yet ↑
-				if Config::set_where::<Uuid>(db, ConfigKey::Leader, app_state.uuid, hit).await? {
-					app_state.set_is_leader(true).await?;
-				}
-			}
-			Some(hit) if utils::ago_in_seconds(leader_promotion) > hit.updated_at => {
-				// attempt to take over as a leader (set is_leader on the next iteration)
-				Config::set_where::<Uuid>(db, ConfigKey::Leader, app_state.uuid, hit).await?;
-			}
-			_ => {
-				// either cool-down period has started or some other node is leading
-				app_state.set_is_leader(false).await?;
-			}
+	if is_indexer {
+		progress.show(ProgressStep::Networks);
+		if let Err(e) = app.connect_networks(false).await {
+			quit(AppError::NetworkFailure { error: e.to_string() });
 		}
 
-		sleep(Duration::from_secs(app_state.settings.leader_ping)).await
+		set.spawn({
+			let a = app.clone();
+			let w = warnings.clone();
+			let p = progress.clone();
+
+			async move {
+				let indexer = Indexer::new(a);
+				indexer.start(w, p).await
+			}
+		});
 	}
+
+	if is_server {
+		set.spawn({
+			let a = app.clone();
+			let w = warnings.clone();
+			let p = progress.clone();
+
+			async move {
+				let server = Server::new(a);
+				server.start(w, p).await
+			}
+		});
+	} else {
+		app.set_is_ready();
+	}
+
+	while let Some(res) = set.join_next().await {
+		let _ = res?;
+	}
+
+	Ok(())
 }

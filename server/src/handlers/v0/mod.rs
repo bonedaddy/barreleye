@@ -1,7 +1,7 @@
 use axum::Router;
 use std::sync::Arc;
 
-use crate::AppState;
+use crate::App;
 
 mod addresses;
 mod assets;
@@ -13,7 +13,7 @@ mod related;
 mod stats;
 mod upstream;
 
-pub fn get_routes() -> Router<Arc<AppState>> {
+pub fn get_routes() -> Router<Arc<App>> {
 	Router::new()
 		.nest("/heartbeat", heartbeat::get_routes())
 		.nest("/stats", stats::get_routes())

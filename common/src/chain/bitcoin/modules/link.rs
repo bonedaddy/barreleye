@@ -3,8 +3,8 @@ use bitcoin::blockdata::transaction::Transaction;
 use eyre::Result;
 use std::collections::{HashMap, HashSet};
 
-use crate::{bitcoin::modules::BitcoinModuleTrait, Bitcoin, ModuleTrait, WarehouseData};
-use barreleye_common::{
+use crate::{
+	chain::{bitcoin::modules::BitcoinModuleTrait, Bitcoin, ModuleTrait, WarehouseData},
 	models::{Link, LinkReason, PrimaryId},
 	BlockHeight, ChainModuleId,
 };
@@ -66,8 +66,8 @@ impl BitcoinModuleTrait for BitcoinLink {
 							self.network_id,
 							block_height,
 							tx_hash.clone(),
-							from.into(),
-							to.into(),
+							from,
+							to,
 							LinkReason::PossibleSelfTransfer,
 							block_time,
 						));

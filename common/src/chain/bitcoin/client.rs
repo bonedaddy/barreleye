@@ -32,6 +32,7 @@ pub enum ClientError {
 	NonceMismatch,
 }
 
+#[derive(Clone)]
 pub enum Auth {
 	None,
 	UserPass(String, String),
@@ -55,11 +56,16 @@ pub struct Client {
 	url: String,
 	auth: Auth,
 	id: AtomicUsize,
+	with_retry: bool,
 }
 
 impl Client {
-	pub fn new(url: &str, auth: Auth) -> Result<Self> {
-		Ok(Self { url: url.to_string(), auth, id: AtomicUsize::new(1) })
+	pub fn new(url: &str, auth: Auth) -> Self {
+		Self { url: url.to_string(), auth, id: AtomicUsize::new(1), with_retry: true }
+	}
+
+	pub fn new_without_retry(url: &str, auth: Auth) -> Self {
+		Self { url: url.to_string(), auth, id: AtomicUsize::new(1), with_retry: false }
 	}
 
 	pub async fn get_blockchain_info(&self) -> Result<GetBlockchainInfoResult> {
@@ -106,7 +112,9 @@ impl Client {
 			req = req.header(AUTHORIZATION, format!("Basic {token}"));
 		}
 
-		for attempt in 0..RETRY_ATTEMPTS {
+		let retry_attempts = if self.with_retry { RETRY_ATTEMPTS } else { 1 };
+
+		for attempt in 0..retry_attempts {
 			let id = self.id.fetch_add(1, Ordering::Relaxed).to_string();
 			let timeout = Duration::from_millis(RPC_TIMEOUT * 2_i32.pow(attempt) as u64);
 

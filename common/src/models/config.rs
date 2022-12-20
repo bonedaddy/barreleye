@@ -11,8 +11,8 @@ use crate::{models::PrimaryId, utils, BlockHeight, Db};
 
 #[derive(Display, Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum ConfigKey {
-	#[display(fmt = "leader")]
-	Leader,
+	#[display(fmt = "primary")]
+	Primary,
 	#[display(fmt = "label_fetched_l{}", "_0")]
 	LabelFetched(PrimaryId),
 	#[display(fmt = "indexer_tail_sync_n{}", "_0")]
@@ -39,7 +39,7 @@ impl From<String> for ConfigKey {
 		let n = re.find_iter(&s).filter_map(|n| n.as_str().parse().ok()).collect::<Vec<i64>>();
 
 		match template.to_string().as_str() {
-			"leader" => Self::Leader,
+			"primary" => Self::Primary,
 			"label_fetched_l{}" if n.len() == 1 => Self::LabelFetched(n[0]),
 			"indexer_tail_sync_n{}" if n.len() == 1 => Self::IndexerTailSync(n[0]),
 			"indexer_chunk_sync_n{}_b{}" if n.len() == 2 => {
@@ -66,7 +66,7 @@ mod tests {
 	#[test]
 	fn config_key_from_to_str() {
 		let config_keys = HashMap::from([
-			(ConfigKey::Leader, "leader"),
+			(ConfigKey::Primary, "primary"),
 			(ConfigKey::LabelFetched(123), "label_fetched_l123"),
 			(ConfigKey::IndexerTailSync(123), "indexer_tail_sync_n123"),
 			(ConfigKey::IndexerChunkSync(123, 456), "indexer_chunk_sync_n123_b456"),

@@ -1,31 +1,28 @@
 use console::style;
 use eyre::{ErrReport, Result};
-use futures::future::join_all;
-use governor::{Quota, RateLimiter as GovernorRateLimiter};
-use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
-use itertools::{Either, Itertools};
 use num_format::{SystemLocale, ToFormattedString};
 use serde_json::{from_value as json_parse, json};
 use std::{
 	collections::{HashMap, HashSet},
-	num::NonZeroU32,
 	sync::{
 		atomic::{AtomicBool, Ordering},
 		Arc,
 	},
 };
 use tokio::{
+	signal,
 	sync::{broadcast, mpsc, mpsc::Sender},
 	task::JoinSet,
 	time::{sleep, Duration},
 };
+use uuid::Uuid;
 
-use crate::{Bitcoin, ChainModuleId, ChainTrait, Evm, Pipe, RateLimiter, WarehouseData};
+use crate::{Lists, Pipe};
 use barreleye_common::{
-	models::{Config, ConfigKey, Network, PrimaryId},
-	progress,
-	progress::Step,
-	utils, AppError, AppState, BlockHeight, Blockchain, Verbosity,
+	chain::WarehouseData,
+	models::{Config, ConfigKey, PrimaryId},
+	quit, utils, App, AppError, BlockHeight, ChainModuleId, Progress, ProgressReadyType,
+	ProgressStep, Verbosity, Warnings,
 };
 
 #[derive(Clone, Debug)]
@@ -46,154 +43,42 @@ impl NetworkParams {
 	}
 }
 
-pub struct Networks {
-	app_state: Arc<AppState>,
-	networks_map: HashMap<PrimaryId, Arc<Box<dyn ChainTrait>>>,
+pub struct Indexer {
+	app: Arc<App>,
 }
 
-impl Networks {
-	pub fn new(app_state: Arc<AppState>) -> Self {
-		Self { app_state, networks_map: HashMap::new() }
+impl Indexer {
+	pub fn new(app: Arc<App>) -> Self {
+		Self { app }
 	}
 
-	fn get_rate_limiter(&self, rps: u32) -> Option<Arc<RateLimiter>> {
-		NonZeroU32::new(rps).map(|non_zero_rps| {
-			Arc::new(GovernorRateLimiter::direct(Quota::per_second(non_zero_rps)))
-		})
-	}
-
-	pub async fn connect(mut self) -> Result<Self> {
-		progress::show(Step::Networks).await;
-
-		let template = format!(
-			"       {{spinner}}  {} {{prefix:.bold}}: {{wide_msg:.bold.dim}}",
-			style("↳").bold().dim()
-		);
-		let spinner_style =
-			ProgressStyle::with_template(&template).unwrap().tick_chars("⠁⠂⠄⡀⢀⠠⠐⠈ ");
-
-		let m = MultiProgress::new();
-		let threads = Network::get_all_by_env(&self.app_state.db, self.app_state.env)
-			.await?
-			.into_iter()
-			.filter(|n| n.is_active)
-			.map(|n| {
-				let pb = m.add(ProgressBar::new(1_000_000));
-				pb.set_style(spinner_style.clone());
-				pb.set_prefix(n.name.clone());
-				pb.enable_steady_tick(Duration::from_millis(50));
-
-				tokio::spawn({
-					let app_state = self.app_state.clone();
-					let rate_limiter = self.get_rate_limiter(n.rps as u32);
-
-					async move {
-						let boxed_chain: Box<dyn ChainTrait> = match n.blockchain {
-							Blockchain::Bitcoin => {
-								Box::new(Bitcoin::new(app_state, n, rate_limiter, Some(&pb)).await?)
-							}
-							Blockchain::Evm => {
-								Box::new(Evm::new(app_state, n, rate_limiter, Some(&pb)).await?)
-							}
-						};
-
-						if let Some(rpc) = boxed_chain.get_rpc() {
-							pb.finish_with_message(format!(
-								"connected to {}",
-								utils::with_masked_auth(&rpc)
-							));
-						} else {
-							pb.finish_with_message("could not connect");
-						}
-
-						Ok::<_, ErrReport>(Arc::new(boxed_chain))
-					}
-				})
-			})
-			.collect::<Vec<_>>();
-
-		let (networks_map, failures): (HashMap<_, _>, Vec<_>) =
-			join_all(threads).await.into_iter().partition_map(|r| match r.unwrap() {
-				Ok(chain) => {
-					let network_id = chain.get_network().network_id;
-					Either::Left((network_id, chain))
-				}
-				Err(e) => Either::Right(e),
-			});
-
-		if !failures.is_empty() {
-			progress::quit(AppError::NetworkFailure {
-				error: failures.iter().map(|e| format!("- {}", e)).join("\n"),
-			});
+	pub async fn start(&self, warnings: Warnings, progress: Progress) -> Result<()> {
+		if self.app.is_indexer && !self.app.is_server {
+			progress.show(ProgressStep::Ready(ProgressReadyType::Indexer, warnings));
 		}
 
-		self.networks_map = networks_map;
+		let lists = Lists::new(self.app.clone());
 
-		Ok(self)
-	}
-
-	pub async fn get_warnings(&self) -> Result<Vec<String>> {
-		Ok(self
-			.networks_map
-			.iter()
-			.filter_map(|(_, chain)| {
-				let network = chain.get_network();
-				if network.rps == 0 && self.app_state.is_indexer {
-					Some(format!("{} rpc requests are not rate-limited", network.name))
-				} else {
-					None
+		tokio::select! {
+			_ = signal::ctrl_c() => Ok(()),
+			v = lists.start_watching() => v,
+			v = self.start_primary_check() => v,
+			v = self.start_indexing() => {
+				if v.is_err() {
+					quit(AppError::IndexingFailed {
+						error: v.as_ref().unwrap_err().to_string(),
+					});
 				}
-			})
-			.collect())
-	}
 
-	pub async fn sync_networks(&mut self) -> Result<()> {
-		let all_networks = Network::get_all_by_env(&self.app_state.db, self.app_state.env).await?;
-
-		// drop removed networks
-		let all_active_network_ids: Vec<PrimaryId> = all_networks
-			.iter()
-			.filter_map(|n| match n.is_active {
-				true => Some(n.network_id),
-				_ => None,
-			})
-			.collect();
-		self.networks_map.retain(|network_id, _| all_active_network_ids.contains(network_id));
-
-		// add new networks
-		for network in all_networks
-			.into_iter()
-			.filter(|n| {
-				n.is_active &&
-					(!self.networks_map.contains_key(&n.network_id) ||
-						self.networks_map[&n.network_id].get_network() != *n)
-			})
-			.collect::<Vec<Network>>()
-			.into_iter()
-		{
-			let app_state = self.app_state.clone();
-			let rate_limiter = self.get_rate_limiter(network.rps as u32);
-
-			self.networks_map.insert(
-				network.network_id,
-				Arc::new(match network.blockchain {
-					Blockchain::Bitcoin => {
-						Box::new(Bitcoin::new(app_state, network, rate_limiter, None).await?)
-					}
-					Blockchain::Evm => {
-						Box::new(Evm::new(app_state, network, rate_limiter, None).await?)
-					}
-				}),
-			);
+				v
+			}
 		}
-
-		Ok(())
 	}
 
-	pub async fn index(&mut self) -> Result<()> {
+	async fn start_indexing(&self) -> Result<()> {
 		let mut warehouse_data = WarehouseData::new();
 		let mut config_key_map = HashMap::<ConfigKey, serde_json::Value>::new();
-		let verbose = self.app_state.verbosity as u8 > Verbosity::Silent as u8;
+		let verbose = self.app.verbosity as u8 > Verbosity::Silent as u8;
 		let mut started_indexing = false;
 
 		let log = |s: &str| println!("{}: {s}", style("Indexer").cyan().bold());
@@ -203,7 +88,7 @@ impl Networks {
 		};
 
 		'indexing: loop {
-			if !self.app_state.is_leading() {
+			if !self.app.is_leading() {
 				sleep(Duration::from_secs(1)).await;
 				continue;
 			}
@@ -213,35 +98,29 @@ impl Networks {
 				log("Started…");
 			}
 
-			self.sync_networks().await?;
+			self.app.connect_networks(true).await?;
 
-			if !self.networks_map.is_empty() {
+			if !self.app.networks.read().await.is_empty() {
 				let mut network_params_map = HashMap::new();
 
-				for (network_id, chain) in self.networks_map.iter() {
+				for (network_id, chain) in self.app.networks.read().await.iter() {
 					let nid = *network_id;
 
-					let mut last_read_block = Config::get::<BlockHeight>(
-						&self.app_state.db,
-						ConfigKey::IndexerTailSync(nid),
-					)
-					.await?
-					.map(|h| h.value)
-					.unwrap_or(0);
+					let mut last_read_block =
+						Config::get::<BlockHeight>(&self.app.db, ConfigKey::IndexerTailSync(nid))
+							.await?
+							.map(|h| h.value)
+							.unwrap_or(0);
 
 					let block_height = {
 						let config_key = ConfigKey::BlockHeight(nid);
-						match Config::get::<BlockHeight>(&self.app_state.db, config_key).await? {
+						match Config::get::<BlockHeight>(&self.app.db, config_key).await? {
 							Some(hit) if hit.value > last_read_block => hit.value,
 							_ => {
 								let block_height = chain.get_block_height().await?;
 
-								Config::set::<BlockHeight>(
-									&self.app_state.db,
-									config_key,
-									block_height,
-								)
-								.await?;
+								Config::set::<BlockHeight>(&self.app.db, config_key, block_height)
+									.await?;
 
 								block_height
 							}
@@ -252,7 +131,7 @@ impl Networks {
 					let chunks = num_cpus::get();
 					if last_read_block == 0 &&
 						chunks > 0 && Config::get_many_by_keyword::<(BlockHeight, BlockHeight)>(
-						&self.app_state.db,
+						&self.app.db,
 						&format!("chunk_sync_n{nid}"),
 					)
 					.await?
@@ -286,7 +165,7 @@ impl Networks {
 
 						// create tail-sync indexes
 						Config::set_many::<(BlockHeight, BlockHeight)>(
-							&self.app_state.db,
+							&self.app.db,
 							block_sync_ranges,
 						)
 						.await?;
@@ -294,7 +173,7 @@ impl Networks {
 						// fast-forward last read block to almost block_height
 						last_read_block = block_height - 1;
 						Config::set::<BlockHeight>(
-							&self.app_state.db,
+							&self.app.db,
 							ConfigKey::IndexerTailSync(nid),
 							last_read_block,
 						)
@@ -302,7 +181,7 @@ impl Networks {
 
 						// no need for individual module syncs, so mark all as done
 						Config::set_many::<u8>(
-							&self.app_state.db,
+							&self.app.db,
 							chain
 								.get_module_ids()
 								.into_iter()
@@ -322,12 +201,11 @@ impl Networks {
 					);
 
 					// push all fast-sync block ranges
-					for (config_key, block_range) in
-						Config::get_many_by_keyword::<(BlockHeight, BlockHeight)>(
-							&self.app_state.db,
-							&format!("chunk_sync_n{nid}"),
-						)
-						.await?
+					for (config_key, block_range) in Config::get_many_by_keyword::<(
+						BlockHeight,
+						BlockHeight,
+					)>(&self.app.db, &format!("chunk_sync_n{nid}"))
+					.await?
 					{
 						network_params_map.insert(
 							config_key,
@@ -345,11 +223,11 @@ impl Networks {
 						let mid = module_id as u16;
 
 						let ck_synced = ConfigKey::IndexerModuleSynced(nid, mid);
-						if Config::get::<u8>(&self.app_state.db, ck_synced).await?.is_none() {
+						if Config::get::<u8>(&self.app.db, ck_synced).await?.is_none() {
 							let ck_block_range = ConfigKey::IndexerModuleSync(nid, mid);
 
 							let block_range = match Config::get::<(BlockHeight, BlockHeight)>(
-								&self.app_state.db,
+								&self.app.db,
 								ck_block_range,
 							)
 							.await?
@@ -360,7 +238,7 @@ impl Networks {
 
 									if last_read_block > 0 {
 										Config::set::<(BlockHeight, BlockHeight)>(
-											&self.app_state.db,
+											&self.app.db,
 											ck_block_range,
 											block_range,
 										)
@@ -403,7 +281,8 @@ impl Networks {
 
 					futures.spawn({
 						let nid = network_params.network_id;
-						let chain = self.networks_map[&network_params.network_id].clone();
+						let networks = self.app.networks.read().await;
+						let chain = networks[&network_params.network_id].clone();
 						let should_keep_going = should_keep_going.clone();
 						let mut pipe = Pipe::new(
 							config_key,
@@ -411,7 +290,7 @@ impl Networks {
 							receipt,
 							abort_sender.subscribe(),
 						);
-						let db = self.app_state.db.clone();
+						let db = self.app.db.clone();
 
 						async move {
 							let mut warehouse_data = WarehouseData::new();
@@ -511,7 +390,7 @@ impl Networks {
 
 				// vars to keep network in sync
 				let networks_updated_at =
-					Config::get::<u8>(&self.app_state.db, ConfigKey::NetworksUpdated)
+					Config::get::<u8>(&self.app.db, ConfigKey::NetworksUpdated)
 						.await?
 						.map(|v| v.updated_at)
 						.unwrap_or_else(utils::now);
@@ -527,7 +406,7 @@ impl Networks {
 					tokio::select! {
 						_ = sleep(Duration::from_secs(1)) => {
 							if let Some(value) =
-								Config::get::<u8>(&self.app_state.db, ConfigKey::NetworksUpdated)
+								Config::get::<u8>(&self.app.db, ConfigKey::NetworksUpdated)
 									.await?
 							{
 								if value.updated_at != networks_updated_at {
@@ -550,7 +429,7 @@ impl Networks {
 							}
 						}
 						Some((config_key, config_value, new_data)) = pipe_receiver.recv() => {
-							if !self.app_state.is_leading() {
+							if !self.app.is_leading() {
 								abort()?;
 								break;
 							}
@@ -584,11 +463,11 @@ impl Networks {
 								}
 
 								// push to warehouse
-								warehouse_data.commit(&self.app_state.warehouse).await?;
+								warehouse_data.commit(&self.app.warehouse).await?;
 
 								// commit config marker updates
 								for (config_key, config_value) in config_key_map.iter() {
-									let db = &self.app_state.db;
+									let db = &self.app.db;
 									let key = *config_key;
 									let value = config_value.clone();
 
@@ -649,7 +528,7 @@ impl Networks {
 								for (config_key, _) in config_key_map.iter() {
 									if let ConfigKey::IndexerModuleSynced(nid, mid) = config_key {
 										let ck_block_range = ConfigKey::IndexerModuleSync(*nid, *mid);
-										Config::delete(&self.app_state.db, ck_block_range).await?;
+										Config::delete(&self.app.db, ck_block_range).await?;
 									}
 								}
 
@@ -660,10 +539,12 @@ impl Networks {
 								for network_id in updated_network_ids.into_iter() {
 									let nid = network_id;
 									let mut scores = vec![];
-									let chain = self.networks_map[&network_id].clone();
+
+									let networks = self.app.networks.read().await;
+									let chain = networks[&network_id].clone();
 
 									let block_height = Config::get::<BlockHeight>(
-										&self.app_state.db,
+										&self.app.db,
 										ConfigKey::BlockHeight(nid),
 									)
 									.await?
@@ -674,7 +555,7 @@ impl Networks {
 										scores.push(0.0);
 									} else {
 										let tail_block = Config::get::<BlockHeight>(
-											&self.app_state.db,
+											&self.app.db,
 											ConfigKey::IndexerTailSync(nid),
 										)
 										.await?
@@ -684,7 +565,7 @@ impl Networks {
 										let mut done_blocks = tail_block;
 										for (_, block_range) in
 											Config::get_many_by_keyword::<(BlockHeight, BlockHeight)>(
-												&self.app_state.db,
+												&self.app.db,
 												&format!("chunk_sync_n{nid}"),
 											)
 											.await?
@@ -698,13 +579,13 @@ impl Networks {
 											let mid = module_id as u16;
 
 											let ck_synced = ConfigKey::IndexerModuleSynced(nid, mid);
-											if Config::get::<u8>(&self.app_state.db, ck_synced)
+											if Config::get::<u8>(&self.app.db, ck_synced)
 												.await?
 												.is_none()
 											{
 												let (block_range_min, block_range_max) =
 													Config::get::<(BlockHeight, BlockHeight)>(
-														&self.app_state.db,
+														&self.app.db,
 														ConfigKey::IndexerModuleSync(nid, mid),
 													)
 													.await?
@@ -722,7 +603,7 @@ impl Networks {
 
 									let progress = scores.iter().sum::<f64>() / scores.len() as f64;
 									Config::set::<f64>(
-										&self.app_state.db,
+										&self.app.db,
 										ConfigKey::IndexerProgress(nid),
 										progress,
 									)
@@ -739,6 +620,40 @@ impl Networks {
 					}
 				}
 			}
+		}
+	}
+
+	async fn start_primary_check(&self) -> Result<()> {
+		let primary_promotion = self.app.settings.primary_promotion;
+		let db = &self.app.db;
+		let uuid = self.app.uuid;
+
+		loop {
+			let cool_down_period = utils::ago_in_seconds(primary_promotion / 2);
+
+			let last_primary = Config::get::<Uuid>(db, ConfigKey::Primary).await?;
+			match last_primary {
+				None => {
+					// first run ever
+					Config::set::<Uuid>(db, ConfigKey::Primary, uuid).await?;
+				}
+				Some(hit) if hit.value == uuid && hit.updated_at >= cool_down_period => {
+					// if primary, check-in only if cool-down period has not started yet ↑
+					if Config::set_where::<Uuid>(db, ConfigKey::Primary, uuid, hit).await? {
+						self.app.set_is_primary(true).await?;
+					}
+				}
+				Some(hit) if utils::ago_in_seconds(primary_promotion) > hit.updated_at => {
+					// attempt to upgrade to primary (set is_primary on the next iteration)
+					Config::set_where::<Uuid>(db, ConfigKey::Primary, uuid, hit).await?;
+				}
+				_ => {
+					// either cool-down period has started or this is a secondary
+					self.app.set_is_primary(false).await?;
+				}
+			}
+
+			sleep(Duration::from_secs(self.app.settings.primary_ping)).await
 		}
 	}
 }

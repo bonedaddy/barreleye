@@ -9,24 +9,24 @@ use tokio::time::{sleep, Duration};
 
 use barreleye_common::{
 	models::{BasicModel, Config, ConfigKey, Label, LabeledAddress},
-	utils, Address, AppState, LabelId,
+	utils, App, LabelId,
 };
 
 pub struct Lists {
-	app_state: Arc<AppState>,
+	app: Arc<App>,
 }
 
 impl Lists {
-	pub fn new(app_state: Arc<AppState>) -> Self {
-		Self { app_state }
+	pub fn new(app: Arc<App>) -> Self {
+		Self { app }
 	}
 
-	pub async fn watch(&self) -> Result<()> {
+	pub async fn start_watching(&self) -> Result<()> {
 		loop {
-			let timeout = match self.app_state.is_ready() && self.app_state.is_leader() {
+			let timeout = match self.app.is_ready() && self.app.is_primary() {
 				true => {
 					self.fetch_data().await?;
-					self.app_state.settings.sdn_refresh_rate
+					self.app.settings.sdn_refresh_rate
 				}
 				_ => 1,
 			};
@@ -36,16 +36,14 @@ impl Lists {
 	}
 
 	async fn fetch_data(&self) -> Result<()> {
-		let stale_at = utils::ago_in_seconds(self.app_state.settings.sdn_refresh_rate);
+		let stale_at = utils::ago_in_seconds(self.app.settings.sdn_refresh_rate);
 
-		let labels = Label::get_all_enabled_and_hardcoded(&self.app_state.db).await?;
+		let labels = Label::get_all_enabled_and_hardcoded(&self.app.db).await?;
 
 		// skips labels that have been recently fetched
 		let mut label_ids = vec![];
 		for label in labels.iter() {
-			match Config::get::<u8>(&self.app_state.db, ConfigKey::LabelFetched(label.label_id))
-				.await?
-			{
+			match Config::get::<u8>(&self.app.db, ConfigKey::LabelFetched(label.label_id)).await? {
 				None => label_ids.push(label.label_id),
 				Some(hit) if hit.updated_at < stale_at => label_ids.push(label.label_id),
 				_ => {}
@@ -56,7 +54,7 @@ impl Lists {
 		}
 
 		let labeled_addresses =
-			LabeledAddress::get_all_by_label_ids(&self.app_state.db, label_ids).await?;
+			LabeledAddress::get_all_by_label_ids(&self.app.db, label_ids).await?;
 
 		// lab_ofac => {
 		//     lab_adr_123 => 'addr1',
@@ -89,8 +87,7 @@ impl Lists {
 			};
 
 			// timestamp the request
-			Config::set::<u8>(&self.app_state.db, ConfigKey::LabelFetched(label.label_id), 1)
-				.await?;
+			Config::set::<u8>(&self.app.db, ConfigKey::LabelFetched(label.label_id), 1).await?;
 
 			// add addresses that don't exist in db yet
 			let mut addresses_to_add = HashSet::new();
@@ -104,12 +101,10 @@ impl Lists {
 			}
 			if !addresses_to_add.is_empty() {
 				LabeledAddress::create_many(
-					&self.app_state.db,
+					&self.app.db,
 					addresses_to_add
 						.iter()
-						.map(|(label_id, address)| {
-							LabeledAddress::new_model(*label_id, Address::new(address))
-						})
+						.map(|(label_id, address)| LabeledAddress::new_model(*label_id, address))
 						.collect(),
 				)
 				.await?;
@@ -123,7 +118,7 @@ impl Lists {
 				}
 			}
 			if !ids_to_delete.is_empty() {
-				LabeledAddress::delete_by_ids(&self.app_state.db, ids_to_delete).await?;
+				LabeledAddress::delete_by_ids(&self.app.db, ids_to_delete).await?;
 			}
 		}
 

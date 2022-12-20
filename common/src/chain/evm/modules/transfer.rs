@@ -1,10 +1,10 @@
 use async_trait::async_trait;
-use ethers::{abi::AbiEncode, types::Transaction, utils};
+use ethers::{abi::AbiEncode, types::Transaction};
 use eyre::Result;
 use primitive_types::U256;
 
-use crate::{evm::modules::EvmModuleTrait, Evm, ModuleTrait, WarehouseData};
-use barreleye_common::{
+use crate::{
+	chain::{evm::modules::EvmModuleTrait, ChainTrait, Evm, ModuleTrait, WarehouseData},
 	models::{PrimaryId, Transfer},
 	BlockHeight, ChainModuleId,
 };
@@ -78,8 +78,8 @@ impl EvmModuleTrait for EvmTransfer {
 			self.network_id,
 			block_height,
 			tx.hash.encode_hex(),
-			utils::to_checksum(&tx.from, None).into(),
-			utils::to_checksum(&to, None).into(),
+			evm.format_address(&tx.from.to_string()),
+			evm.format_address(&to.to_string()),
 			None,
 			U256::from_str_radix(&tx.value.to_string(), 10)?,
 			U256::from_str_radix(&tx.value.to_string(), 10)?,

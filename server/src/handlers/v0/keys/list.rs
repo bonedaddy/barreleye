@@ -2,7 +2,7 @@ use axum::{extract::State, Json};
 use serde::Deserialize;
 use std::sync::Arc;
 
-use crate::{AppState, ServerResult};
+use crate::{App, ServerResult};
 use barreleye_common::models::{ApiKey, BasicModel};
 
 #[derive(Deserialize)]
@@ -13,7 +13,7 @@ pub struct Payload {
 }
 
 pub async fn handler(
-	State(app): State<Arc<AppState>>,
+	State(app): State<Arc<App>>,
 	Json(payload): Json<Option<Payload>>,
 ) -> ServerResult<Json<Vec<ApiKey>>> {
 	let (offset, limit) = match payload {

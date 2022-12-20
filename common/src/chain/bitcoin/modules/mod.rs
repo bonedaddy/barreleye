@@ -3,8 +3,10 @@ use bitcoin::blockdata::transaction::Transaction;
 use eyre::Result;
 use std::collections::HashMap;
 
-use crate::{Bitcoin, ModuleTrait, WarehouseData};
-use barreleye_common::BlockHeight;
+use crate::{
+	chain::{Bitcoin, ModuleTrait, WarehouseData},
+	BlockHeight,
+};
 pub use coinbase::BitcoinCoinbase;
 pub use link::BitcoinLink;
 pub use transfer::BitcoinTransfer;

@@ -67,6 +67,6 @@ curl -i -X POST \
 
 ## Notes
 
-- You can run multiple indexers in parallel, but only one will be active at a time. They'll pick a leader among themselves, and if one crashes -- another one will take over.
+- Running multiple indexers in parallel is supported in primary/secondary setup. Nodes will decide between each other which one is the primary.
 
 - For indexing, you might have to set Clickhouse's `max_server_memory_usage_to_ram_ratio` to `2`. [Read more](https://github.com/ClickHouse/ClickHouse/issues/17631).

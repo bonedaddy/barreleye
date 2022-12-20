@@ -3,7 +3,7 @@ use eyre::Result;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{models::PrimaryId, utils, warehouse::Warehouse, Address, ChainModuleId};
+use crate::{models::PrimaryId, utils, warehouse::Warehouse, ChainModuleId};
 
 static TABLE: &str = "experimental_links";
 
@@ -34,8 +34,8 @@ impl Model {
 		network_id: PrimaryId,
 		block_height: u64,
 		tx_hash: String,
-		from_address: Address,
-		to_address: Address,
+		from_address: String,
+		to_address: String,
 		reason: Reason,
 		created_at: u32,
 	) -> Self {
@@ -45,8 +45,8 @@ impl Model {
 			network_id: network_id as u64,
 			block_height,
 			tx_hash: tx_hash.to_lowercase(),
-			from_address: from_address.to_string().to_lowercase(),
-			to_address: to_address.to_string().to_lowercase(),
+			from_address: from_address.to_lowercase(),
+			to_address: to_address.to_lowercase(),
 			reason: reason as u16,
 			created_at,
 		}

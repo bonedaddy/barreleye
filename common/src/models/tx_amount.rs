@@ -3,7 +3,7 @@ use eyre::Result;
 use primitive_types::U256;
 use serde::{Deserialize, Serialize};
 
-use crate::{models::PrimaryId, u256, warehouse::Warehouse, Address, ChainModuleId};
+use crate::{models::PrimaryId, u256, warehouse::Warehouse, ChainModuleId};
 
 static TABLE: &str = "tx_amounts";
 
@@ -30,8 +30,8 @@ impl Model {
 		network_id: PrimaryId,
 		block_height: u64,
 		tx_hash: String,
-		address: Address,
-		asset_address: Option<Address>,
+		address: String,
+		asset_address: Option<String>,
 		amount_in: U256,
 		amount_out: U256,
 		created_at: u32,
@@ -41,8 +41,8 @@ impl Model {
 			network_id: network_id as u64,
 			block_height,
 			tx_hash: tx_hash.to_lowercase(),
-			address: address.to_string().to_lowercase(),
-			asset_address: asset_address.unwrap_or_else(Address::blank).to_string().to_lowercase(),
+			address: address.to_lowercase(),
+			asset_address: asset_address.unwrap_or_default().to_lowercase(),
 			amount_in,
 			amount_out,
 			created_at,

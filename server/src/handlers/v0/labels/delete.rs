@@ -4,11 +4,11 @@ use axum::{
 };
 use std::sync::Arc;
 
-use crate::{errors::ServerError, AppState, ServerResult};
+use crate::{errors::ServerError, App, ServerResult};
 use barreleye_common::models::{BasicModel, Config, Label, LabeledAddress};
 
 pub async fn handler(
-	State(app): State<Arc<AppState>>,
+	State(app): State<Arc<App>>,
 	Path(label_id): Path<String>,
 ) -> ServerResult<StatusCode> {
 	let label = Label::get_by_id(&app.db, &label_id).await?.ok_or(ServerError::NotFound)?;

@@ -2,7 +2,7 @@ use axum::{extract::State, Json};
 use serde::Serialize;
 use std::sync::Arc;
 
-use crate::{AppState, ServerResult};
+use crate::{App, ServerResult};
 use barreleye_common::models::{BasicModel, Config, ConfigKey, Network};
 
 #[derive(Serialize)]
@@ -21,7 +21,7 @@ pub struct Response {
 	networks: Vec<ResponseNetwork>,
 }
 
-pub async fn handler(State(app): State<Arc<AppState>>) -> ServerResult<Json<Response>> {
+pub async fn handler(State(app): State<Arc<App>>) -> ServerResult<Json<Response>> {
 	let mut networks = vec![];
 
 	for network in Network::get_all(&app.db).await?.into_iter() {

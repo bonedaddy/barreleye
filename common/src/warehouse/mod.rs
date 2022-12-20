@@ -27,11 +27,13 @@ impl Warehouse {
 	pub async fn new(settings: Arc<Settings>) -> Result<Self> {
 		let (url_without_database, db_name) = utils::without_pathname(&settings.dsn.clickhouse);
 
+		// create db if doesn't exist + check that connection is good
 		ClickhouseClient::default()
 			.with_url(url_without_database.clone())
 			.query(&format!("CREATE DATABASE IF NOT EXISTS {db_name};"))
 			.execute()
-			.await?;
+			.await
+			.wrap_err(url_without_database.clone())?;
 
 		Ok(Self {
 			url_without_database: url_without_database.clone(),
@@ -44,7 +46,7 @@ impl Warehouse {
 		})
 	}
 
-	pub async fn run_migrations(self) -> Result<Self> {
+	pub async fn run_migrations(&self) -> Result<()> {
 		self.clickhouse
 			.client
 			.query(&format!(
@@ -208,7 +210,7 @@ impl Warehouse {
 			.await
 			.wrap_err(self.url_without_database.clone())?;
 
-		Ok(self)
+		Ok(())
 	}
 
 	pub fn get(&self) -> &ClickhouseClient {

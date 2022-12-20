@@ -8,7 +8,7 @@ use std::{
 	sync::Arc,
 };
 
-use crate::{AppState, ServerResult};
+use crate::{App, ServerResult};
 use barreleye_common::models::{Amount, Network, PrimaryId};
 
 #[derive(Deserialize)]
@@ -40,10 +40,11 @@ pub struct Response {
 }
 
 pub async fn handler(
-	State(app): State<Arc<AppState>>,
+	State(app): State<Arc<App>>,
 	Query(payload): Query<Payload>,
 ) -> ServerResult<Json<Response>> {
-	let mut response = Response { address: payload.address.clone(), ..Default::default() };
+	let mut response =
+		Response { address: app.format_address(&payload.address).await?, ..Default::default() };
 
 	let all_amounts = Amount::get_all_by_address(&app.warehouse, &payload.address).await?;
 	if !all_amounts.is_empty() {
@@ -65,9 +66,12 @@ pub async fn handler(
 			}
 
 			if let Some(network) = networks.get(&asset_amount.network_id) {
+				let chain = app.networks.read().await;
+
 				response.assets.push(ResponseAsset {
 					network: network.id.clone(),
-					address: asset_amount.asset_address,
+					address: chain[&(asset_amount.network_id as PrimaryId)]
+						.format_address(&asset_amount.asset_address),
 					amount: asset_amount.amount.to_string(),
 				});
 

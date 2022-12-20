@@ -14,6 +14,7 @@ serde = "1.0.149"
 log = "0.4.17"
 config = "0.13.2"
 derive_more = "0.99.17"
+indicatif = "0.17.2"
 serde_json = "1.0.89"
 chrono = "0.4.23"
 url = "2.3.1"
@@ -25,6 +26,12 @@ directories = "4.0.1"
 rocksdb = "0.19.0"
 rmp-serde = "1.1.1"
 regex = "1.7.0"
+governor = "0.5.1"
+base64 = "0.20.0"
+itertools = "0.10.5"
+futures = "0.3.25"
+bitcoincore-rpc-json = "0.16.0"
+reqwest = { version = "0.11.13", features = ["rustls-tls"] }
 tokio = { version = "1.23.0", features = ["full"] }
 ethers = { version = "1.0.2", features = ["rustls"] }
 clickhouse = { version = "0.11.1", features = ["uuid"] }

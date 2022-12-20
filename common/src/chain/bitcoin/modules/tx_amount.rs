@@ -4,8 +4,8 @@ use eyre::Result;
 use primitive_types::U256;
 use std::collections::HashMap;
 
-use crate::{bitcoin::modules::BitcoinModuleTrait, Bitcoin, ModuleTrait, WarehouseData};
-use barreleye_common::{
+use crate::{
+	chain::{bitcoin::modules::BitcoinModuleTrait, Bitcoin, ModuleTrait, WarehouseData},
 	models::{PrimaryId, TxAmount},
 	BlockHeight, ChainModuleId,
 };
@@ -67,7 +67,7 @@ impl BitcoinModuleTrait for BitcoinTxAmount {
 				self.network_id,
 				block_height,
 				tx_hash.clone(),
-				address.into(),
+				address,
 				None,
 				U256::from_str_radix(&amount_in.to_string(), 10)?,
 				U256::from_str_radix(&amount_out.to_string(), 10)?,

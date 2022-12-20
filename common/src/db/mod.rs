@@ -7,7 +7,7 @@ use sea_orm::{
 use serde::{Deserialize, Serialize};
 use std::{sync::Arc, time::Duration};
 
-use crate::{progress, progress::Step, utils, Settings};
+use crate::{utils, Settings};
 use migrations::{Migrator, MigratorTrait};
 
 mod migrations;
@@ -110,11 +110,9 @@ impl Db {
 		Ok(Self { db })
 	}
 
-	pub async fn run_migrations(self) -> Result<Self> {
-		progress::show(Step::Migrations).await;
+	pub async fn run_migrations(&self) -> Result<()> {
 		Migrator::up(&self.db, None).await?;
-
-		Ok(self)
+		Ok(())
 	}
 
 	pub fn get(&self) -> &DatabaseConnection {

@@ -7,7 +7,7 @@ use sea_orm::entity::ActiveValue;
 use serde::Deserialize;
 use std::sync::Arc;
 
-use crate::{errors::ServerError, AppState, ServerResult};
+use crate::{errors::ServerError, App, ServerResult};
 use barreleye_common::models::{
 	optional_set, BasicModel, Label, LabeledAddress, LabeledAddressActiveModel,
 };
@@ -20,7 +20,7 @@ pub struct Payload {
 }
 
 pub async fn handler(
-	State(app): State<Arc<AppState>>,
+	State(app): State<Arc<App>>,
 	Path(label_address_id): Path<String>,
 	Json(payload): Json<Payload>,
 ) -> ServerResult<StatusCode> {

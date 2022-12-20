@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
 	models::{label, BasicModel, PrimaryId},
-	utils, Address, Db, IdPrefix,
+	utils, Db, IdPrefix,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, DeriveEntityModel)]
@@ -51,7 +51,7 @@ impl BasicModel for Model {
 }
 
 impl Model {
-	pub fn new_model(label_id: PrimaryId, address: Address) -> ActiveModel {
+	pub fn new_model(label_id: PrimaryId, address: &str) -> ActiveModel {
 		ActiveModel {
 			label_id: Set(label_id),
 			id: Set(utils::new_unique_id(IdPrefix::LabeledAddress)),

@@ -1,76 +1,67 @@
 use async_trait::async_trait;
-use ethers::{prelude::*, types::Transaction, utils};
-use eyre::{bail, Result};
-use indicatif::ProgressBar;
+use ethers::{self, prelude::*, types::Transaction};
+use eyre::Result;
 use std::sync::Arc;
+use tokio::sync::RwLock;
 
-use crate::{ChainTrait, ModuleTrait, RateLimiter, WarehouseData};
-use barreleye_common::{
-	cache::CacheKey, models::Network, AppState, BlockHeight, ChainModuleId, Warehouse,
+use crate::{
+	cache::CacheKey,
+	chain::{ChainTrait, ModuleTrait, WarehouseData},
+	models::Network,
+	utils, BlockHeight, Cache, ChainModuleId, RateLimiter,
 };
 use modules::{EvmModuleTrait, EvmTransfer};
 
 mod modules;
 
 pub struct Evm {
-	app_state: Arc<AppState>,
+	cache: Arc<RwLock<Cache>>,
 	network: Network,
 	rpc: Option<String>,
-	provider: Arc<Provider<RetryClient<Http>>>,
+	provider: Option<Arc<Provider<RetryClient<Http>>>>,
 	rate_limiter: Option<Arc<RateLimiter>>,
 }
 
 impl Evm {
-	pub async fn new(
-		app_state: Arc<AppState>,
-		network: Network,
-		rate_limiter: Option<Arc<RateLimiter>>,
-		pb: Option<&ProgressBar>,
-	) -> Result<Self> {
-		let mut rpc: Option<String> = None;
-		let mut maybe_provider: Option<Provider<RetryClient<Http>>> = None;
+	pub fn new(cache: Arc<RwLock<Cache>>, network: Network) -> Self {
+		let rps = network.rps as u32;
 
-		let rpc_endpoints: Vec<String> = serde_json::from_value(network.rpc_endpoints.clone())?;
-
-		if let Some(pb) = pb {
-			pb.set_message("trying rpc endpoints…");
-		}
-
-		for url in rpc_endpoints.into_iter() {
-			if let Ok(provider) = Provider::<RetryClient<Http>>::new_client(&url, 10, 1_000) {
-				if let Some(rate_limiter) = &rate_limiter {
-					rate_limiter.until_ready().await;
-				}
-
-				if provider.get_block_number().await.is_ok() {
-					rpc = Some(url);
-					maybe_provider = Some(provider);
-				}
-			}
-		}
-
-		if maybe_provider.is_none() {
-			if let Some(pb) = pb {
-				pb.abandon();
-			}
-
-			bail!(format!("{}: Could not connect to any RPC endpoint.", network.name));
-		}
-
-		Ok(Self {
-			app_state,
-			rate_limiter,
+		Self {
+			cache,
 			network,
-			rpc,
-			provider: Arc::new(maybe_provider.unwrap()),
-		})
+			rpc: None,
+			provider: None,
+			rate_limiter: utils::get_rate_limiter(rps),
+		}
 	}
 }
 
 #[async_trait]
 impl ChainTrait for Evm {
-	fn get_warehouse(&self) -> Arc<Warehouse> {
-		self.app_state.warehouse.clone()
+	async fn connect(&mut self) -> Result<bool> {
+		let rpc_endpoints: Vec<String> =
+			serde_json::from_value(self.network.rpc_endpoints.clone())?;
+
+		for url in rpc_endpoints.into_iter() {
+			if let Ok(provider) = Provider::<RetryClient<Http>>::new_client(&url, 10, 1_000) {
+				if let Some(rate_limiter) = &self.rate_limiter {
+					rate_limiter.until_ready().await;
+				}
+
+				if provider.get_block_number().await.is_ok() {
+					self.rpc = Some(url);
+					self.provider = Some(Arc::new(provider));
+
+					break;
+				}
+			}
+		}
+
+		Ok(self.is_connected())
+	}
+
+	fn is_connected(&self) -> bool {
+		self.provider.is_some()
 	}
 
 	fn get_network(&self) -> Network {
@@ -89,9 +80,16 @@ impl ChainTrait for Evm {
 		self.rate_limiter.clone()
 	}
 
+	fn format_address(&self, address: &str) -> String {
+		match address[2..].parse() {
+			Ok(parsed_address) => ethers::utils::to_checksum(&parsed_address, None),
+			_ => address.to_string(),
+		}
+	}
+
 	async fn get_block_height(&self) -> Result<BlockHeight> {
 		self.rate_limit().await;
-		Ok(self.provider.get_block_number().await?.as_u64())
+		Ok(self.provider.as_ref().unwrap().get_block_number().await?.as_u64())
 	}
 
 	async fn process_block(
@@ -102,7 +100,9 @@ impl ChainTrait for Evm {
 		let mut ret = None;
 
 		self.rate_limit().await;
-		if let Some(block) = self.provider.get_block_with_txs(block_height).await? {
+		if let Some(block) =
+			self.provider.as_ref().unwrap().get_block_with_txs(block_height).await?
+		{
 			if block.number.is_some() {
 				let mut warehouse_data = WarehouseData::new();
 
@@ -150,15 +150,16 @@ impl Evm {
 	async fn is_smart_contract(&self, address: &H160) -> Result<bool> {
 		let cache_key = CacheKey::EvmSmartContract(
 			self.network.network_id as u64,
-			utils::to_checksum(address, None),
+			ethers::utils::to_checksum(address, None),
 		);
 
-		Ok(match self.app_state.cache.read().await.get::<bool>(cache_key.clone()).await? {
+		Ok(match self.cache.read().await.get::<bool>(cache_key.clone()).await? {
 			Some(v) => v,
 			_ => {
 				self.rate_limit().await;
-				let is_smart_contract = !self.provider.get_code(*address, None).await?.is_empty();
-				self.app_state.cache.read().await.set::<bool>(cache_key, is_smart_contract).await?;
+				let is_smart_contract =
+					!self.provider.as_ref().unwrap().get_code(*address, None).await?.is_empty();
+				self.cache.read().await.set::<bool>(cache_key, is_smart_contract).await?;
 				is_smart_contract
 			}
 		})
