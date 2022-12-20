@@ -88,6 +88,10 @@ pub async fn handler(
 	// update config
 	Config::set::<u8>(&app.db, ConfigKey::NetworksUpdated, 1).await?;
 
+	// update app's networks
+	let mut networks = app.networks.write().await;
+	*networks = app.get_networks().await?;
+
 	// return newly created
 	Ok(Network::get(&app.db, network_id).await?.unwrap().into())
 }

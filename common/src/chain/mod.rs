@@ -9,9 +9,11 @@ use crate::{
 	utils, BlockHeight, ChainModuleId, PrimaryId, RateLimiter, Warehouse,
 };
 pub use evm::Evm;
+pub use u256::U256;
 
 pub mod bitcoin;
 pub mod evm;
+pub mod u256;
 
 pub type BoxedChain = Box<dyn ChainTrait>;
 

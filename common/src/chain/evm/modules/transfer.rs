@@ -1,10 +1,9 @@
 use async_trait::async_trait;
 use ethers::{abi::AbiEncode, types::Transaction};
 use eyre::Result;
-use primitive_types::U256;
 
 use crate::{
-	chain::{evm::modules::EvmModuleTrait, ChainTrait, Evm, ModuleTrait, WarehouseData},
+	chain::{evm::modules::EvmModuleTrait, ChainTrait, Evm, ModuleTrait, WarehouseData, U256},
 	models::{PrimaryId, Transfer},
 	BlockHeight, ChainModuleId,
 };

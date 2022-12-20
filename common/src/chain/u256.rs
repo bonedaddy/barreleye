@@ -1,4 +1,4 @@
-use primitive_types::U256;
+pub use ethers::types::U256;
 use serde::{
 	de::{Deserialize, Deserializer},
 	ser::{Serialize, Serializer},

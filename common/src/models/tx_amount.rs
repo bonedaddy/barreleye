@@ -1,9 +1,13 @@
 use clickhouse::Row;
 use eyre::Result;
-use primitive_types::U256;
 use serde::{Deserialize, Serialize};
 
-use crate::{models::PrimaryId, u256, warehouse::Warehouse, ChainModuleId};
+use crate::{
+	chain::{u256, U256},
+	models::PrimaryId,
+	warehouse::Warehouse,
+	ChainModuleId,
+};
 
 static TABLE: &str = "tx_amounts";
 

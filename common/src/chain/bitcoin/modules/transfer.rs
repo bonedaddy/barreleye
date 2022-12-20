@@ -1,11 +1,10 @@
 use async_trait::async_trait;
 use bitcoin::blockdata::transaction::Transaction;
 use eyre::Result;
-use primitive_types::U256;
 use std::collections::HashMap;
 
 use crate::{
-	chain::{bitcoin::modules::BitcoinModuleTrait, Bitcoin, ModuleTrait, WarehouseData},
+	chain::{bitcoin::modules::BitcoinModuleTrait, Bitcoin, ModuleTrait, WarehouseData, U256},
 	models::{PrimaryId, Transfer},
 	BlockHeight, ChainModuleId,
 };

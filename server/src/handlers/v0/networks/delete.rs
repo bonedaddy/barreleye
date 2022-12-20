@@ -20,6 +20,10 @@ pub async fn handler(
 			Config::set::<u8>(&app.db, ConfigKey::NetworksUpdated, 1).await?;
 		}
 
+		// update app's networks
+		let mut networks = app.networks.write().await;
+		*networks = app.get_networks().await?;
+
 		Ok(StatusCode::NO_CONTENT)
 	} else {
 		Err(ServerError::NotFound)

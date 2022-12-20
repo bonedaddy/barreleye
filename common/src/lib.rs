@@ -1,3 +1,4 @@
+use chrono::NaiveDateTime;
 use clap::{builder, ValueEnum};
 use console::{style, Emoji};
 use derive_more::Display;
@@ -25,7 +26,7 @@ use tokio::{sync::RwLock, time::Duration};
 
 use crate::{
 	chain::{Bitcoin, BoxedChain, Evm},
-	models::{Network, PrimaryId},
+	models::{Config, ConfigKey, Network, PrimaryId},
 };
 pub use cache::Cache;
 pub use db::Db;
@@ -41,7 +42,6 @@ pub mod errors;
 pub mod models;
 pub mod progress;
 pub mod settings;
-pub mod u256;
 pub mod utils;
 pub mod warehouse;
 
@@ -69,6 +69,7 @@ pub struct App {
 	pub is_server: bool,
 	is_ready: Arc<AtomicBool>,
 	is_primary: Arc<AtomicBool>,
+	connected_at: Arc<RwLock<Option<NaiveDateTime>>>,
 }
 
 impl App {
@@ -95,17 +96,15 @@ impl App {
 			is_server,
 			is_ready: Arc::new(AtomicBool::new(false)),
 			is_primary: Arc::new(AtomicBool::new(false)),
+			connected_at: Arc::new(RwLock::new(None)),
 		};
 
-		app.networks = Arc::new(RwLock::new(app.get_networks(false).await?));
+		app.networks = Arc::new(RwLock::new(app.get_networks().await?));
 
 		Ok(app)
 	}
 
-	pub async fn get_networks(
-		&self,
-		is_connected: bool,
-	) -> Result<HashMap<PrimaryId, Arc<BoxedChain>>> {
+	pub async fn get_networks(&self) -> Result<HashMap<PrimaryId, Arc<BoxedChain>>> {
 		let mut ret = HashMap::new();
 
 		let networks = Network::get_all_by_env(&self.db, self.env)
@@ -118,19 +117,29 @@ impl App {
 			let network_id = n.network_id;
 			let c = self.cache.clone();
 
-			let mut boxed_chain: BoxedChain = match n.blockchain {
+			let boxed_chain: BoxedChain = match n.blockchain {
 				Blockchain::Bitcoin => Box::new(Bitcoin::new(c, n)),
 				Blockchain::Evm => Box::new(Evm::new(c, n)),
 			};
-
-			if is_connected {
-				boxed_chain.connect().await?;
-			}
 
 			ret.insert(network_id, Arc::new(boxed_chain));
 		}
 
 		Ok(ret)
+	}
+
+	pub async fn should_reconnect(&self) -> Result<bool> {
+		Ok(match *self.connected_at.read().await {
+			Some(connected_at) => {
+				let networks_updated_at = Config::get::<u8>(&self.db, ConfigKey::NetworksUpdated)
+					.await?
+					.map(|v| v.updated_at)
+					.unwrap_or_else(utils::now);
+
+				connected_at < networks_updated_at
+			}
+			None => true,
+		})
 	}
 
 	pub async fn connect_networks(&self, silent: bool) -> Result<()> {
@@ -207,23 +216,37 @@ impl App {
 		let mut networks = self.networks.write().await;
 		*networks = connected_networks;
 
+		let mut connected_at = self.connected_at.write().await;
+		*connected_at = Some(utils::now());
+
 		Ok(())
 	}
 
-	pub async fn get_warnings(&self) -> Result<Vec<String>> {
-		Ok(self
-			.networks
-			.read()
-			.await
-			.iter()
-			.filter_map(|(_, chain)| {
-				if self.is_indexer && chain.get_network().rps == 0 {
-					Some(format!("{} rpc requests are not rate-limited", chain.get_network().name))
-				} else {
-					None
-				}
-			})
-			.collect())
+	pub async fn get_warnings(&self) -> Result<Warnings> {
+		let mut warnings = vec![];
+
+		let networks = self.networks.read().await;
+		if networks.is_empty() {
+			warnings.push("No active networks found".to_string());
+		} else {
+			warnings.extend(
+				networks
+					.iter()
+					.filter_map(|(_, chain)| {
+						if self.is_indexer && chain.get_network().rps == 0 {
+							Some(format!(
+								"{} rpc requests are not rate-limited",
+								chain.get_network().name
+							))
+						} else {
+							None
+						}
+					})
+					.collect::<Warnings>(),
+			);
+		}
+
+		Ok(warnings)
 	}
 
 	pub fn is_leading(&self) -> bool {

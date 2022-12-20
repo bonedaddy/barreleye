@@ -66,17 +66,19 @@ pub async fn handler(
 			}
 
 			if let Some(network) = networks.get(&asset_amount.network_id) {
-				let chain = app.networks.read().await;
+				let n = app.networks.read().await;
+				let network_id = asset_amount.network_id as PrimaryId;
 
-				response.assets.push(ResponseAsset {
-					network: network.id.clone(),
-					address: chain[&(asset_amount.network_id as PrimaryId)]
-						.format_address(&asset_amount.asset_address),
-					amount: asset_amount.amount.to_string(),
-				});
+				if n.contains_key(&network_id) {
+					response.assets.push(ResponseAsset {
+						network: network.id.clone(),
+						address: n[&network_id].format_address(&asset_amount.asset_address),
+						amount: asset_amount.amount.to_string(),
+					});
 
-				let network = networks[&asset_amount.network_id].clone();
-				response.networks.insert(network);
+					let network = networks[&asset_amount.network_id].clone();
+					response.networks.insert(network);
+				}
 			}
 		}
 	}

@@ -1,10 +1,15 @@
 use clickhouse::Row;
 use eyre::Result;
-use primitive_types::U256;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{models::PrimaryId, u256, utils, warehouse::Warehouse, ChainModuleId};
+use crate::{
+	chain::{u256, U256},
+	models::PrimaryId,
+	utils,
+	warehouse::Warehouse,
+	ChainModuleId,
+};
 
 static TABLE: &str = "transfers";
 
