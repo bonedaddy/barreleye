@@ -34,7 +34,7 @@ reqwest = { version = "0.11.13", features = ["rustls-tls"] }
 tokio = { version = "1.23.0", features = ["full"] }
 ethers = { version = "1.0.2", features = ["rustls"] }
 clickhouse = { version = "0.11.1", features = ["uuid"] }
-clap = { version = "4.0.29", features = ["cargo"] }
+clap = { version = "4.0.30", features = ["cargo"] }
 uuid = { version = "1.2.2", features = ["v4", "fast-rng"] }
 
 [dependencies.sea-orm]

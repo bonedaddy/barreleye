@@ -380,6 +380,7 @@ pub enum ChainModuleId {
 	BitcoinTxAmount = 3,
 	BitcoinLink = 4,
 	EvmTransfer = 5,
+	EvmErc20Transfer = 6,
 }
 
 pub fn quit(app_error: AppError) {

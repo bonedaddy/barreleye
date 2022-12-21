@@ -23,7 +23,7 @@ eyre = "0.6.8"
 chrono = { version = "0.4.23", default-features = false, features = ["clock", "std"] }
 console = "0.15.2"
 regex = "1.7.0"
-clap = { version = "4.0.29", features = ["cargo"] }
+clap = { version = "4.0.30", features = ["cargo"] }
 fern = { version = "0.6.1", features = ["colored"] }
 tokio = { version = "1.23.0", features = ["full"] }
 uuid = { version = "1.2.2", features = ["v4", "fast-rng"] }

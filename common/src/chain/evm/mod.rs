@@ -1,5 +1,10 @@
 use async_trait::async_trait;
-use ethers::{self, prelude::*, types::Transaction};
+use ethers::{
+	self,
+	prelude::*,
+	types::{Transaction, TransactionReceipt},
+	utils::hex::ToHex,
+};
 use eyre::Result;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -10,12 +15,18 @@ use crate::{
 	models::Network,
 	utils, BlockHeight, Cache, ChainModuleId, RateLimiter,
 };
-use modules::{EvmModuleTrait, EvmTransfer};
+use modules::{EvmErc20Transfer, EvmModuleTrait, EvmTransfer};
 
 mod modules;
 
+#[derive(Debug, Eq, PartialEq)]
+pub enum EvmTopic {
+	Unknown,
+	Erc20Transfer,
+}
+
 pub struct Evm {
-	cache: Arc<RwLock<Cache>>,
+	_cache: Arc<RwLock<Cache>>,
 	network: Network,
 	rpc: Option<String>,
 	provider: Option<Arc<Provider<RetryClient<Http>>>>,
@@ -27,7 +38,7 @@ impl Evm {
 		let rps = network.rps as u32;
 
 		Self {
-			cache,
+			_cache: cache,
 			network,
 			rpc: None,
 			provider: None,
@@ -73,7 +84,7 @@ impl ChainTrait for Evm {
 	}
 
 	fn get_module_ids(&self) -> Vec<ChainModuleId> {
-		vec![ChainModuleId::EvmTransfer]
+		vec![ChainModuleId::EvmTransfer, ChainModuleId::EvmErc20Transfer]
 	}
 
 	fn get_rate_limiter(&self) -> Option<Arc<RateLimiter>> {
@@ -98,27 +109,37 @@ impl ChainTrait for Evm {
 		modules: Vec<ChainModuleId>,
 	) -> Result<Option<WarehouseData>> {
 		let mut ret = None;
+		let provider = self.provider.as_ref().unwrap();
 
 		self.rate_limit().await;
-		if let Some(block) =
-			self.provider.as_ref().unwrap().get_block_with_txs(block_height).await?
-		{
-			if block.number.is_some() {
+		match provider.get_block_with_txs(block_height).await? {
+			Some(block) if block.number.is_some() => {
 				let mut warehouse_data = WarehouseData::new();
 
 				for tx in block.transactions.into_iter() {
-					warehouse_data += self
-						.process_transaction(
-							block_height,
-							block.timestamp.as_u32(),
-							tx,
-							modules.clone(),
-						)
-						.await?;
+					// skip if pending
+					if tx.block_hash.is_none() {
+						continue;
+					}
+
+					// process tx only if receipt exists
+					self.rate_limit().await;
+					if let Some(receipt) = provider.get_transaction_receipt(tx.hash()).await? {
+						warehouse_data += self
+							.process_transaction(
+								block_height,
+								block.timestamp.as_u32(),
+								tx,
+								receipt,
+								modules.clone(),
+							)
+							.await?;
+					}
 				}
 
 				ret = Some(warehouse_data);
 			}
+			_ => {}
 		}
 
 		Ok(ret)
@@ -131,37 +152,49 @@ impl Evm {
 		block_height: BlockHeight,
 		block_time: u32,
 		tx: Transaction,
+		receipt: TransactionReceipt,
 		mods: Vec<ChainModuleId>,
 	) -> Result<WarehouseData> {
 		let mut ret = WarehouseData::new();
 
-		let mut modules: Vec<Box<dyn EvmModuleTrait>> =
-			vec![Box::new(EvmTransfer::new(self.network.network_id))];
+		let mut modules: Vec<Box<dyn EvmModuleTrait>> = vec![
+			Box::new(EvmTransfer::new(self.network.network_id)),
+			Box::new(EvmErc20Transfer::new(self.network.network_id)),
+		];
 
 		modules.retain(|m| mods.contains(&m.get_id()));
 
 		for module in modules.into_iter() {
-			ret += module.run(self, block_height, block_time, tx.clone()).await?;
+			ret += module.run(self, block_height, block_time, tx.clone(), receipt.clone()).await?;
 		}
 
 		Ok(ret)
 	}
 
-	async fn is_smart_contract(&self, address: &H160) -> Result<bool> {
+	async fn _is_smart_contract(&self, address: &H160) -> Result<bool> {
 		let cache_key = CacheKey::EvmSmartContract(
 			self.network.network_id as u64,
 			ethers::utils::to_checksum(address, None),
 		);
 
-		Ok(match self.cache.read().await.get::<bool>(cache_key.clone()).await? {
+		Ok(match self._cache.read().await.get::<bool>(cache_key.clone()).await? {
 			Some(v) => v,
 			_ => {
 				self.rate_limit().await;
 				let is_smart_contract =
 					!self.provider.as_ref().unwrap().get_code(*address, None).await?.is_empty();
-				self.cache.read().await.set::<bool>(cache_key, is_smart_contract).await?;
+				self._cache.read().await.set::<bool>(cache_key, is_smart_contract).await?;
 				is_smart_contract
 			}
 		})
+	}
+
+	fn get_topic(&self, topic: &H256) -> EvmTopic {
+		match topic.encode_hex::<String>().as_str() {
+			"ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef" => {
+				EvmTopic::Erc20Transfer
+			}
+			_ => EvmTopic::Unknown,
+		}
 	}
 }
