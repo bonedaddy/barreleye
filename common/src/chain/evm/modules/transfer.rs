@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use ethers::{
 	abi::AbiEncode,
-	types::{Transaction, TransactionReceipt},
+	types::{Transaction, TransactionReceipt, U64},
 	utils,
 };
 use eyre::Result;
@@ -37,9 +37,16 @@ impl EvmModuleTrait for EvmTransfer {
 		block_height: BlockHeight,
 		block_time: u32,
 		tx: Transaction,
-		_receipt: TransactionReceipt,
+		receipt: TransactionReceipt,
 	) -> Result<WarehouseData> {
 		let mut ret = WarehouseData::new();
+
+		// skip if tx reverted
+		if let Some(status) = receipt.status {
+			if status == U64::zero() {
+				return Ok(ret);
+			}
+		}
 
 		// skip if no asset transfer
 		if tx.value.is_zero() {
