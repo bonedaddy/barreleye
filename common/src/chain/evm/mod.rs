@@ -12,18 +12,21 @@ use tokio::sync::RwLock;
 
 use crate::{
 	cache::CacheKey,
-	chain::{ChainTrait, ModuleTrait, WarehouseData},
+	chain::{ChainTrait, ModuleId, ModuleTrait, WarehouseData},
 	models::Network,
-	utils, BlockHeight, Cache, ChainModuleId, RateLimiter,
+	utils, BlockHeight, Cache, RateLimiter,
 };
-use modules::{EvmBalance, EvmErc20Balance, EvmErc20Transfer, EvmModuleTrait, EvmTransfer};
+use modules::{EvmBalance, EvmModuleTrait, EvmTokenBalance, EvmTokenTransfer, EvmTransfer};
 
 mod modules;
+
+static TRANSFER_FROM_TO_AMOUNT: &str =
+	"ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum EvmTopic {
 	Unknown,
-	Erc20Transfer(Address, Address, U256),
+	TokenTransfer(Address, Address, U256),
 }
 
 pub struct Evm {
@@ -32,11 +35,13 @@ pub struct Evm {
 	rpc: Option<String>,
 	provider: Option<Arc<Provider<RetryClient<Http>>>>,
 	rate_limiter: Option<Arc<RateLimiter>>,
+	modules: Vec<Box<dyn EvmModuleTrait>>,
 }
 
 impl Evm {
 	pub fn new(cache: Arc<RwLock<Cache>>, network: Network) -> Self {
 		let rps = network.rps as u32;
+		let network_id = network.network_id;
 
 		Self {
 			_cache: cache,
@@ -44,6 +49,12 @@ impl Evm {
 			rpc: None,
 			provider: None,
 			rate_limiter: utils::get_rate_limiter(rps),
+			modules: vec![
+				Box::new(EvmTransfer::new(network_id)),
+				Box::new(EvmBalance::new(network_id)),
+				Box::new(EvmTokenTransfer::new(network_id)),
+				Box::new(EvmTokenBalance::new(network_id)),
+			],
 		}
 	}
 }
@@ -84,13 +95,8 @@ impl ChainTrait for Evm {
 		self.rpc.clone()
 	}
 
-	fn get_module_ids(&self) -> Vec<ChainModuleId> {
-		vec![
-			ChainModuleId::EvmTransfer,
-			ChainModuleId::EvmBalance,
-			ChainModuleId::EvmErc20Transfer,
-			ChainModuleId::EvmErc20Balance,
-		]
+	fn get_module_ids(&self) -> Vec<ModuleId> {
+		self.modules.iter().map(|m| m.get_id()).collect()
 	}
 
 	fn get_rate_limiter(&self) -> Option<Arc<RateLimiter>> {
@@ -115,7 +121,7 @@ impl ChainTrait for Evm {
 	async fn process_block(
 		&self,
 		block_height: BlockHeight,
-		modules: Vec<ChainModuleId>,
+		module_ids: Vec<ModuleId>,
 	) -> Result<Option<WarehouseData>> {
 		let mut ret = None;
 		let provider = self.provider.as_ref().unwrap();
@@ -148,7 +154,7 @@ impl ChainTrait for Evm {
 								block.timestamp.as_u32(),
 								tx,
 								receipt,
-								modules.clone(),
+								module_ids.clone(),
 							)
 							.await?;
 					}
@@ -170,20 +176,11 @@ impl Evm {
 		block_time: u32,
 		tx: Transaction,
 		receipt: TransactionReceipt,
-		mods: Vec<ChainModuleId>,
+		module_ids: Vec<ModuleId>,
 	) -> Result<WarehouseData> {
 		let mut ret = WarehouseData::new();
 
-		let mut modules: Vec<Box<dyn EvmModuleTrait>> = vec![
-			Box::new(EvmTransfer::new(self.network.network_id)),
-			Box::new(EvmBalance::new(self.network.network_id)),
-			Box::new(EvmErc20Transfer::new(self.network.network_id)),
-			Box::new(EvmErc20Balance::new(self.network.network_id)),
-		];
-
-		modules.retain(|m| mods.contains(&m.get_id()));
-
-		for module in modules.into_iter() {
+		for module in self.modules.iter().filter(|m| module_ids.contains(&m.get_id())) {
 			ret += module.run(self, block_height, block_time, tx.clone(), receipt.clone()).await?;
 		}
 
@@ -209,17 +206,36 @@ impl Evm {
 	}
 
 	fn get_topic(&self, log: &Log) -> Result<EvmTopic> {
-		if log.topics.len() == 3 &&
-			log.topics[0].encode_hex::<String>() ==
-				*"ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
+		if log.topics.len() == 3 && log.topics[0].encode_hex::<String>() == *TRANSFER_FROM_TO_AMOUNT
 		{
 			let from = Address::from(log.topics[1]);
 			let to = Address::from(log.topics[2]);
 			let amount = U256::decode(log.data.clone()).unwrap_or_default();
 
-			return Ok(EvmTopic::Erc20Transfer(from, to, amount));
+			return Ok(EvmTopic::TokenTransfer(from, to, amount));
 		}
 
 		Ok(EvmTopic::Unknown)
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use crate::{Blockchain, Settings};
+	use futures::executor::block_on;
+
+	#[test]
+	fn test_format_address() {
+		let settings = Settings::new().unwrap();
+		let cache = Arc::new(RwLock::new(block_on(Cache::new(Arc::new(settings))).unwrap()));
+		let network = Network { blockchain: Blockchain::Evm, ..Default::default() };
+		let evm = Evm::new(cache, network);
+
+		assert_eq!(evm.format_address(""), "");
+		assert_eq!(
+			evm.format_address("0xd8da6bf26964af9d7eed9e03e53415d37aa96045"),
+			"0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045"
+		);
 	}
 }

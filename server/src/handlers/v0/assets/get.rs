@@ -43,10 +43,10 @@ pub async fn handler(
 	State(app): State<Arc<App>>,
 	Query(payload): Query<Payload>,
 ) -> ServerResult<Json<Response>> {
-	let mut response =
-		Response { address: app.format_address(&payload.address).await?, ..Default::default() };
+	let address = app.format_address(&payload.address).await?;
+	let mut response = Response { address: address.clone(), ..Default::default() };
 
-	let all_amounts = Amount::get_all_by_address(&app.warehouse, &payload.address).await?;
+	let all_amounts = Amount::get_all_by_address(&app.warehouse, &address).await?;
 	if !all_amounts.is_empty() {
 		let mut all_network_ids =
 			all_amounts.iter().map(|a| a.network_id as PrimaryId).collect::<Vec<PrimaryId>>();

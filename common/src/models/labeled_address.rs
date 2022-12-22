@@ -79,7 +79,7 @@ impl Model {
 	}
 
 	pub async fn get_by_address(db: &Db, address: &str) -> Result<Option<Self>> {
-		Ok(Entity::find().filter(Column::Address.eq(address.to_lowercase())).one(db.get()).await?)
+		Ok(Entity::find().filter(Column::Address.eq(address)).one(db.get()).await?)
 	}
 
 	pub async fn get_all_by_label_id_and_addresses(
@@ -89,7 +89,7 @@ impl Model {
 	) -> Result<Vec<Self>> {
 		Ok(Entity::find()
 			.filter(Column::LabelId.eq(label_id))
-			.filter(Column::Address.is_in(addresses.into_iter().map(|a| a.to_lowercase())))
+			.filter(Column::Address.is_in(addresses))
 			.all(db.get())
 			.await?)
 	}

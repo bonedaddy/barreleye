@@ -64,7 +64,7 @@ mod tests {
 	use super::*;
 
 	#[test]
-	fn config_key_from_to_str() {
+	fn test_config_key_str() {
 		let config_keys = HashMap::from([
 			(ConfigKey::Primary, "primary"),
 			(ConfigKey::LabelFetched(123), "label_fetched_l123"),

@@ -7,9 +7,9 @@ use ethers::{
 use eyre::Result;
 
 use crate::{
-	chain::{evm::modules::EvmModuleTrait, Evm, ModuleTrait, WarehouseData, U256},
+	chain::{evm::modules::EvmModuleTrait, Evm, ModuleId, ModuleTrait, WarehouseData, U256},
 	models::{PrimaryId, Transfer},
-	BlockHeight, ChainModuleId,
+	BlockHeight,
 };
 
 pub struct EvmTransfer {
@@ -17,15 +17,12 @@ pub struct EvmTransfer {
 }
 
 impl ModuleTrait for EvmTransfer {
-	fn new(network_id: PrimaryId) -> Self
-	where
-		Self: Sized,
-	{
+	fn new(network_id: PrimaryId) -> Self {
 		Self { network_id }
 	}
 
-	fn get_id(&self) -> ChainModuleId {
-		ChainModuleId::EvmTransfer
+	fn get_id(&self) -> ModuleId {
+		ModuleId::EvmTransfer
 	}
 }
 

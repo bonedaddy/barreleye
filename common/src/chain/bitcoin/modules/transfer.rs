@@ -4,9 +4,11 @@ use eyre::Result;
 use std::collections::HashMap;
 
 use crate::{
-	chain::{bitcoin::modules::BitcoinModuleTrait, Bitcoin, ModuleTrait, WarehouseData, U256},
+	chain::{
+		bitcoin::modules::BitcoinModuleTrait, Bitcoin, ModuleId, ModuleTrait, WarehouseData, U256,
+	},
 	models::{PrimaryId, Transfer},
-	BlockHeight, ChainModuleId,
+	BlockHeight,
 };
 
 pub struct BitcoinTransfer {
@@ -14,15 +16,12 @@ pub struct BitcoinTransfer {
 }
 
 impl ModuleTrait for BitcoinTransfer {
-	fn new(network_id: PrimaryId) -> Self
-	where
-		Self: Sized,
-	{
+	fn new(network_id: PrimaryId) -> Self {
 		Self { network_id }
 	}
 
-	fn get_id(&self) -> ChainModuleId {
-		ChainModuleId::BitcoinTransfer
+	fn get_id(&self) -> ModuleId {
+		ModuleId::BitcoinTransfer
 	}
 }
 

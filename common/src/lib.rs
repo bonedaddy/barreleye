@@ -326,7 +326,9 @@ impl FromStr for LabelId {
 	}
 }
 
-#[derive(Debug, EnumIter, DeriveActiveEnum, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+	Default, Debug, EnumIter, DeriveActiveEnum, Copy, Clone, PartialEq, Eq, Serialize, Deserialize,
+)]
 #[sea_orm(rs_type = "i16", db_type = "SmallInteger")]
 pub enum Env {
 	#[serde(rename = "localhost")]
@@ -334,6 +336,7 @@ pub enum Env {
 	#[serde(rename = "testnet")]
 	Testnet = 2,
 	#[serde(rename = "mainnet")]
+	#[default]
 	Mainnet = 3,
 }
 
@@ -351,10 +354,13 @@ impl ValueEnum for Env {
 	}
 }
 
-#[derive(Debug, EnumIter, DeriveActiveEnum, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+	Default, Debug, EnumIter, DeriveActiveEnum, Copy, Clone, PartialEq, Eq, Serialize, Deserialize,
+)]
 #[sea_orm(rs_type = "i16", db_type = "SmallInteger")]
 pub enum Blockchain {
 	#[serde(rename = "bitcoin")]
+	#[default]
 	Bitcoin = 1,
 	#[serde(rename = "evm")]
 	Evm = 2,
@@ -370,19 +376,6 @@ pub enum Risk {
 	High = 30,
 	#[serde(rename = "SEVERE")]
 	Severe = 40,
-}
-
-#[repr(u16)]
-#[derive(Display, Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub enum ChainModuleId {
-	BitcoinCoinbase = 1,
-	BitcoinTransfer = 2,
-	BitcoinBalance = 3,
-	BitcoinLink = 4,
-	EvmTransfer = 5,
-	EvmBalance = 6,
-	EvmErc20Transfer = 7,
-	EvmErc20Balance = 8,
 }
 
 pub fn quit(app_error: AppError) {

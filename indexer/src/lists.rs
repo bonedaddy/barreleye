@@ -144,7 +144,7 @@ impl Lists {
 	async fn regex_extract(&self, url: &str, regex: &str) -> Result<Vec<String>> {
 		Ok(Regex::new(regex)?
 			.captures_iter(&reqwest::get(url).await?.text().await?)
-			.filter_map(|c| c.get(2).map(|v| v.as_str().to_lowercase()))
+			.filter_map(|c| c.get(2).map(|v| v.as_str().to_string()))
 			.collect::<Vec<String>>())
 	}
 }

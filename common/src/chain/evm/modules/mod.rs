@@ -7,13 +7,13 @@ use crate::{
 	BlockHeight,
 };
 pub use balance::EvmBalance;
-pub use erc20_balance::EvmErc20Balance;
-pub use erc20_transfer::EvmErc20Transfer;
+pub use token_balance::EvmTokenBalance;
+pub use token_transfer::EvmTokenTransfer;
 pub use transfer::EvmTransfer;
 
 mod balance;
-mod erc20_balance;
-mod erc20_transfer;
+mod token_balance;
+mod token_transfer;
 mod transfer;
 
 #[async_trait]

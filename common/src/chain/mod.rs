@@ -1,12 +1,13 @@
 use async_trait::async_trait;
 use chrono::NaiveDateTime;
+use derive_more::Display;
 use eyre::Result;
 use std::{collections::HashSet, ops::AddAssign, sync::Arc};
 
 pub use crate::chain::bitcoin::Bitcoin;
 use crate::{
 	models::{Balance, Link, Network, Transfer},
-	utils, BlockHeight, ChainModuleId, PrimaryId, RateLimiter, Warehouse,
+	utils, BlockHeight, PrimaryId, RateLimiter, Warehouse,
 };
 pub use evm::Evm;
 pub use u256::U256;
@@ -17,6 +18,19 @@ pub mod u256;
 
 pub type BoxedChain = Box<dyn ChainTrait>;
 
+#[repr(u16)]
+#[derive(Display, Debug, Copy, Clone, PartialEq, Eq, Hash)]
+pub enum ModuleId {
+	BitcoinCoinbase = 101,
+	BitcoinTransfer = 102,
+	BitcoinBalance = 103,
+	BitcoinLink = 104,
+	EvmTransfer = 201,
+	EvmBalance = 202,
+	EvmTokenTransfer = 203,
+	EvmTokenBalance = 204,
+}
+
 #[async_trait]
 pub trait ChainTrait: Send + Sync {
 	async fn connect(&mut self) -> Result<bool>;
@@ -24,7 +38,7 @@ pub trait ChainTrait: Send + Sync {
 
 	fn get_network(&self) -> Network;
 	fn get_rpc(&self) -> Option<String>;
-	fn get_module_ids(&self) -> Vec<ChainModuleId>;
+	fn get_module_ids(&self) -> Vec<ModuleId>;
 	fn format_address(&self, address: &str) -> String;
 	fn get_rate_limiter(&self) -> Option<Arc<RateLimiter>>;
 
@@ -33,7 +47,7 @@ pub trait ChainTrait: Send + Sync {
 	async fn process_block(
 		&self,
 		block_height: BlockHeight,
-		modules: Vec<ChainModuleId>,
+		modules: Vec<ModuleId>,
 	) -> Result<Option<WarehouseData>>;
 
 	async fn rate_limit(&self) {
@@ -48,7 +62,7 @@ pub trait ModuleTrait {
 	fn new(network_id: PrimaryId) -> Self
 	where
 		Self: Sized;
-	fn get_id(&self) -> ChainModuleId;
+	fn get_id(&self) -> ModuleId;
 }
 
 #[derive(Debug, Default, Clone)]

@@ -10,9 +10,9 @@ use url::Url;
 
 use crate::{
 	cache::CacheKey,
-	chain::{ChainTrait, ModuleTrait, WarehouseData},
+	chain::{ChainTrait, ModuleId, ModuleTrait, WarehouseData},
 	models::Network,
-	utils, BlockHeight, Cache, ChainModuleId, RateLimiter,
+	utils, BlockHeight, Cache, RateLimiter,
 };
 use client::{Auth, Client};
 use modules::{BitcoinBalance, BitcoinCoinbase, BitcoinLink, BitcoinModuleTrait, BitcoinTransfer};
@@ -27,12 +27,14 @@ pub struct Bitcoin {
 	client: Option<Arc<Client>>,
 	bitcoin_network: BitcoinNetwork,
 	rate_limiter: Option<Arc<RateLimiter>>,
+	modules: Vec<Box<dyn BitcoinModuleTrait>>,
 }
 
 impl Bitcoin {
 	pub fn new(cache: Arc<RwLock<Cache>>, network: Network) -> Self {
 		let chain_id = network.chain_id as u32;
 		let rps = network.rps as u32;
+		let network_id = network.network_id;
 
 		Self {
 			cache,
@@ -42,6 +44,12 @@ impl Bitcoin {
 			bitcoin_network: BitcoinNetwork::from_magic(chain_id)
 				.unwrap_or(BitcoinNetwork::Bitcoin),
 			rate_limiter: utils::get_rate_limiter(rps),
+			modules: vec![
+				Box::new(BitcoinTransfer::new(network_id)),
+				Box::new(BitcoinBalance::new(network_id)),
+				Box::new(BitcoinLink::new(network_id)),
+				Box::new(BitcoinCoinbase::new(network_id)),
+			],
 		}
 	}
 }
@@ -90,13 +98,8 @@ impl ChainTrait for Bitcoin {
 		self.rpc.clone()
 	}
 
-	fn get_module_ids(&self) -> Vec<ChainModuleId> {
-		vec![
-			ChainModuleId::BitcoinTransfer,
-			ChainModuleId::BitcoinBalance,
-			ChainModuleId::BitcoinLink,
-			ChainModuleId::BitcoinCoinbase,
-		]
+	fn get_module_ids(&self) -> Vec<ModuleId> {
+		self.modules.iter().map(|m| m.get_id()).collect()
 	}
 
 	fn get_rate_limiter(&self) -> Option<Arc<RateLimiter>> {
@@ -118,7 +121,7 @@ impl ChainTrait for Bitcoin {
 	async fn process_block(
 		&self,
 		block_height: BlockHeight,
-		modules: Vec<ChainModuleId>,
+		module_ids: Vec<ModuleId>,
 	) -> Result<Option<WarehouseData>> {
 		let mut ret = None;
 
@@ -130,7 +133,12 @@ impl ChainTrait for Bitcoin {
 
 				for tx in block.txdata.into_iter() {
 					warehouse_data += self
-						.process_transaction(block_height, block.header.time, tx, modules.clone())
+						.process_transaction(
+							block_height,
+							block.header.time,
+							tx,
+							module_ids.clone(),
+						)
 						.await?;
 				}
 
@@ -148,18 +156,9 @@ impl Bitcoin {
 		block_height: BlockHeight,
 		block_time: u32,
 		tx: Transaction,
-		mods: Vec<ChainModuleId>,
+		module_ids: Vec<ModuleId>,
 	) -> Result<WarehouseData> {
 		let mut ret = WarehouseData::new();
-
-		let mut modules: Vec<Box<dyn BitcoinModuleTrait>> = vec![
-			Box::new(BitcoinTransfer::new(self.network.network_id)),
-			Box::new(BitcoinBalance::new(self.network.network_id)),
-			Box::new(BitcoinLink::new(self.network.network_id)),
-			Box::new(BitcoinCoinbase::new(self.network.network_id)),
-		];
-
-		modules.retain(|m| mods.contains(&m.get_id()));
 
 		let get_unique_addresses = move |pair: Vec<(String, u64)>| {
 			let mut m = HashMap::<String, u64>::new();
@@ -194,7 +193,7 @@ impl Bitcoin {
 		let outputs =
 			get_unique_addresses(self.index_transaction_outputs(block_height, &tx).await?);
 
-		for module in modules.into_iter() {
+		for module in self.modules.iter().filter(|m| module_ids.contains(&m.get_id())) {
 			ret += module
 				.run(self, block_height, block_time, tx.clone(), inputs.clone(), outputs.clone())
 				.await?;
@@ -269,5 +268,26 @@ impl Bitcoin {
 
 	fn is_valid_address(&self, address: &str) -> bool {
 		!address.contains(':')
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use crate::{Blockchain, Settings};
+	use futures::executor::block_on;
+
+	#[test]
+	fn test_format_address() {
+		let settings = Settings::new().unwrap();
+		let cache = Arc::new(RwLock::new(block_on(Cache::new(Arc::new(settings))).unwrap()));
+		let network = Network { blockchain: Blockchain::Bitcoin, ..Default::default() };
+		let bitcoin = Bitcoin::new(cache, network);
+
+		assert_eq!(bitcoin.format_address(""), "");
+		assert_eq!(
+			bitcoin.format_address("12iAWCJdrX2n3A9q1XzpfFHDUeNGMSWWcR"),
+			"12iAWCJdrX2n3A9q1XzpfFHDUeNGMSWWcR"
+		);
 	}
 }

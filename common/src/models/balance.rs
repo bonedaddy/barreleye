@@ -3,10 +3,9 @@ use eyre::Result;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-	chain::{u256, U256},
+	chain::{u256, ModuleId, U256},
 	models::PrimaryId,
 	warehouse::Warehouse,
-	ChainModuleId,
 };
 
 static TABLE: &str = "balances";
@@ -30,7 +29,7 @@ pub use Model as Balance;
 
 impl Model {
 	pub fn new(
-		module_id: ChainModuleId,
+		module_id: ModuleId,
 		network_id: PrimaryId,
 		block_height: u64,
 		tx_hash: String,
@@ -44,9 +43,9 @@ impl Model {
 			module_id: module_id as u16,
 			network_id: network_id as u64,
 			block_height,
-			tx_hash: tx_hash.to_lowercase(),
-			address: address.to_lowercase(),
-			asset_address: asset_address.unwrap_or_default().to_lowercase(),
+			tx_hash,
+			address,
+			asset_address: asset_address.unwrap_or_default(),
 			amount_in,
 			amount_out,
 			created_at,

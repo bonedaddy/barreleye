@@ -19,17 +19,17 @@ use uuid::Uuid;
 
 use crate::{Lists, Pipe};
 use barreleye_common::{
-	chain::WarehouseData,
+	chain::{ModuleId, WarehouseData},
 	models::{Config, ConfigKey, PrimaryId},
-	quit, utils, App, AppError, BlockHeight, ChainModuleId, Progress, ProgressReadyType,
-	ProgressStep, Verbosity, Warnings,
+	quit, utils, App, AppError, BlockHeight, Progress, ProgressReadyType, ProgressStep, Verbosity,
+	Warnings,
 };
 
 #[derive(Clone, Debug)]
 struct NetworkParams {
 	pub network_id: PrimaryId,
 	pub range: (BlockHeight, Option<BlockHeight>),
-	pub modules: Vec<ChainModuleId>,
+	pub modules: Vec<ModuleId>,
 }
 
 impl NetworkParams {
@@ -37,7 +37,7 @@ impl NetworkParams {
 		network_id: PrimaryId,
 		min: BlockHeight,
 		max: Option<BlockHeight>,
-		modules: &[ChainModuleId],
+		modules: &[ModuleId],
 	) -> Self {
 		Self { network_id, range: (min, max), modules: modules.to_vec() }
 	}

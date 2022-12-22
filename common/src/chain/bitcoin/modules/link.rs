@@ -4,9 +4,9 @@ use eyre::Result;
 use std::collections::{HashMap, HashSet};
 
 use crate::{
-	chain::{bitcoin::modules::BitcoinModuleTrait, Bitcoin, ModuleTrait, WarehouseData},
+	chain::{bitcoin::modules::BitcoinModuleTrait, Bitcoin, ModuleId, ModuleTrait, WarehouseData},
 	models::{Link, LinkReason, PrimaryId},
-	BlockHeight, ChainModuleId,
+	BlockHeight,
 };
 
 pub struct BitcoinLink {
@@ -14,15 +14,12 @@ pub struct BitcoinLink {
 }
 
 impl ModuleTrait for BitcoinLink {
-	fn new(network_id: PrimaryId) -> Self
-	where
-		Self: Sized,
-	{
+	fn new(network_id: PrimaryId) -> Self {
 		Self { network_id }
 	}
 
-	fn get_id(&self) -> ChainModuleId {
-		ChainModuleId::BitcoinLink
+	fn get_id(&self) -> ModuleId {
+		ModuleId::BitcoinLink
 	}
 }
 

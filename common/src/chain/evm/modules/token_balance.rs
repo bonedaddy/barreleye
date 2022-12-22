@@ -9,31 +9,28 @@ use eyre::Result;
 use crate::{
 	chain::{
 		evm::{modules::EvmModuleTrait, EvmTopic},
-		Evm, ModuleTrait, WarehouseData, U256,
+		Evm, ModuleId, ModuleTrait, WarehouseData, U256,
 	},
 	models::{Balance, PrimaryId},
-	BlockHeight, ChainModuleId,
+	BlockHeight,
 };
 
-pub struct EvmErc20Balance {
+pub struct EvmTokenBalance {
 	network_id: PrimaryId,
 }
 
-impl ModuleTrait for EvmErc20Balance {
-	fn new(network_id: PrimaryId) -> Self
-	where
-		Self: Sized,
-	{
+impl ModuleTrait for EvmTokenBalance {
+	fn new(network_id: PrimaryId) -> Self {
 		Self { network_id }
 	}
 
-	fn get_id(&self) -> ChainModuleId {
-		ChainModuleId::EvmErc20Balance
+	fn get_id(&self) -> ModuleId {
+		ModuleId::EvmTokenBalance
 	}
 }
 
 #[async_trait]
-impl EvmModuleTrait for EvmErc20Balance {
+impl EvmModuleTrait for EvmTokenBalance {
 	async fn run(
 		&self,
 		evm: &Evm,
@@ -52,9 +49,9 @@ impl EvmModuleTrait for EvmErc20Balance {
 				}
 			}
 
-			// process erc20 `transfer` event
+			// process token `transfer` event
 			match evm.get_topic(&log)? {
-				EvmTopic::Erc20Transfer(from, to, amount) if amount > U256::zero() => {
+				EvmTopic::TokenTransfer(from, to, amount) if amount > U256::zero() => {
 					ret.balances.insert(Balance::new(
 						self.get_id(),
 						self.network_id,

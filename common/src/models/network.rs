@@ -13,7 +13,7 @@ use crate::{
 	utils, Blockchain, Env, IdPrefix,
 };
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, DeriveEntityModel)]
+#[derive(Default, Clone, Debug, PartialEq, Eq, Serialize, Deserialize, DeriveEntityModel)]
 #[sea_orm(table_name = "networks")]
 #[serde(rename_all = "camelCase")]
 pub struct Model {

@@ -68,7 +68,7 @@ impl Cache {
 	where
 		T: Serialize,
 	{
-		let key = cache_key.to_string().to_lowercase();
+		let key = cache_key.to_string();
 		let value = rmp_serde::to_vec(&value)?;
 
 		self.cache.set(&key, &value).await
@@ -78,12 +78,12 @@ impl Cache {
 	where
 		T: DeserializeOwned,
 	{
-		let key = cache_key.to_string().to_lowercase();
+		let key = cache_key.to_string();
 		Ok(self.cache.get(&key).await?.and_then(|v| rmp_serde::from_slice(&v).ok()))
 	}
 
 	pub async fn delete(&self, cache_key: CacheKey) -> Result<()> {
-		let key = cache_key.to_string().to_lowercase();
+		let key = cache_key.to_string();
 		self.cache.delete(&key).await
 	}
 }
