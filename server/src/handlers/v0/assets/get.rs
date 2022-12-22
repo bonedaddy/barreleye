@@ -72,7 +72,11 @@ pub async fn handler(
 				if n.contains_key(&network_id) {
 					response.assets.push(ResponseAsset {
 						network: network.id.clone(),
-						address: n[&network_id].format_address(&asset_amount.asset_address),
+						address: if asset_amount.asset_address.is_empty() {
+							"".to_string()
+						} else {
+							n[&network_id].format_address(&asset_amount.asset_address)
+						},
 						amount: asset_amount.amount.to_string(),
 					});
 

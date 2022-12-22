@@ -6,9 +6,13 @@ use crate::{
 	chain::{Evm, ModuleTrait, WarehouseData},
 	BlockHeight,
 };
+pub use balance::EvmBalance;
+pub use erc20_balance::EvmErc20Balance;
 pub use erc20_transfer::EvmErc20Transfer;
 pub use transfer::EvmTransfer;
 
+mod balance;
+mod erc20_balance;
 mod erc20_transfer;
 mod transfer;
 

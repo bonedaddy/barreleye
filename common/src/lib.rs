@@ -377,10 +377,12 @@ pub enum Risk {
 pub enum ChainModuleId {
 	BitcoinCoinbase = 1,
 	BitcoinTransfer = 2,
-	BitcoinTxAmount = 3,
+	BitcoinBalance = 3,
 	BitcoinLink = 4,
 	EvmTransfer = 5,
-	EvmErc20Transfer = 6,
+	EvmBalance = 6,
+	EvmErc20Transfer = 7,
+	EvmErc20Balance = 8,
 }
 
 pub fn quit(app_error: AppError) {

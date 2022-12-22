@@ -7,15 +7,15 @@ use crate::{
 	chain::{Bitcoin, ModuleTrait, WarehouseData},
 	BlockHeight,
 };
+pub use balance::BitcoinBalance;
 pub use coinbase::BitcoinCoinbase;
 pub use link::BitcoinLink;
 pub use transfer::BitcoinTransfer;
-pub use tx_amount::BitcoinTxAmount;
 
+mod balance;
 mod coinbase;
 mod link;
 mod transfer;
-mod tx_amount;
 
 #[async_trait]
 pub trait BitcoinModuleTrait: ModuleTrait + Send + Sync {

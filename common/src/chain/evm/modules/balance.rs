@@ -8,15 +8,15 @@ use eyre::Result;
 
 use crate::{
 	chain::{evm::modules::EvmModuleTrait, Evm, ModuleTrait, WarehouseData, U256},
-	models::{PrimaryId, Transfer},
+	models::{Balance, PrimaryId},
 	BlockHeight, ChainModuleId,
 };
 
-pub struct EvmTransfer {
+pub struct EvmBalance {
 	network_id: PrimaryId,
 }
 
-impl ModuleTrait for EvmTransfer {
+impl ModuleTrait for EvmBalance {
 	fn new(network_id: PrimaryId) -> Self
 	where
 		Self: Sized,
@@ -25,12 +25,12 @@ impl ModuleTrait for EvmTransfer {
 	}
 
 	fn get_id(&self) -> ChainModuleId {
-		ChainModuleId::EvmTransfer
+		ChainModuleId::EvmBalance
 	}
 }
 
 #[async_trait]
-impl EvmModuleTrait for EvmTransfer {
+impl EvmModuleTrait for EvmBalance {
 	async fn run(
 		&self,
 		_evm: &Evm,
@@ -56,16 +56,26 @@ impl EvmModuleTrait for EvmTransfer {
 			return Ok(ret);
 		}
 
-		ret.transfers.insert(Transfer::new(
+		ret.balances.insert(Balance::new(
 			self.get_id(),
 			self.network_id,
 			block_height,
 			tx.hash.encode_hex(),
 			utils::to_checksum(&tx.from, None),
+			None,
+			U256::zero(),
+			U256::from_str_radix(&tx.value.to_string(), 10)?,
+			block_time,
+		));
+		ret.balances.insert(Balance::new(
+			self.get_id(),
+			self.network_id,
+			block_height,
+			tx.hash.encode_hex(),
 			utils::to_checksum(&tx.to.unwrap(), None),
 			None,
 			U256::from_str_radix(&tx.value.to_string(), 10)?,
-			U256::from_str_radix(&tx.value.to_string(), 10)?,
+			U256::zero(),
 			block_time,
 		));
 

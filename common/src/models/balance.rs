@@ -9,7 +9,7 @@ use crate::{
 	ChainModuleId,
 };
 
-static TABLE: &str = "tx_amounts";
+static TABLE: &str = "balances";
 
 #[derive(PartialEq, Eq, Hash, Debug, Clone, Row, Serialize, Deserialize)]
 pub struct Model {
@@ -26,7 +26,7 @@ pub struct Model {
 	pub created_at: u32,
 }
 
-pub use Model as TxAmount;
+pub use Model as Balance;
 
 impl Model {
 	pub fn new(

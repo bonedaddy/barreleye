@@ -5,15 +5,15 @@ use std::collections::HashMap;
 
 use crate::{
 	chain::{bitcoin::modules::BitcoinModuleTrait, Bitcoin, ModuleTrait, WarehouseData, U256},
-	models::{PrimaryId, TxAmount},
+	models::{Balance, PrimaryId},
 	BlockHeight, ChainModuleId,
 };
 
-pub struct BitcoinTxAmount {
+pub struct BitcoinBalance {
 	network_id: PrimaryId,
 }
 
-impl ModuleTrait for BitcoinTxAmount {
+impl ModuleTrait for BitcoinBalance {
 	fn new(network_id: PrimaryId) -> Self
 	where
 		Self: Sized,
@@ -22,12 +22,12 @@ impl ModuleTrait for BitcoinTxAmount {
 	}
 
 	fn get_id(&self) -> ChainModuleId {
-		ChainModuleId::BitcoinTxAmount
+		ChainModuleId::BitcoinBalance
 	}
 }
 
 #[async_trait]
-impl BitcoinModuleTrait for BitcoinTxAmount {
+impl BitcoinModuleTrait for BitcoinBalance {
 	async fn run(
 		&self,
 		_bitcoin: &Bitcoin,
@@ -38,30 +38,30 @@ impl BitcoinModuleTrait for BitcoinTxAmount {
 		outputs: HashMap<String, u64>,
 	) -> Result<WarehouseData> {
 		let mut ret = WarehouseData::new();
-		let mut tx_amount_map = HashMap::<String, (u64, u64)>::new();
+		let mut balance_map = HashMap::<String, (u64, u64)>::new();
 
 		if !tx.is_coin_base() {
 			for (address, new_amount) in inputs.into_iter() {
-				if let Some(amounts) = tx_amount_map.get_mut(&address) {
+				if let Some(amounts) = balance_map.get_mut(&address) {
 					amounts.1 += new_amount;
 				} else {
-					tx_amount_map.insert(address, (0, new_amount));
+					balance_map.insert(address, (0, new_amount));
 				}
 			}
 		}
 
 		for (address, new_amount) in outputs.into_iter() {
-			if let Some(amounts) = tx_amount_map.get_mut(&address) {
+			if let Some(amounts) = balance_map.get_mut(&address) {
 				amounts.0 += new_amount;
 			} else {
-				tx_amount_map.insert(address, (new_amount, 0));
+				balance_map.insert(address, (new_amount, 0));
 			}
 		}
 
 		let tx_hash = tx.txid().as_hash().to_string();
 
-		for (address, (amount_in, amount_out)) in tx_amount_map.into_iter() {
-			ret.tx_amounts.insert(TxAmount::new(
+		for (address, (amount_in, amount_out)) in balance_map.into_iter() {
+			ret.balances.insert(Balance::new(
 				self.get_id(),
 				self.network_id,
 				block_height,

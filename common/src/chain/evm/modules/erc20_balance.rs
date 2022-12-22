@@ -11,15 +11,15 @@ use crate::{
 		evm::{modules::EvmModuleTrait, EvmTopic},
 		Evm, ModuleTrait, WarehouseData, U256,
 	},
-	models::{PrimaryId, Transfer},
+	models::{Balance, PrimaryId},
 	BlockHeight, ChainModuleId,
 };
 
-pub struct EvmErc20Transfer {
+pub struct EvmErc20Balance {
 	network_id: PrimaryId,
 }
 
-impl ModuleTrait for EvmErc20Transfer {
+impl ModuleTrait for EvmErc20Balance {
 	fn new(network_id: PrimaryId) -> Self
 	where
 		Self: Sized,
@@ -28,12 +28,12 @@ impl ModuleTrait for EvmErc20Transfer {
 	}
 
 	fn get_id(&self) -> ChainModuleId {
-		ChainModuleId::EvmErc20Transfer
+		ChainModuleId::EvmErc20Balance
 	}
 }
 
 #[async_trait]
-impl EvmModuleTrait for EvmErc20Transfer {
+impl EvmModuleTrait for EvmErc20Balance {
 	async fn run(
 		&self,
 		evm: &Evm,
@@ -55,16 +55,26 @@ impl EvmModuleTrait for EvmErc20Transfer {
 			// process erc20 `transfer` event
 			match evm.get_topic(&log)? {
 				EvmTopic::Erc20Transfer(from, to, amount) if amount > U256::zero() => {
-					ret.transfers.insert(Transfer::new(
+					ret.balances.insert(Balance::new(
 						self.get_id(),
 						self.network_id,
 						block_height,
 						tx.hash.encode_hex(),
 						utils::to_checksum(&from, None),
+						Some(utils::to_checksum(&log.address, None)),
+						U256::zero(),
+						amount,
+						block_time,
+					));
+					ret.balances.insert(Balance::new(
+						self.get_id(),
+						self.network_id,
+						block_height,
+						tx.hash.encode_hex(),
 						utils::to_checksum(&to, None),
 						Some(utils::to_checksum(&log.address, None)),
 						amount,
-						amount,
+						U256::zero(),
 						block_time,
 					));
 				}

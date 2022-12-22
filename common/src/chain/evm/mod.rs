@@ -1,8 +1,9 @@
 use async_trait::async_trait;
 use ethers::{
 	self,
+	abi::AbiDecode,
 	prelude::*,
-	types::{Transaction, TransactionReceipt},
+	types::{Address, Log, Transaction, TransactionReceipt, U256, U64},
 	utils::hex::ToHex,
 };
 use eyre::Result;
@@ -15,14 +16,14 @@ use crate::{
 	models::Network,
 	utils, BlockHeight, Cache, ChainModuleId, RateLimiter,
 };
-use modules::{EvmErc20Transfer, EvmModuleTrait, EvmTransfer};
+use modules::{EvmBalance, EvmErc20Balance, EvmErc20Transfer, EvmModuleTrait, EvmTransfer};
 
 mod modules;
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum EvmTopic {
 	Unknown,
-	Erc20Transfer,
+	Erc20Transfer(Address, Address, U256),
 }
 
 pub struct Evm {
@@ -84,7 +85,12 @@ impl ChainTrait for Evm {
 	}
 
 	fn get_module_ids(&self) -> Vec<ChainModuleId> {
-		vec![ChainModuleId::EvmTransfer, ChainModuleId::EvmErc20Transfer]
+		vec![
+			ChainModuleId::EvmTransfer,
+			ChainModuleId::EvmBalance,
+			ChainModuleId::EvmErc20Transfer,
+			ChainModuleId::EvmErc20Balance,
+		]
 	}
 
 	fn get_rate_limiter(&self) -> Option<Arc<RateLimiter>> {
@@ -92,10 +98,13 @@ impl ChainTrait for Evm {
 	}
 
 	fn format_address(&self, address: &str) -> String {
-		match address[2..].parse() {
-			Ok(parsed_address) => ethers::utils::to_checksum(&parsed_address, None),
-			_ => address.to_string(),
+		if address.len() > 2 {
+			if let Ok(parsed_address) = address[2..].parse() {
+				return ethers::utils::to_checksum(&parsed_address, None);
+			}
 		}
+
+		address.to_string()
 	}
 
 	async fn get_block_height(&self) -> Result<BlockHeight> {
@@ -125,6 +134,14 @@ impl ChainTrait for Evm {
 					// process tx only if receipt exists
 					self.rate_limit().await;
 					if let Some(receipt) = provider.get_transaction_receipt(tx.hash()).await? {
+						// skip if tx reverted
+						if let Some(status) = receipt.status {
+							if status == U64::zero() {
+								continue;
+							}
+						}
+
+						// process tx
 						warehouse_data += self
 							.process_transaction(
 								block_height,
@@ -159,7 +176,9 @@ impl Evm {
 
 		let mut modules: Vec<Box<dyn EvmModuleTrait>> = vec![
 			Box::new(EvmTransfer::new(self.network.network_id)),
+			Box::new(EvmBalance::new(self.network.network_id)),
 			Box::new(EvmErc20Transfer::new(self.network.network_id)),
+			Box::new(EvmErc20Balance::new(self.network.network_id)),
 		];
 
 		modules.retain(|m| mods.contains(&m.get_id()));
@@ -189,12 +208,18 @@ impl Evm {
 		})
 	}
 
-	fn get_topic(&self, topic: &H256) -> EvmTopic {
-		match topic.encode_hex::<String>().as_str() {
-			"ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef" => {
-				EvmTopic::Erc20Transfer
-			}
-			_ => EvmTopic::Unknown,
+	fn get_topic(&self, log: &Log) -> Result<EvmTopic> {
+		if log.topics.len() == 3 &&
+			log.topics[0].encode_hex::<String>() ==
+				*"ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
+		{
+			let from = Address::from(log.topics[1]);
+			let to = Address::from(log.topics[2]);
+			let amount = U256::decode(log.data.clone()).unwrap_or_default();
+
+			return Ok(EvmTopic::Erc20Transfer(from, to, amount));
 		}
+
+		Ok(EvmTopic::Unknown)
 	}
 }

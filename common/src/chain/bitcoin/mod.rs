@@ -15,7 +15,7 @@ use crate::{
 	utils, BlockHeight, Cache, ChainModuleId, RateLimiter,
 };
 use client::{Auth, Client};
-use modules::{BitcoinCoinbase, BitcoinLink, BitcoinModuleTrait, BitcoinTransfer, BitcoinTxAmount};
+use modules::{BitcoinBalance, BitcoinCoinbase, BitcoinLink, BitcoinModuleTrait, BitcoinTransfer};
 
 mod client;
 mod modules;
@@ -93,7 +93,7 @@ impl ChainTrait for Bitcoin {
 	fn get_module_ids(&self) -> Vec<ChainModuleId> {
 		vec![
 			ChainModuleId::BitcoinTransfer,
-			ChainModuleId::BitcoinTxAmount,
+			ChainModuleId::BitcoinBalance,
 			ChainModuleId::BitcoinLink,
 			ChainModuleId::BitcoinCoinbase,
 		]
@@ -154,7 +154,7 @@ impl Bitcoin {
 
 		let mut modules: Vec<Box<dyn BitcoinModuleTrait>> = vec![
 			Box::new(BitcoinTransfer::new(self.network.network_id)),
-			Box::new(BitcoinTxAmount::new(self.network.network_id)),
+			Box::new(BitcoinBalance::new(self.network.network_id)),
 			Box::new(BitcoinLink::new(self.network.network_id)),
 			Box::new(BitcoinCoinbase::new(self.network.network_id)),
 		];

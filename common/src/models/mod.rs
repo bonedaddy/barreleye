@@ -11,22 +11,22 @@ pub use self::config::{Config, ConfigKey};
 use crate::{utils, Db};
 pub use amount::Amount;
 pub use api_key::{ApiKey, ApiKeyActiveModel};
+pub use balance::Balance;
 pub use label::{Label, LabelActiveModel};
 pub use labeled_address::{LabeledAddress, LabeledAddressActiveModel};
 pub use link::{Link, Reason as LinkReason};
 pub use network::{Network, NetworkActiveModel};
 pub use transfer::Transfer;
-pub use tx_amount::TxAmount;
 
 pub mod amount;
 pub mod api_key;
+pub mod balance;
 pub mod config;
 pub mod label;
 pub mod labeled_address;
 pub mod link;
 pub mod network;
 pub mod transfer;
-pub mod tx_amount;
 
 // @TODO `https://github.com/SeaQL/sea-orm/issues/1068`
 pub type PrimaryId = i64;

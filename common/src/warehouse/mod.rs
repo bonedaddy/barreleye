@@ -89,7 +89,7 @@ impl Warehouse {
 			.client
 			.query(&format!(
 				r#"
-					CREATE TABLE IF NOT EXISTS {}.tx_amounts
+					CREATE TABLE IF NOT EXISTS {}.balances
 					(
 						module_id UInt16,
 						network_id UInt64,
@@ -131,7 +131,7 @@ impl Warehouse {
 					    address,
 					    asset_address,
 					    (amount_in - amount_out) as amount
-					FROM {}.tx_amounts
+					FROM {}.balances
 					GROUP BY (network_id, address, asset_address, amount_in, amount_out)
 				"#,
 				self.db_name, self.db_name,
