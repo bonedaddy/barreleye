@@ -1,8 +1,8 @@
-use config::{Config, Environment, File, FileFormat};
+use config::{Config, Environment, File};
 use directories::BaseDirs;
 use eyre::Result;
 use serde::Deserialize;
-use std::{fs, fs::OpenOptions, path::PathBuf};
+use std::{env::var, fs, fs::OpenOptions, path::PathBuf};
 use url::Url;
 
 use crate::{
@@ -92,28 +92,72 @@ pub struct Dsn {
 }
 
 impl Settings {
-	pub fn new() -> Result<Self> {
-		// create a blank file if doesn't exist
-		if OpenOptions::new().write(true).create_new(true).open(DEFAULT_SETTINGS_FILENAME).is_ok() {
-			fs::write(DEFAULT_SETTINGS_FILENAME, DEFAULT_SETTINGS_CONTENT.trim())?;
-		}
+	pub fn new(config_path: Option<String>) -> Result<Self> {
+		// figure out the config path
+		let config_path = {
+			let mut ret = None;
+
+			// try custom a config file (if provided)
+			if let Some(config_file) = config_path {
+				let try_config_file = PathBuf::from(config_file.clone());
+				if try_config_file.exists() {
+					ret = Some(try_config_file);
+				} else {
+					quit(AppError::MissingConfigFile { filename: config_file });
+				}
+			} else {
+				// load a few places to check and/or create
+				let mut paths = vec![];
+				if let Ok(manifest_dir) = var("CARGO_MANIFEST_DIR") {
+					paths.push(PathBuf::from(manifest_dir).join(DEFAULT_SETTINGS_FILENAME))
+				}
+				paths.push(std::env::current_exe()?.join(DEFAULT_SETTINGS_FILENAME));
+				if let Some(base_dir) = BaseDirs::new() {
+					paths.push(
+						PathBuf::from(base_dir.config_dir())
+							.join("barreleye")
+							.join(DEFAULT_SETTINGS_FILENAME),
+					);
+				}
+
+				// check if any of those paths exist
+				for path in paths.clone().into_iter() {
+					if path.exists() {
+						ret = Some(path);
+						break;
+					}
+				}
+
+				// if none found, try to create a default config
+				if ret.is_none() {
+					for path in paths.into_iter() {
+						if OpenOptions::new()
+							.write(true)
+							.create_new(true)
+							.open(path.clone())
+							.is_ok()
+						{
+							fs::write(path.clone(), DEFAULT_SETTINGS_CONTENT.trim())?;
+
+							ret = Some(path);
+							break;
+						}
+					}
+				}
+
+				// if still nothing, we failed
+				if ret.is_none() {
+					quit(AppError::DefaultConfigFile);
+				}
+			}
+
+			ret.unwrap()
+		};
 
 		// builder settings
-		let mut s = Config::builder()
-			.add_source(File::new(DEFAULT_SETTINGS_FILENAME, FileFormat::Toml).required(false));
-
-		if let Some(dir) = BaseDirs::new() {
-			s = s.add_source(
-				File::from(
-					PathBuf::from(dir.config_dir())
-						.join("barreleye")
-						.join(DEFAULT_SETTINGS_FILENAME),
-				)
-				.required(false),
-			);
-		}
-
-		s = s.add_source(Environment::with_prefix("BARRELEYE"));
+		let s = Config::builder()
+			.add_source(File::from(config_path).required(false))
+			.add_source(Environment::with_prefix("BARRELEYE"));
 
 		// try to create a struct
 		let settings: Settings = s.build()?.try_deserialize()?;

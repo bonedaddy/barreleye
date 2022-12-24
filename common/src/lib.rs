@@ -382,9 +382,10 @@ pub fn quit(app_error: AppError) {
 	println!("{} {}Shutting down…\n\n› {}", style("[err]").bold().dim(), EMOJI_QUIT, app_error,);
 
 	process::exit(match app_error {
-		AppError::SignalHandler => exitcode::OSERR,
-		AppError::ServerStartup { .. } => exitcode::OSERR,
-		AppError::InvalidPrimaryConfigs => exitcode::CONFIG,
+		AppError::SignalHandler | AppError::ServerStartup { .. } => exitcode::OSERR,
+		AppError::MissingConfigFile { .. } |
+		AppError::DefaultConfigFile |
+		AppError::InvalidPrimaryConfigs |
 		AppError::InvalidSetting { .. } => exitcode::CONFIG,
 		_ => exitcode::UNAVAILABLE,
 	});

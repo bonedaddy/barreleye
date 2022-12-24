@@ -21,14 +21,20 @@ async fn main() -> Result<()> {
 		.version(env!("CARGO_PKG_VERSION"))
 		.propagate_version(true)
 		.arg(arg!(-e --env <ENV> "Network types to connect to").value_parser(value_parser!(Env)))
+		.arg(
+			arg!(-c <CONFIG_PATH> "Custom configuration file path")
+				.long("config-path")
+				.id("config-path"),
+		)
 		.arg(arg!(--indexer "Run only indexer, without the server"))
 		.arg(arg!(--server "Run only server, without the indexer"))
-		.arg(arg!(-v --verbose "Show warnings and info"))
-		.arg(arg!(-p --plain "Hide ASCII banner"))
+		.arg(arg!(-v --verbose "Verbose mode"))
+		.arg(arg!(--bannerless "Hide ASCII banner"))
 		.get_matches();
 
 	let env = *matches.get_one("env").unwrap_or(&Env::Mainnet);
-	let skip_ascii = *matches.get_one("plain").unwrap_or(&false);
+	let config_path = matches.get_one::<String>("config-path").map(|s| s.to_string());
+	let skip_ascii = *matches.get_one("bannerless").unwrap_or(&false);
 	let verbosity = match *matches.get_one("verbose").unwrap_or(&false) {
 		true => Verbosity::Info,
 		_ => Verbosity::Silent,
@@ -48,7 +54,7 @@ async fn main() -> Result<()> {
 	let progress = Progress::new(is_indexer);
 	progress.show(ProgressStep::Setup);
 
-	let settings = Arc::new(Settings::new()?);
+	let settings = Arc::new(Settings::new(config_path)?);
 
 	let cache = Arc::new(RwLock::new(
 		Cache::new(settings.clone())

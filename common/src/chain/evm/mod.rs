@@ -218,24 +218,3 @@ impl Evm {
 		Ok(EvmTopic::Unknown)
 	}
 }
-
-#[cfg(test)]
-mod tests {
-	use super::*;
-	use crate::{Blockchain, Settings};
-	use futures::executor::block_on;
-
-	#[test]
-	fn test_format_address() {
-		let settings = Settings::new().unwrap();
-		let cache = Arc::new(RwLock::new(block_on(Cache::new(Arc::new(settings))).unwrap()));
-		let network = Network { blockchain: Blockchain::Evm, ..Default::default() };
-		let evm = Evm::new(cache, network);
-
-		assert_eq!(evm.format_address(""), "");
-		assert_eq!(
-			evm.format_address("0xd8da6bf26964af9d7eed9e03e53415d37aa96045"),
-			"0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045"
-		);
-	}
-}

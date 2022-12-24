@@ -270,24 +270,3 @@ impl Bitcoin {
 		!address.contains(':')
 	}
 }
-
-#[cfg(test)]
-mod tests {
-	use super::*;
-	use crate::{Blockchain, Settings};
-	use futures::executor::block_on;
-
-	#[test]
-	fn test_format_address() {
-		let settings = Settings::new().unwrap();
-		let cache = Arc::new(RwLock::new(block_on(Cache::new(Arc::new(settings))).unwrap()));
-		let network = Network { blockchain: Blockchain::Bitcoin, ..Default::default() };
-		let bitcoin = Bitcoin::new(cache, network);
-
-		assert_eq!(bitcoin.format_address(""), "");
-		assert_eq!(
-			bitcoin.format_address("12iAWCJdrX2n3A9q1XzpfFHDUeNGMSWWcR"),
-			"12iAWCJdrX2n3A9q1XzpfFHDUeNGMSWWcR"
-		);
-	}
-}

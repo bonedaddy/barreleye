@@ -7,4 +7,4 @@ RUN cargo build --release
 FROM debian:bookworm
 COPY --from=build /barreleye/target/release/barreleye .
 
-CMD ["./barreleye", "-pe", "localhost"]
+CMD ["./barreleye"]
