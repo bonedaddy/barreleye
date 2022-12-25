@@ -98,12 +98,12 @@ impl Settings {
 			let mut ret = None;
 
 			// try custom a config file (if provided)
-			if let Some(config_file) = config_path {
-				let try_config_file = PathBuf::from(config_file.clone());
-				if try_config_file.exists() {
-					ret = Some(try_config_file);
+			if let Some(filename) = config_path {
+				let try_filename = PathBuf::from(filename.clone());
+				if try_filename.exists() {
+					ret = Some(try_filename);
 				} else {
-					quit(AppError::MissingConfigFile { filename: config_file });
+					quit(AppError::MissingConfigFile { filename });
 				}
 			} else {
 				// load a few places to check and/or create

@@ -50,6 +50,7 @@ pub async fn handler(
 	if !all_amounts.is_empty() {
 		let mut all_network_ids =
 			all_amounts.iter().map(|a| a.network_id as PrimaryId).collect::<Vec<PrimaryId>>();
+
 		all_network_ids.sort_unstable();
 		all_network_ids.dedup();
 

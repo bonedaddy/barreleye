@@ -1,5 +1,5 @@
 use chrono::NaiveDateTime;
-use clap::{builder, ValueEnum};
+use clap::{builder::PossibleValue, ValueEnum};
 use console::{style, Emoji};
 use derive_more::Display;
 use eyre::{bail, eyre, Result};
@@ -345,11 +345,11 @@ impl ValueEnum for Env {
 		&[Self::Localhost, Self::Testnet, Self::Mainnet]
 	}
 
-	fn to_possible_value<'a>(&self) -> Option<builder::PossibleValue> {
+	fn to_possible_value<'a>(&self) -> Option<PossibleValue> {
 		match self {
-			Self::Localhost => Some(builder::PossibleValue::new("localhost")),
-			Self::Testnet => Some(builder::PossibleValue::new("testnet")),
-			Self::Mainnet => Some(builder::PossibleValue::new("mainnet")),
+			Self::Localhost => Some(PossibleValue::new("localhost")),
+			Self::Testnet => Some(PossibleValue::new("testnet")),
+			Self::Mainnet => Some(PossibleValue::new("mainnet")),
 		}
 	}
 }
