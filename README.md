@@ -1,6 +1,6 @@
 # Barreleye
 
-![Github Actions](https://github.com/barreleye/barreleye/workflows/tests/badge.svg)
+[![Github Actions](https://github.com/barreleye/barreleye/workflows/tests/badge.svg)](https://github.com/barreleye/barreleye/actions)
 [![dependency status](https://deps.rs/repo/github/barreleye/barreleye/status.svg)](https://deps.rs/repo/github/barreleye/barreleye)
 ![linux platform](https://img.shields.io/badge/Platform-Linux%2C%20macOS%2C%20ARM-green.svg?style=flat)
 [![License: MPL 2.0](https://img.shields.io/badge/License-MPL_2.0-brightgreen.svg)](/LICENSE)
@@ -31,7 +31,7 @@ cargo run
 
 Notes:
 
-- A default config file will be generated on first run. Optionally, rename `barreleye.sample.toml` to `barreleye.toml`
+- A default config file will be generated on the first run. Optionally, rename `barreleye.sample.toml` to `barreleye.toml`
 
 - [Clickhouse](https://github.com/ClickHouse/ClickHouse) is a requirement for warehouse storage. Default config settings point to a local installation
 

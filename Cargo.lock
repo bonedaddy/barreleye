@@ -287,7 +287,7 @@ dependencies = [
  "chrono",
  "clap 4.0.32",
  "color-eyre",
- "console 0.15.3",
+ "console 0.15.4",
  "eyre",
  "fern",
  "log",
@@ -309,7 +309,7 @@ dependencies = [
  "clap 4.0.32",
  "clickhouse",
  "config",
- "console 0.15.3",
+ "console 0.15.4",
  "derive_more",
  "directories",
  "ethers",
@@ -343,7 +343,7 @@ dependencies = [
  "base64 0.20.0",
  "bitcoin",
  "bitcoincore-rpc-json",
- "console 0.15.3",
+ "console 0.15.4",
  "eyre",
  "governor",
  "num-format",
@@ -362,7 +362,7 @@ version = "0.0.1"
 dependencies = [
  "axum",
  "barreleye-common",
- "console 0.15.3",
+ "console 0.15.4",
  "derive_more",
  "eyre",
  "hyper",
@@ -1076,9 +1076,9 @@ dependencies = [
 
 [[package]]
 name = "console"
-version = "0.15.3"
+version = "0.15.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5556015fe3aad8b968e5d4124980fbe2f6aaee7aeec6b749de1faaa2ca5d0a4c"
+checksum = "c9b6515d269224923b26b5febea2ed42b2d5f2ce37284a4dd670fedd6cb8347a"
 dependencies = [
  "encode_unicode",
  "lazy_static",
@@ -2524,7 +2524,7 @@ version = "0.16.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2d207dc617c7a380ab07ff572a6e52fa202a2a8f355860ac9c38e23f8196be1b"
 dependencies = [
- "console 0.15.3",
+ "console 0.15.4",
  "lazy_static",
  "number_prefix",
  "regex",
@@ -2536,7 +2536,7 @@ version = "0.17.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4295cbb7573c16d310e99e713cf9e75101eb190ab31fccd35f2d2691b4352b19"
 dependencies = [
- "console 0.15.3",
+ "console 0.15.4",
  "number_prefix",
  "portable-atomic",
  "unicode-width",

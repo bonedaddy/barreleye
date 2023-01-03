@@ -18,7 +18,7 @@ indicatif = "0.17.2"
 serde_json = "1.0.91"
 chrono = { version = "0.4.23", default-features = false, features = ["clock", "std"] }
 url = "2.3.1"
-console = "0.15.3"
+console = "0.15.4"
 exitcode = "1.1.2"
 bitcoin = "0.29.2"
 directories = "4.0.1"
