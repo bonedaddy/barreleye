@@ -115,7 +115,7 @@ curl -i -X POST \
 
 ## Contributing
 
-See [CONTRIBUTING](/CONTRIBUTING).
+See [CONTRIBUTING](/CONTRIBUTING.md).
 
 Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
 
