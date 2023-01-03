@@ -1,6 +1,6 @@
 [package]
 name = "barreleye"
-description = "Self-hosted, multi-chain customer analytics & insights for businesses handling digital assets."
+description = "Open-source blockchain analytics tool for the new web."
 homepage = "https://barreleye.com"
 version = "0.0.1"
 license = "MPL-2.0"
