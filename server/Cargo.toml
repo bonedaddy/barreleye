@@ -1,5 +1,9 @@
 [package]
 name = "barreleye-server"
+description = "Open-source blockchain analytics tool."
+repository = "https://github.com/barreleye/barreleye"
+documentation = "https://docs.rs/barreleye"
+homepage = "https://barreleye.com"
 version = "0.0.1"
 license = "MPL-2.0"
 edition = "2021"
