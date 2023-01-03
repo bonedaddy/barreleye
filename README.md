@@ -18,7 +18,7 @@ Barreleye is an open-source, multi-chain blockchain analytics tool. It's goal is
 
 3. What other wallets might be related?
 
-🚧 This is an actively developed work-in-progress and not yet ready for production. Use at your own risk
+**Note:** This is an actively developed work-in-progress and not yet ready for production. Use at your own risk
 
 ## Try
 
@@ -93,6 +93,21 @@ curl -i -X POST \
   }' \
   http://localhost:22775/v0/networks
 ```
+
+## MVP Todos
+
+🚧 This project is a work-in-progress and not ready for prod use. Most APIs are under "v0/" and crate versions are "v0.x.x". A quick glance at the current todos:
+
+- [x] Basic indexing for Bitcoin and EVM-based chains
+- [x] v0/networks
+- [x] v0/addresses
+- [x] v0/labels
+- [x] v0/keys
+- [x] v0/heartbeat
+- [x] Basic v0/stats
+- [x] Minimal v0/assets
+- [ ] Minimal v0/upstream
+- [ ] Minimal v0/related
 
 ## Random Notes
 
