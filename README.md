@@ -1,12 +1,12 @@
 # Barreleye
 
 [![Github Actions](https://img.shields.io/github/actions/workflow/status/barreleye/barreleye/tests.yml)](https://github.com/barreleye/barreleye/actions)
-[![dependency status](https://deps.rs/repo/github/barreleye/barreleye/status.svg)](https://deps.rs/repo/github/barreleye/barreleye)
-![MSRV](https://img.shields.io/badge/rustc-1.65+-ab6000.svg)
+[![Dependency Status](https://deps.rs/repo/github/barreleye/barreleye/status.svg)](https://deps.rs/repo/github/barreleye/barreleye)
+[![Crates.io](https://img.shields.io/crates/v/barreleye.svg)](https://crates.io/crates/barreleye)
 [![License: MPL 2.0](https://img.shields.io/github/license/barreleye/barreleye)](/LICENSE)
-[![contributions - welcome](https://img.shields.io/badge/contributions-welcome-blue)](/CONTRIBUTING.md "Go to contributions doc")
-[![discord](https://img.shields.io/discord/1026664296861679646?label=discord&logo=discord&color=0abd59)](https://discord.gg/VX8PdWSwNZ)
-[![twitter](https://img.shields.io/twitter/follow/BarreleyeLabs?style=social)](https://twitter.com/BarreleyeLabs)
+[![Contributions - welcome](https://img.shields.io/badge/contributions-welcome-blue)](/CONTRIBUTING.md "Go to contributions doc")
+[![Discord](https://img.shields.io/discord/1026664296861679646?label=discord&logo=discord&color=0abd59)](https://discord.gg/VX8PdWSwNZ)
+[![Twitter](https://img.shields.io/twitter/follow/BarreleyeLabs?style=social)](https://twitter.com/BarreleyeLabs)
 
 ## What is Barreleye?
 
@@ -22,12 +22,21 @@ Barreleye is an open-source, multi-chain blockchain analytics tool. It's goal is
 
 ## Try
 
+### Via package manager
+
+```bash
+cargo install barreleye
+barreleye --help
+```
+
+### From source
+
 Requires Rust 1.65.0+:
 
 ```bash
 git clone https://github.com/barreleye/barreleye
 cd barreleye
-cargo run
+cargo run -- --help
 ```
 
 Notes:
