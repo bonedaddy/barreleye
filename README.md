@@ -1,11 +1,12 @@
 # Barreleye
 
-[![Github Actions](https://github.com/barreleye/barreleye/workflows/tests/badge.svg)](https://github.com/barreleye/barreleye/actions)
+[![Github Actions](https://img.shields.io/github/actions/workflow/status/barreleye/barreleye/tests.yml)](https://github.com/barreleye/barreleye/actions)
 [![dependency status](https://deps.rs/repo/github/barreleye/barreleye/status.svg)](https://deps.rs/repo/github/barreleye/barreleye)
-![linux platform](https://img.shields.io/badge/Platform-Linux%2C%20macOS%2C%20ARM-green.svg?style=flat)
-[![License: MPL 2.0](https://img.shields.io/badge/License-MPL_2.0-brightgreen.svg)](/LICENSE)
-[![discord](https://img.shields.io/discord/1026664296861679646?label=discord&logo=discord&color=0abd59)](https://discord.gg/VX8PdWSwNZ)
+[![License: MPL 2.0](https://img.shields.io/github/license/barreleye/barreleye)](/LICENSE)
 [![contributions - welcome](https://img.shields.io/badge/contributions-welcome-blue)](/CONTRIBUTING.md "Go to contributions doc")
+
+[![discord](https://img.shields.io/discord/1026664296861679646?label=discord&logo=discord&color=0abd59)](https://discord.gg/VX8PdWSwNZ)
+[![twitter](https://img.shields.io/twitter/follow/BarreleyeLabs?style=social)](https://twitter.com/BarreleyeLabs)
 
 ## What is Barreleye?
 
