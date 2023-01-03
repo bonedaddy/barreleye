@@ -2,32 +2,50 @@
 
 ![Github Actions](https://github.com/barreleye/barreleye/workflows/tests/badge.svg)
 [![dependency status](https://deps.rs/repo/github/barreleye/barreleye/status.svg)](https://deps.rs/repo/github/barreleye/barreleye)
+![linux platform](https://img.shields.io/badge/Platform-Linux%2C%20macOS%2C%20ARM-green.svg?style=flat)
+[![License: MPL 2.0](https://img.shields.io/badge/License-MPL_2.0-brightgreen.svg)](/LICENSE)
+[![discord](https://img.shields.io/discord/1026664296861679646?label=discord&logo=discord&color=0abd59)](https://discord.gg/VX8PdWSwNZ)
+[![contributions - welcome](https://img.shields.io/badge/contributions-welcome-blue)](/CONTRIBUTING.md "Go to contributions doc")
 
-Self-hosted, multi-chain customer analytics & insights for businesses handling digital assets.
+## What is Barreleye?
 
-This is a work-in-progress and not ready for production 🚧
+Barreleye is an open-source, multi-chain blockchain analytics tool. It's goal is to help answer the following questions:
 
-## Setup (dev)
+1. What assets does an address hold?
 
-Requires [Clickhouse](https://github.com/ClickHouse/ClickHouse) running locally.
+2. Where did these assets come from?
 
-Database defaults to [SQLite](https://www.sqlite.org/) ([PostgreSQL](https://www.postgresql.org/) and [MySQL](https://www.mysql.com/) are also supported).
+3. What other wallets might be related?
 
-Cache defaults to [RocksDB](https://rocksdb.org/).
+**Note:** This is an actively developed work-in-progress and not yet ready for production 🚧
+
+## Try Barreleye
+
+Requires Rust 1.65.0+:
 
 ```bash
+git clone https://github.com/barreleye/barreleye
+cd barreleye
 cargo run
 ```
 
+Notes:
+
+- A default config file will be generated on first run. Optionally, rename `barreleye.sample.toml` to `barreleye.toml`
+
+- [Clickhouse](https://github.com/ClickHouse/ClickHouse) is a requirement for warehouse storage. Default config settings point to a local installation
+
+- Out of the box Barreleye is configured to use [SQLite](https://www.sqlite.org/) ([MySQL](https://www.mysql.com/) and [PostgreSQL](https://www.postgresql.org/) are also supported).
+
 ## Add networks
 
-A default API key is created on the first run, so to get it:
+A default API key is generated on the first run, so to get it:
 
 ```sql
 select uuid from api_keys;
 ```
 
-Add Bitcoin:
+Add a Bitcoin RPC node:
 
 ```bash
 curl -i -X POST \
@@ -46,7 +64,7 @@ curl -i -X POST \
   http://localhost:22775/v0/networks
 ```
 
-Add Ethereum:
+Add an Ethereum RPC node:
 
 ```bash
 curl -i -X POST \
