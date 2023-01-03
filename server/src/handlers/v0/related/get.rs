@@ -6,10 +6,10 @@ use crate::ServerResult;
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Response {
-	related: bool,
+	wip: bool,
 }
 
 pub async fn handler() -> ServerResult<Json<Response>> {
-	let response = Response { related: true };
+	let response = Response { wip: true };
 	Ok(response.into())
 }
