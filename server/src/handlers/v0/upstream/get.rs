@@ -3,12 +3,12 @@ use axum::{
 	Json,
 };
 use serde::{Deserialize, Serialize};
-use std::{str::FromStr, sync::Arc};
+use std::sync::Arc;
 
 use crate::{App, ServerResult};
 use barreleye_common::{
 	models::{BasicModel, Label, LabeledAddress},
-	LabelId, Risk,
+	Risk,
 };
 
 #[derive(Deserialize)]
@@ -39,12 +39,6 @@ pub async fn handler(
 	if let Some(labeled_address) = LabeledAddress::get_by_address(&app.db, &payload.address).await?
 	{
 		let label = Label::get(&app.db, labeled_address.label_id).await?.unwrap();
-
-		match LabelId::from_str(&label.id) {
-			Ok(LabelId::Ofac) => response.risk = Risk::Severe,
-			Ok(LabelId::Ofsi) => response.risk = Risk::Severe,
-			_ => {}
-		}
 
 		response.label_ids.push(label.id.clone());
 		response.labels.push(label);

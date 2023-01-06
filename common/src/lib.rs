@@ -16,7 +16,6 @@ use serde::{Deserialize, Serialize};
 use std::{
 	collections::HashMap,
 	process,
-	str::FromStr,
 	sync::{
 		atomic::{AtomicBool, Ordering},
 		Arc,
@@ -305,25 +304,6 @@ pub enum IdPrefix {
 	Label,
 	#[display(fmt = "lab_adr")]
 	LabeledAddress,
-}
-
-#[derive(Display, Debug, PartialEq, Eq)]
-pub enum LabelId {
-	#[display(fmt = "lab_ofac")]
-	Ofac,
-	#[display(fmt = "lab_ofsi")]
-	Ofsi,
-}
-
-impl FromStr for LabelId {
-	type Err = ();
-	fn from_str(id: &str) -> Result<LabelId, Self::Err> {
-		match id {
-			"lab_ofac" => Ok(LabelId::Ofac),
-			"lab_ofsi" => Ok(LabelId::Ofsi),
-			_ => Err(()),
-		}
-	}
 }
 
 #[derive(

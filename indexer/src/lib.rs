@@ -7,10 +7,8 @@ use tokio::sync::{
 
 use barreleye_common::{chain::WarehouseData, models::ConfigKey};
 pub use indexer::Indexer;
-pub use lists::Lists;
 
 mod indexer;
-mod lists;
 
 pub struct Pipe {
 	config_key: ConfigKey,

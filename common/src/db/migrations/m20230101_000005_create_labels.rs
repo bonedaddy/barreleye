@@ -1,8 +1,6 @@
 use async_trait::async_trait;
 use sea_orm_migration::prelude::*;
 
-use crate::LabelId;
-
 #[derive(DeriveMigrationName)]
 pub struct Migration;
 
@@ -33,36 +31,6 @@ impl MigrationTrait for Migration {
 							.not_null()
 							.extra("DEFAULT CURRENT_TIMESTAMP".to_owned()),
 					)
-					.to_owned(),
-			)
-			.await?;
-
-		manager
-			.exec_stmt(
-				Query::insert()
-					.into_table(Labels::Table)
-					.columns([
-						Labels::Id,
-						Labels::Name,
-						Labels::IsEnabled,
-						Labels::IsHardcoded,
-						Labels::IsTracked,
-					])
-					.values_panic([
-						LabelId::Ofac.to_string().into(),
-						"OFAC".into(),
-						true.into(),
-						true.into(),
-						true.into(),
-					])
-					.values_panic([
-						LabelId::Ofsi.to_string().into(),
-						"OFSI".into(),
-						true.into(),
-						true.into(),
-						true.into(),
-					])
-					.on_conflict(OnConflict::columns([Labels::Id]).do_nothing().to_owned())
 					.to_owned(),
 			)
 			.await

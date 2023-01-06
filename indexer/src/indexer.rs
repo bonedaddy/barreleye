@@ -17,7 +17,7 @@ use tokio::{
 };
 use uuid::Uuid;
 
-use crate::{Lists, Pipe};
+use crate::Pipe;
 use barreleye_common::{
 	chain::{ModuleId, WarehouseData},
 	models::{Config, ConfigKey, PrimaryId},
@@ -57,11 +57,8 @@ impl Indexer {
 			progress.show(ProgressStep::Ready(ProgressReadyType::Indexer, warnings));
 		}
 
-		let lists = Lists::new(self.app.clone());
-
 		tokio::select! {
 			_ = signal::ctrl_c() => Ok(()),
-			v = lists.start_watching() => v,
 			v = self.start_primary_check() => v,
 			v = self.start_indexing() => {
 				if v.is_err() {
