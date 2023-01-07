@@ -12,7 +12,6 @@ use crate::{
 
 pub static DEFAULT_SETTINGS_FILENAME: &str = "barreleye.toml";
 pub static DEFAULT_SETTINGS_CONTENT: &str = r#"
-sdn_refresh_rate = 3600 # in seconds
 primary_ping = 2 # in seconds
 primary_promotion = 20 # in seconds
 
@@ -45,7 +44,6 @@ clickhouse = "" # eg: "http://USERNAME[:PASSWORD]@localhost:8123/database"
 
 #[derive(Debug, Deserialize)]
 pub struct Settings {
-	pub sdn_refresh_rate: u64,
 	pub primary_ping: u64,
 	pub primary_promotion: u64,
 	pub server: Server,

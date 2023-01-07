@@ -10,7 +10,7 @@ edition = "2021"
 workspace = ".."
 
 [dependencies]
-async-trait = "0.1.60"
+async-trait = "0.1.61"
 eyre = "0.6.8"
 sea-orm-migration = "0.10.6"
 nanoid = "0.4.0"

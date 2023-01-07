@@ -1,4 +1,3 @@
-sdn_refresh_rate = 3600 # in seconds
 primary_ping = 2 # in seconds
 primary_promotion = 20 # in seconds
 
