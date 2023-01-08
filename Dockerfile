@@ -1,4 +1,4 @@
-FROM rust:1.64 as build
+FROM rust:1.65 as build
 RUN USER=root cargo new --bin barreleye
 WORKDIR /barreleye
 COPY ./ ./

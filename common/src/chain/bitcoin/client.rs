@@ -1,3 +1,4 @@
+use base64::{engine::general_purpose, Engine as _};
 use bitcoin::{Block, BlockHash, Transaction, Txid};
 use bitcoincore_rpc_json::{
 	bitcoin::{
@@ -108,7 +109,7 @@ impl Client {
 		let mut req = client.post(&self.url);
 
 		if let Auth::UserPass(username, password) = &self.auth {
-			let token = base64::encode(format!("{username}:{password}"));
+			let token = general_purpose::STANDARD.encode(format!("{username}:{password}"));
 			req = req.header(AUTHORIZATION, format!("Basic {token}"));
 		}
 

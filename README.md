@@ -1,22 +1,22 @@
 # Barreleye
 
-[![Github Actions](https://img.shields.io/github/actions/workflow/status/barreleye/barreleye/tests.yml)](https://github.com/barreleye/barreleye/actions)
-[![Dependency Status](https://deps.rs/repo/github/barreleye/barreleye/status.svg)](https://deps.rs/repo/github/barreleye/barreleye)
-[![Crates.io](https://img.shields.io/crates/v/barreleye.svg)](https://crates.io/crates/barreleye)
-[![License: MPL 2.0](https://img.shields.io/github/license/barreleye/barreleye)](/LICENSE)
-[![Contributions - welcome](https://img.shields.io/badge/contributions-welcome-blue)](/CONTRIBUTING.md "Go to contributions doc")
-[![Discord](https://img.shields.io/discord/1026664296861679646?label=discord&logo=discord&color=0abd59)](https://discord.gg/VX8PdWSwNZ)
-[![Twitter](https://img.shields.io/twitter/follow/BarreleyeLabs?style=social)](https://twitter.com/BarreleyeLabs)
+[![Github Actions](https://img.shields.io/github/actions/workflow/status/barreleye/barreleye/tests.yml?style=flat-square)](https://github.com/barreleye/barreleye/actions)
+[![Dependency Status](https://deps.rs/repo/github/barreleye/barreleye/status.svg?style=flat-square)](https://deps.rs/repo/github/barreleye/barreleye)
+[![Crates.io](https://img.shields.io/crates/v/barreleye?color=brightgreen&style=flat-square)](https://crates.io/crates/barreleye)
+[![Downloads](https://img.shields.io/crates/d/barreleye?color=brightgreen&style=flat-square)](https://crates.io/crates/barreleye)
+[![License](https://img.shields.io/github/license/barreleye/barreleye?color=blue&style=flat-square)](/LICENSE)
+[![Contributions](https://img.shields.io/badge/contributions-welcome-ff69b4?style=flat-square)](/CONTRIBUTING.md "Go to contributions doc")
+![Activity](https://img.shields.io/github/commit-activity/m/barreleye/barreleye?style=flat-square)
+[![Discord](https://img.shields.io/discord/1026664296861679646?style=flat-square&color=blue)](https://discord.gg/VX8PdWSwNZ)
+[![Twitter](https://img.shields.io/twitter/follow/barreleyelabs?color=blue&style=flat-square)](https://twitter.com/BarreleyeLabs)
 
 ## What is Barreleye?
 
 Barreleye is an open-source, multi-chain blockchain analytics tool. It's goal is to help answer the following questions:
 
 1. What assets does an address hold?
-
-2. Where did these assets come from?
-
-3. What other wallets might be related?
+1. Where did these assets come from?
+1. What other wallets might be related?
 
 **Note:** This is an actively developed work-in-progress and not yet ready for production. Use at your own risk
 
@@ -108,26 +108,32 @@ curl -i -X POST \
 🚧 This project is a work-in-progress and not ready for prod use. Most APIs are under "v0/" and crate versions are "v0.x.x". A quick glance at the current todos:
 
 - [x] Basic indexing for Bitcoin and EVM-based chains
-- [x] v0/networks
-- [x] v0/addresses
-- [x] v0/labels
-- [x] v0/keys
-- [x] v0/heartbeat
-- [x] Basic v0/stats
-- [x] Minimal v0/assets
-- [ ] Minimal v0/upstream
-- [ ] Minimal v0/related
+- [x] `v0/networks` handler
+- [x] `v0/addresses` handler
+- [x] `v0/labels` handler
+- [x] `v0/keys` handler
+- [x] `v0/heartbeat` handler
+- [x] Basic `v0/stats` handler
+- [x] Minimal `v0/assets` handler
+- [ ] Minimal `v0/upstream` handler
+- [ ] Minimal `v0/related` handler
 
 ## Random Notes
 
 - For indexing, you might have to set Clickhouse's `max_server_memory_usage_to_ram_ratio` to `2`. [Read more](https://github.com/ClickHouse/ClickHouse/issues/17631)
 
-## Contributing
+## Get Involved
 
-See [CONTRIBUTING](/CONTRIBUTING.md).
+To stay in touch with Barreleye:
 
-Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
+- Star this repo ★
+- Follow on [Twitter](https://twitter.com/BarreleyeLabs)
+- Join on [Discord](https://discord.gg/VX8PdWSwNZ)
+- [Contribute](/CONTRIBUTING.md) -- pull requests are welcome (for major changes, please open an issue first to discuss what you would like to change)
 
 ## License
 
-Mozilla Public License 2.0 ([LICENSE](LICENSE) or <https://opensource.org/licenses/MPL-2.0>)
+Source code for Barreleye is variously licensed under a number of different licenses. A copy of each license can be found in [each repository](https://github.com/barreleye).
+
+- Libraries and SDKs, each located in its own distinct repository, are released under either the [Apache License 2.0](https://opensource.org/licenses/Apache-2.0) or [MIT License](https://opensource.org/licenses/MIT).
+- Core code for Barreleye, located in [this repository](https://github.com/barreleye/barreleye), is released under the [GNU Affero General Public License 3.0](/LICENSE).
