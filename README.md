@@ -120,7 +120,8 @@ curl -i -X POST \
 
 ## Random Notes
 
-- For indexing, you might have to set Clickhouse's `max_server_memory_usage_to_ram_ratio` to `2`. [Read more](https://github.com/ClickHouse/ClickHouse/issues/17631)
+- For indexing, you might have to set Clickhouse's `max_server_memory_usage_to_ram_ratio` to `2` ([read more](https://github.com/ClickHouse/ClickHouse/issues/17631))
+- Warehouse's `experimental_relations` table (along with modules) is not accurate and should not be relied on right now
 
 ## Get Involved
 

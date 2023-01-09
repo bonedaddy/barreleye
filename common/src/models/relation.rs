@@ -9,7 +9,8 @@ static TABLE: &str = "experimental_relations";
 
 #[repr(u16)]
 pub enum Reason {
-	PossibleSelfTransfer = 1,
+	WholeBalanceTransfer = 1,
+	NoChangeInUtxo = 2,
 }
 
 #[derive(PartialEq, Eq, Hash, Debug, Clone, Row, Serialize, Deserialize)]

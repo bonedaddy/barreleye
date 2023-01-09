@@ -9,22 +9,22 @@ use crate::{
 	BlockHeight,
 };
 
-pub struct BitcoinRelation {
+pub struct BitcoinRelationNoChange {
 	network_id: PrimaryId,
 }
 
-impl ModuleTrait for BitcoinRelation {
+impl ModuleTrait for BitcoinRelationNoChange {
 	fn new(network_id: PrimaryId) -> Self {
 		Self { network_id }
 	}
 
 	fn get_id(&self) -> ModuleId {
-		ModuleId::BitcoinRelation
+		ModuleId::BitcoinRelationNoChange
 	}
 }
 
 #[async_trait]
-impl BitcoinModuleTrait for BitcoinRelation {
+impl BitcoinModuleTrait for BitcoinRelationNoChange {
 	async fn run(
 		&self,
 		bitcoin: &Bitcoin,
@@ -65,7 +65,7 @@ impl BitcoinModuleTrait for BitcoinRelation {
 							&tx_hash.clone(),
 							&from,
 							&to,
-							RelationReason::PossibleSelfTransfer,
+							RelationReason::NoChangeInUtxo,
 							block_time,
 						));
 					}
