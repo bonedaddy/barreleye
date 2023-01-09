@@ -6,7 +6,7 @@ use std::{collections::HashSet, ops::AddAssign, sync::Arc};
 
 pub use crate::chain::bitcoin::Bitcoin;
 use crate::{
-	models::{Balance, Link, Network, Transfer},
+	models::{Amount, Network, Relation, Transfer},
 	utils, BlockHeight, PrimaryId, RateLimiter, Warehouse,
 };
 pub use evm::Evm;
@@ -24,7 +24,7 @@ pub enum ModuleId {
 	BitcoinCoinbase = 101,
 	BitcoinTransfer = 102,
 	BitcoinBalance = 103,
-	BitcoinLink = 104,
+	BitcoinRelation = 104,
 	EvmTransfer = 201,
 	EvmBalance = 202,
 	EvmTokenTransfer = 203,
@@ -69,8 +69,8 @@ pub trait ModuleTrait {
 pub struct WarehouseData {
 	saved_at: NaiveDateTime,
 	transfers: HashSet<Transfer>,
-	balances: HashSet<Balance>,
-	links: HashSet<Link>,
+	amounts: HashSet<Amount>,
+	relations: HashSet<Relation>,
 }
 
 impl WarehouseData {
@@ -79,7 +79,7 @@ impl WarehouseData {
 	}
 
 	pub fn len(&self) -> usize {
-		self.transfers.len() + self.balances.len() + self.links.len()
+		self.transfers.len() + self.amounts.len() + self.relations.len()
 	}
 
 	pub fn is_empty(&self) -> bool {
@@ -95,12 +95,12 @@ impl WarehouseData {
 			Transfer::create_many(warehouse, self.transfers.clone().into_iter().collect()).await?;
 		}
 
-		if !self.balances.is_empty() {
-			Balance::create_many(warehouse, self.balances.clone().into_iter().collect()).await?;
+		if !self.amounts.is_empty() {
+			Amount::create_many(warehouse, self.amounts.clone().into_iter().collect()).await?;
 		}
 
-		if !self.links.is_empty() {
-			Link::create_many(warehouse, self.links.clone().into_iter().collect()).await?;
+		if !self.relations.is_empty() {
+			Relation::create_many(warehouse, self.relations.clone().into_iter().collect()).await?;
 		}
 
 		self.clear();
@@ -112,15 +112,15 @@ impl WarehouseData {
 		self.saved_at = utils::now();
 
 		self.transfers.clear();
-		self.balances.clear();
-		self.links.clear();
+		self.amounts.clear();
+		self.relations.clear();
 	}
 }
 
 impl AddAssign for WarehouseData {
 	fn add_assign(&mut self, rhs: WarehouseData) {
 		self.transfers.extend(rhs.transfers);
-		self.balances.extend(rhs.balances);
-		self.links.extend(rhs.links);
+		self.amounts.extend(rhs.amounts);
+		self.relations.extend(rhs.relations);
 	}
 }

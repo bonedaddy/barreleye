@@ -9,7 +9,7 @@ use std::{
 };
 
 use crate::{App, ServerResult};
-use barreleye_common::models::{Amount, Network, PrimaryId};
+use barreleye_common::models::{Balance, Network, PrimaryId};
 
 #[derive(Deserialize)]
 pub struct Payload {
@@ -21,7 +21,7 @@ pub struct Payload {
 pub struct ResponseAsset {
 	network: String,
 	address: String,
-	amount: String,
+	balance: String,
 }
 
 #[derive(Serialize, Default, Eq, PartialEq, Hash, Clone)]
@@ -46,10 +46,10 @@ pub async fn handler(
 	let address = app.format_address(&payload.address).await?;
 	let mut response = Response { address: address.clone(), ..Default::default() };
 
-	let all_amounts = Amount::get_all_by_address(&app.warehouse, &address).await?;
-	if !all_amounts.is_empty() {
+	let all_balances = Balance::get_all_by_address(&app.warehouse, &address).await?;
+	if !all_balances.is_empty() {
 		let mut all_network_ids =
-			all_amounts.iter().map(|a| a.network_id as PrimaryId).collect::<Vec<PrimaryId>>();
+			all_balances.iter().map(|a| a.network_id as PrimaryId).collect::<Vec<PrimaryId>>();
 
 		all_network_ids.sort_unstable();
 		all_network_ids.dedup();
@@ -61,27 +61,27 @@ pub async fn handler(
 				.map(|n| (n.network_id as u64, ResponseNetwork { id: n.id, name: n.name }))
 				.collect();
 
-		for asset_amount in all_amounts.into_iter() {
-			if asset_amount.amount.is_zero() {
+		for balance_data in all_balances.into_iter() {
+			if balance_data.balance.is_zero() {
 				continue;
 			}
 
-			if let Some(network) = networks.get(&asset_amount.network_id) {
+			if let Some(network) = networks.get(&balance_data.network_id) {
 				let n = app.networks.read().await;
-				let network_id = asset_amount.network_id as PrimaryId;
+				let network_id = balance_data.network_id as PrimaryId;
 
 				if n.contains_key(&network_id) {
 					response.assets.push(ResponseAsset {
 						network: network.id.clone(),
-						address: if asset_amount.asset_address.is_empty() {
+						address: if balance_data.asset_address.is_empty() {
 							"".to_string()
 						} else {
-							n[&network_id].format_address(&asset_amount.asset_address)
+							n[&network_id].format_address(&balance_data.asset_address)
 						},
-						amount: asset_amount.amount.to_string(),
+						balance: balance_data.balance.to_string(),
 					});
 
-					let network = networks[&asset_amount.network_id].clone();
+					let network = networks[&balance_data.network_id].clone();
 					response.networks.insert(network);
 				}
 			}

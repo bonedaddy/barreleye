@@ -1,38 +1,53 @@
 use clickhouse::Row;
 use eyre::Result;
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
-use crate::{models::PrimaryId, warehouse::Warehouse};
+use crate::{chain::ModuleId, models::PrimaryId, utils, warehouse::Warehouse};
 
-static TABLE: &str = "links";
+static TABLE: &str = "experimental_relations";
+
+#[repr(u16)]
+pub enum Reason {
+	PossibleSelfTransfer = 1,
+}
 
 #[derive(PartialEq, Eq, Hash, Debug, Clone, Row, Serialize, Deserialize)]
 pub struct Model {
+	#[serde(with = "clickhouse::uuid")]
+	pub uuid: Uuid,
+	pub module_id: u16,
 	pub network_id: u64,
 	pub block_height: u64,
+	pub tx_hash: String,
 	pub from_address: String,
 	pub to_address: String,
-	pub tx_hashes: Vec<String>,
+	pub reason: u16,
 	pub created_at: u32,
 }
 
-pub use Model as Link;
+pub use Model as Relation;
 
 impl Model {
 	pub fn new(
+		module_id: ModuleId,
 		network_id: PrimaryId,
 		block_height: u64,
+		tx_hash: &str,
 		from_address: &str,
 		to_address: &str,
-		tx_hashes: Vec<String>,
+		reason: Reason,
 		created_at: u32,
 	) -> Self {
 		Self {
+			uuid: utils::new_uuid(),
+			module_id: module_id as u16,
 			network_id: network_id as u64,
 			block_height,
+			tx_hash: tx_hash.to_string(),
 			from_address: from_address.to_string(),
 			to_address: to_address.to_string(),
-			tx_hashes,
+			reason: reason as u16,
 			created_at,
 		}
 	}

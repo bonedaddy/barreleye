@@ -3,8 +3,7 @@ use eyre::Result;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-	chain::{u256, ModuleId, U256},
-	models::PrimaryId,
+	chain::{u256, U256},
 	warehouse::Warehouse,
 };
 
@@ -12,52 +11,40 @@ static TABLE: &str = "balances";
 
 #[derive(PartialEq, Eq, Hash, Debug, Clone, Row, Serialize, Deserialize)]
 pub struct Model {
-	pub module_id: u16,
 	pub network_id: u64,
-	pub block_height: u64,
-	pub tx_hash: String,
 	pub address: String,
 	pub asset_address: String,
 	#[serde(with = "u256")]
-	pub amount_in: U256,
-	#[serde(with = "u256")]
-	pub amount_out: U256,
-	pub created_at: u32,
+	pub balance: U256,
 }
 
 pub use Model as Balance;
 
 impl Model {
-	pub fn new(
-		module_id: ModuleId,
-		network_id: PrimaryId,
-		block_height: u64,
-		tx_hash: &str,
-		address: &str,
-		asset_address: Option<String>,
-		amount_in: U256,
-		amount_out: U256,
-		created_at: u32,
-	) -> Self {
-		Self {
-			module_id: module_id as u16,
-			network_id: network_id as u64,
-			block_height,
-			tx_hash: tx_hash.to_string(),
-			address: address.to_string(),
-			asset_address: asset_address.unwrap_or_default(),
-			amount_in,
-			amount_out,
-			created_at,
-		}
-	}
+	pub async fn get_all_by_address(warehouse: &Warehouse, address: &str) -> Result<Vec<Model>> {
+		// @TODO until I256 is implemented, doing this hacky "group by" statement
+		// ideally: "SELECT ?fields FROM {TABLE} WHERE address = ?"
 
-	pub async fn create_many(warehouse: &Warehouse, models: Vec<Self>) -> Result<()> {
-		let mut insert = warehouse.get().insert(TABLE)?;
-		for model in models.into_iter() {
-			insert.write(&model).await?;
-		}
-
-		Ok(insert.end().await?)
+		Ok(warehouse
+			.get()
+			.query(&format!(
+				r#"
+					SELECT *
+					FROM (
+	                    SELECT
+	                        network_id,
+	                        address,
+	                        asset_address,
+	                        SUM(balance) as balance
+	                    FROM {TABLE}
+	                    WHERE address = ?
+	                    GROUP BY (network_id, address, asset_address)
+					)
+					WHERE balance >= 0
+                "#
+			))
+			.bind(address)
+			.fetch_all::<Model>()
+			.await?)
 	}
 }

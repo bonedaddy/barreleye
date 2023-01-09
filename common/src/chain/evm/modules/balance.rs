@@ -8,7 +8,7 @@ use eyre::Result;
 
 use crate::{
 	chain::{evm::modules::EvmModuleTrait, Evm, ModuleId, ModuleTrait, WarehouseData, U256},
-	models::{Balance, PrimaryId},
+	models::{Amount, PrimaryId},
 	BlockHeight,
 };
 
@@ -53,7 +53,7 @@ impl EvmModuleTrait for EvmBalance {
 			return Ok(ret);
 		}
 
-		ret.balances.insert(Balance::new(
+		ret.amounts.insert(Amount::new(
 			self.get_id(),
 			self.network_id,
 			block_height,
@@ -64,7 +64,7 @@ impl EvmModuleTrait for EvmBalance {
 			U256::from_str_radix(&tx.value.to_string(), 10)?,
 			block_time,
 		));
-		ret.balances.insert(Balance::new(
+		ret.amounts.insert(Amount::new(
 			self.get_id(),
 			self.network_id,
 			block_height,

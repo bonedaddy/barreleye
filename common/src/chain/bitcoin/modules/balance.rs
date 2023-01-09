@@ -7,7 +7,7 @@ use crate::{
 	chain::{
 		bitcoin::modules::BitcoinModuleTrait, Bitcoin, ModuleId, ModuleTrait, WarehouseData, U256,
 	},
-	models::{Balance, PrimaryId},
+	models::{Amount, PrimaryId},
 	BlockHeight,
 };
 
@@ -60,7 +60,7 @@ impl BitcoinModuleTrait for BitcoinBalance {
 		let tx_hash = tx.txid().as_hash().to_string();
 
 		for (address, (amount_in, amount_out)) in balance_map.into_iter() {
-			ret.balances.insert(Balance::new(
+			ret.amounts.insert(Amount::new(
 				self.get_id(),
 				self.network_id,
 				block_height,

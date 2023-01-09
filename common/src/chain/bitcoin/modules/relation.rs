@@ -5,26 +5,26 @@ use std::collections::{HashMap, HashSet};
 
 use crate::{
 	chain::{bitcoin::modules::BitcoinModuleTrait, Bitcoin, ModuleId, ModuleTrait, WarehouseData},
-	models::{Link, LinkReason, PrimaryId},
+	models::{PrimaryId, Relation, RelationReason},
 	BlockHeight,
 };
 
-pub struct BitcoinLink {
+pub struct BitcoinRelation {
 	network_id: PrimaryId,
 }
 
-impl ModuleTrait for BitcoinLink {
+impl ModuleTrait for BitcoinRelation {
 	fn new(network_id: PrimaryId) -> Self {
 		Self { network_id }
 	}
 
 	fn get_id(&self) -> ModuleId {
-		ModuleId::BitcoinLink
+		ModuleId::BitcoinRelation
 	}
 }
 
 #[async_trait]
-impl BitcoinModuleTrait for BitcoinLink {
+impl BitcoinModuleTrait for BitcoinRelation {
 	async fn run(
 		&self,
 		bitcoin: &Bitcoin,
@@ -58,14 +58,14 @@ impl BitcoinModuleTrait for BitcoinLink {
 						bitcoin.is_valid_address(&from) &&
 						bitcoin.is_valid_address(&to)
 					{
-						ret.links.insert(Link::new(
+						ret.relations.insert(Relation::new(
 							self.get_id(),
 							self.network_id,
 							block_height,
 							&tx_hash.clone(),
 							&from,
 							&to,
-							LinkReason::PossibleSelfTransfer,
+							RelationReason::PossibleSelfTransfer,
 							block_time,
 						));
 					}

@@ -11,7 +11,7 @@ use crate::{
 		evm::{modules::EvmModuleTrait, EvmTopic},
 		Evm, ModuleId, ModuleTrait, WarehouseData, U256,
 	},
-	models::{Balance, PrimaryId},
+	models::{Amount, PrimaryId},
 	BlockHeight,
 };
 
@@ -52,7 +52,7 @@ impl EvmModuleTrait for EvmTokenBalance {
 			// process token `transfer` event
 			match evm.get_topic(&log)? {
 				EvmTopic::TokenTransfer(from, to, amount) if amount > U256::zero() => {
-					ret.balances.insert(Balance::new(
+					ret.amounts.insert(Amount::new(
 						self.get_id(),
 						self.network_id,
 						block_height,
@@ -63,7 +63,7 @@ impl EvmModuleTrait for EvmTokenBalance {
 						amount,
 						block_time,
 					));
-					ret.balances.insert(Balance::new(
+					ret.amounts.insert(Amount::new(
 						self.get_id(),
 						self.network_id,
 						block_height,

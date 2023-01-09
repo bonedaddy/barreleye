@@ -89,7 +89,7 @@ impl Warehouse {
 			.client
 			.query(&format!(
 				r#"
-					CREATE TABLE IF NOT EXISTS {}.balances
+					CREATE TABLE IF NOT EXISTS {}.amounts
 					(
 						module_id UInt16,
 						network_id UInt64,
@@ -121,7 +121,7 @@ impl Warehouse {
 			.client
 			.query(&format!(
 				r#"
-					CREATE MATERIALIZED VIEW IF NOT EXISTS {}.amounts
+					CREATE MATERIALIZED VIEW IF NOT EXISTS {}.balances
 					ENGINE = SummingMergeTree
 					PARTITION BY network_id
 					ORDER BY (network_id, address, asset_address)
@@ -130,11 +130,40 @@ impl Warehouse {
 						network_id,
 					    address,
 					    asset_address,
-					    (amount_in - amount_out) as amount
-					FROM {}.balances
+					    (amount_in - amount_out) as balance
+					FROM {}.amounts
 					GROUP BY (network_id, address, asset_address, amount_in, amount_out)
 				"#,
 				self.db_name, self.db_name,
+			))
+			.execute()
+			.await
+			.wrap_err(self.url_without_database.clone())?;
+
+		self.clickhouse
+			.client
+			.query(&format!(
+				r#"
+					CREATE TABLE IF NOT EXISTS {}.links
+					(
+						network_id UInt64,
+						block_height UInt64,
+						from_address String,
+						to_address String,
+						tx_hashes Array(String),
+						created_at DateTime
+					)
+					ENGINE = ReplacingMergeTree
+					ORDER BY (
+						network_id,
+						block_height,
+						from_address,
+						to_address,
+						tx_hashes
+					)
+					PARTITION BY toYYYYMM(created_at);
+				"#,
+				self.db_name
 			))
 			.execute()
 			.await
@@ -183,7 +212,7 @@ impl Warehouse {
 			.client
 			.query(&format!(
 				r#"
-					CREATE TABLE IF NOT EXISTS {}.experimental_links
+					CREATE TABLE IF NOT EXISTS {}.experimental_relations
 					(
 						uuid UUID,
 						module_id UInt16,

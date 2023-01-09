@@ -14,8 +14,9 @@ pub use api_key::{ApiKey, ApiKeyActiveModel};
 pub use balance::Balance;
 pub use label::{Label, LabelActiveModel};
 pub use labeled_address::{LabeledAddress, LabeledAddressActiveModel};
-pub use link::{Link, Reason as LinkReason};
+pub use link::Link;
 pub use network::{Network, NetworkActiveModel};
+pub use relation::{Reason as RelationReason, Relation};
 pub use transfer::Transfer;
 
 pub mod amount;
@@ -26,6 +27,7 @@ pub mod label;
 pub mod labeled_address;
 pub mod link;
 pub mod network;
+pub mod relation;
 pub mod transfer;
 
 // @TODO `https://github.com/SeaQL/sea-orm/issues/1068`

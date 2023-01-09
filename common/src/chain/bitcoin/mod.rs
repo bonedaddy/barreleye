@@ -15,7 +15,9 @@ use crate::{
 	utils, BlockHeight, Cache, RateLimiter,
 };
 use client::{Auth, Client};
-use modules::{BitcoinBalance, BitcoinCoinbase, BitcoinLink, BitcoinModuleTrait, BitcoinTransfer};
+use modules::{
+	BitcoinBalance, BitcoinCoinbase, BitcoinModuleTrait, BitcoinRelation, BitcoinTransfer,
+};
 
 mod client;
 mod modules;
@@ -47,7 +49,7 @@ impl Bitcoin {
 			modules: vec![
 				Box::new(BitcoinTransfer::new(network_id)),
 				Box::new(BitcoinBalance::new(network_id)),
-				Box::new(BitcoinLink::new(network_id)),
+				Box::new(BitcoinRelation::new(network_id)),
 				Box::new(BitcoinCoinbase::new(network_id)),
 			],
 		}
