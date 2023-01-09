@@ -1,6 +1,6 @@
 use axum::{extract::State, Json};
-use sea_orm::TryIntoModel;
 use serde::Deserialize;
+use serde_json::json;
 use std::sync::Arc;
 
 use crate::{errors::ServerError, App, ServerResult};
@@ -50,17 +50,7 @@ pub async fn handler(
 
 	// check rpc connection
 	let c = app.cache.clone();
-	let n = Network::new_model(
-		&payload.name.clone(),
-		&payload.tag.clone(),
-		payload.env,
-		payload.blockchain,
-		payload.chain_id as i64,
-		payload.block_time_ms as i64,
-		payload.rpc_endpoints.clone(),
-		payload.rps as i32,
-	)
-	.try_into_model()?;
+	let n = Network { rpc_endpoints: json!(payload.rpc_endpoints.clone()), ..Default::default() };
 	let mut boxed_chain: Box<dyn ChainTrait> = match payload.blockchain {
 		Blockchain::Bitcoin => Box::new(Bitcoin::new(c, n)),
 		Blockchain::Evm => Box::new(Evm::new(c, n)),
