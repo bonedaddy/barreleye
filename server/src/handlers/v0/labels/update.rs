@@ -14,7 +14,6 @@ use barreleye_common::models::{optional_set, BasicModel, Label, LabelActiveModel
 pub struct Payload {
 	name: Option<String>,
 	is_enabled: Option<bool>,
-	is_tracked: Option<bool>,
 }
 
 pub async fn handler(
@@ -34,7 +33,6 @@ pub async fn handler(
 	let update_data = LabelActiveModel {
 		name: optional_set(payload.name),
 		is_enabled: optional_set(payload.is_enabled),
-		is_tracked: optional_set(payload.is_tracked),
 		..Default::default()
 	};
 

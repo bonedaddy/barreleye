@@ -17,8 +17,11 @@ pub struct Model {
 	pub labeled_address_id: PrimaryId,
 	#[serde(skip_serializing)]
 	pub label_id: PrimaryId,
+	#[serde(skip_serializing)]
+	pub network_id: PrimaryId,
 	pub id: String,
 	pub address: String,
+	pub description: String,
 	#[sea_orm(nullable)]
 	#[serde(skip_serializing)]
 	pub updated_at: Option<DateTime>,
@@ -51,11 +54,18 @@ impl BasicModel for Model {
 }
 
 impl Model {
-	pub fn new_model(label_id: PrimaryId, address: &str) -> ActiveModel {
+	pub fn new_model(
+		label_id: PrimaryId,
+		network_id: PrimaryId,
+		address: &str,
+		description: &str,
+	) -> ActiveModel {
 		ActiveModel {
 			label_id: Set(label_id),
+			network_id: Set(network_id),
 			id: Set(utils::new_unique_id(IdPrefix::LabeledAddress)),
 			address: Set(address.to_string()),
+			description: Set(description.to_string()),
 			..Default::default()
 		}
 	}
@@ -82,13 +92,15 @@ impl Model {
 		Ok(Entity::find().filter(Column::Address.eq(address)).one(db.get()).await?)
 	}
 
-	pub async fn get_all_by_label_id_and_addresses(
+	pub async fn get_all_specific(
 		db: &Db,
 		label_id: PrimaryId,
+		network_id: PrimaryId,
 		addresses: Vec<String>,
 	) -> Result<Vec<Self>> {
 		Ok(Entity::find()
 			.filter(Column::LabelId.eq(label_id))
+			.filter(Column::NetworkId.eq(network_id))
 			.filter(Column::Address.is_in(addresses))
 			.all(db.get())
 			.await?)

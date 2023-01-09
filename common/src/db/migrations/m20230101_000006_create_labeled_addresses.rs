@@ -20,8 +20,10 @@ impl MigrationTrait for Migration {
 							.primary_key(),
 					)
 					.col(ColumnDef::new(LabeledAddresses::LabelId).big_integer().not_null())
+					.col(ColumnDef::new(LabeledAddresses::NetworkId).big_integer().not_null())
 					.col(ColumnDef::new(LabeledAddresses::Id).unique_key().string().not_null())
 					.col(ColumnDef::new(LabeledAddresses::Address).string().not_null())
+					.col(ColumnDef::new(LabeledAddresses::Description).string().not_null())
 					.col(ColumnDef::new(LabeledAddresses::UpdatedAt).date_time().null())
 					.col(
 						ColumnDef::new(LabeledAddresses::CreatedAt)
@@ -36,6 +38,13 @@ impl MigrationTrait for Migration {
 							.to(Alias::new("labels"), Alias::new("label_id"))
 							.to_owned(),
 					)
+					.foreign_key(
+						&mut sea_query::ForeignKey::create()
+							.name("fk_labeled_addresses_network_id")
+							.from(LabeledAddresses::Table, LabeledAddresses::NetworkId)
+							.to(Alias::new("networks"), Alias::new("network_id"))
+							.to_owned(),
+					)
 					.to_owned(),
 			)
 			.await?;
@@ -44,10 +53,11 @@ impl MigrationTrait for Migration {
 			.create_index(
 				Index::create()
 					.if_not_exists()
-					.name("ux_labeled_addresses_label_id_address")
+					.name("ux_labeled_addresses_label_id_network_id_address")
 					.table(LabeledAddresses::Table)
 					.unique()
 					.col(LabeledAddresses::LabelId)
+					.col(LabeledAddresses::NetworkId)
 					.col(LabeledAddresses::Address)
 					.to_owned(),
 			)
@@ -65,8 +75,10 @@ enum LabeledAddresses {
 	Table,
 	LabeledAddressId,
 	LabelId,
+	NetworkId,
 	Id,
 	Address,
+	Description,
 	UpdatedAt,
 	CreatedAt,
 }

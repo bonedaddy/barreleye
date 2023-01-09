@@ -20,11 +20,9 @@ pub struct Model {
 	pub label_id: PrimaryId,
 	pub id: String,
 	pub name: String,
+	pub description: String,
 	#[serde(skip_serializing)]
 	pub is_enabled: bool,
-	#[serde(skip_serializing)]
-	pub is_hardcoded: bool,
-	pub is_tracked: bool,
 	#[sea_orm(nullable)]
 	#[serde(skip_serializing)]
 	pub updated_at: Option<DateTime>,
@@ -50,28 +48,14 @@ impl BasicModel for Model {
 }
 
 impl Model {
-	pub fn new_model(
-		name: String,
-		is_enabled: bool,
-		is_hardcoded: bool,
-		is_tracked: bool,
-	) -> ActiveModel {
+	pub fn new_model(name: &str, description: &str, is_enabled: bool) -> ActiveModel {
 		ActiveModel {
 			id: Set(utils::new_unique_id(IdPrefix::Label)),
-			name: Set(name),
+			name: Set(name.to_string()),
+			description: Set(description.to_string()),
 			is_enabled: Set(is_enabled),
-			is_hardcoded: Set(is_hardcoded),
-			is_tracked: Set(is_tracked),
 			..Default::default()
 		}
-	}
-
-	pub async fn get_all_enabled_and_hardcoded(db: &Db) -> Result<Vec<Self>> {
-		Ok(Entity::find()
-			.filter(Column::IsEnabled.eq(true))
-			.filter(Column::IsHardcoded.eq(true))
-			.all(db.get())
-			.await?)
 	}
 
 	pub async fn get_by_name(db: &Db, name: &str) -> Result<Option<Self>> {

@@ -9,7 +9,7 @@ use barreleye_common::models::{BasicModel, Label};
 #[serde(rename_all = "camelCase")]
 pub struct Payload {
 	name: String,
-	is_tracked: bool,
+	description: String,
 }
 
 pub async fn handler(
@@ -23,8 +23,7 @@ pub async fn handler(
 
 	// create new
 	let label_id =
-		Label::create(&app.db, Label::new_model(payload.name, true, false, payload.is_tracked))
-			.await?;
+		Label::create(&app.db, Label::new_model(&payload.name, &payload.description, true)).await?;
 
 	// return newly created
 	Ok(Label::get(&app.db, label_id).await?.unwrap().into())

@@ -62,9 +62,9 @@ impl BitcoinModuleTrait for BitcoinLink {
 							self.get_id(),
 							self.network_id,
 							block_height,
-							tx_hash.clone(),
-							from,
-							to,
+							&tx_hash.clone(),
+							&from,
+							&to,
 							LinkReason::PossibleSelfTransfer,
 							block_time,
 						));

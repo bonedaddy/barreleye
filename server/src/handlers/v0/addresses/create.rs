@@ -1,15 +1,19 @@
 use axum::{extract::State, Json};
 use serde::Deserialize;
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use crate::{errors::ServerError, App, ServerResult};
-use barreleye_common::models::{BasicModel, Label, LabeledAddress};
+use barreleye_common::models::{BasicModel, Label, LabeledAddress, Network};
+
+type Address = String;
+type Description = String;
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Payload {
 	label: String,
-	addresses: Vec<String>,
+	network: String,
+	addresses: HashMap<Address, Description>,
 }
 
 pub async fn handler(
@@ -20,11 +24,18 @@ pub async fn handler(
 		.await?
 		.ok_or(ServerError::InvalidParam { field: "label".to_string(), value: payload.label })?;
 
+	let network =
+		Network::get_by_id(&app.db, &payload.network).await?.ok_or(ServerError::InvalidParam {
+			field: "network".to_string(),
+			value: payload.network,
+		})?;
+
 	// check for duplicates
-	let labeled_addresses = LabeledAddress::get_all_by_label_id_and_addresses(
+	let labeled_addresses = LabeledAddress::get_all_specific(
 		&app.db,
 		label.label_id,
-		payload.addresses.clone(),
+		network.network_id,
+		payload.addresses.clone().into_keys().collect(),
 	)
 	.await?;
 	if !labeled_addresses.is_empty() {
@@ -41,16 +52,19 @@ pub async fn handler(
 			.addresses
 			.clone()
 			.iter()
-			.map(|a| LabeledAddress::new_model(label.label_id, a))
+			.map(|(address, description)| {
+				LabeledAddress::new_model(label.label_id, network.network_id, address, description)
+			})
 			.collect(),
 	)
 	.await?;
 
 	// return newly created
-	Ok(LabeledAddress::get_all_by_label_id_and_addresses(
+	Ok(LabeledAddress::get_all_specific(
 		&app.db,
 		label.label_id,
-		payload.addresses,
+		network.network_id,
+		payload.addresses.into_keys().collect(),
 	)
 	.await?
 	.into())
