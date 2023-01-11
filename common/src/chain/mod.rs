@@ -6,7 +6,7 @@ use std::{collections::HashSet, ops::AddAssign, sync::Arc};
 
 pub use crate::chain::bitcoin::Bitcoin;
 use crate::{
-	models::{Amount, Network, Relation, Transfer},
+	models::{Amount, Link, Network, Relation, Transfer},
 	utils, BlockHeight, PrimaryId, RateLimiter, Warehouse,
 };
 pub use evm::Evm;
@@ -69,9 +69,10 @@ pub trait ModuleTrait {
 #[derive(Debug, Default, Clone)]
 pub struct WarehouseData {
 	saved_at: NaiveDateTime,
-	transfers: HashSet<Transfer>,
-	amounts: HashSet<Amount>,
-	relations: HashSet<Relation>,
+	pub transfers: HashSet<Transfer>,
+	pub amounts: HashSet<Amount>,
+	pub relations: HashSet<Relation>,
+	pub links: HashSet<Link>,
 }
 
 impl WarehouseData {
@@ -80,7 +81,7 @@ impl WarehouseData {
 	}
 
 	pub fn len(&self) -> usize {
-		self.transfers.len() + self.amounts.len() + self.relations.len()
+		self.transfers.len() + self.amounts.len() + self.relations.len() + self.links.len()
 	}
 
 	pub fn is_empty(&self) -> bool {
@@ -88,7 +89,8 @@ impl WarehouseData {
 	}
 
 	pub fn should_commit(&self) -> bool {
-		utils::ago_in_seconds(5) > self.saved_at && self.len() > 10_000
+		utils::ago_in_seconds(5) > self.saved_at && !self.is_empty() ||
+			utils::ago_in_seconds(1) > self.saved_at && self.len() > 10_000
 	}
 
 	pub async fn commit(&mut self, warehouse: &Warehouse) -> Result<()> {
@@ -104,6 +106,10 @@ impl WarehouseData {
 			Relation::create_many(warehouse, self.relations.clone().into_iter().collect()).await?;
 		}
 
+		if !self.links.is_empty() {
+			Link::create_many(warehouse, self.links.clone().into_iter().collect()).await?;
+		}
+
 		self.clear();
 
 		Ok(())
@@ -115,6 +121,7 @@ impl WarehouseData {
 		self.transfers.clear();
 		self.amounts.clear();
 		self.relations.clear();
+		self.links.clear();
 	}
 }
 
@@ -123,5 +130,6 @@ impl AddAssign for WarehouseData {
 		self.transfers.extend(rhs.transfers);
 		self.amounts.extend(rhs.amounts);
 		self.relations.extend(rhs.relations);
+		self.links.extend(rhs.links);
 	}
 }

@@ -1,6 +1,7 @@
 use console::style;
 use derive_more::Display;
 use eyre::Result;
+use num_format::{SystemLocale, ToFormattedString};
 use serde_json::Value as JsonValue;
 use std::sync::Arc;
 use tokio::{
@@ -16,7 +17,8 @@ use uuid::Uuid;
 use barreleye_common::{
 	chain::{ModuleId, WarehouseData},
 	models::{Config, ConfigKey, PrimaryId},
-	quit, utils, App, AppError, BlockHeight, Progress, ProgressReadyType, ProgressStep, Warnings,
+	quit, utils, App, AppError, BlockHeight, Progress, ProgressReadyType, ProgressStep, Verbosity,
+	Warnings,
 };
 
 mod blocks;
@@ -58,6 +60,8 @@ impl Indexer {
 	}
 
 	pub async fn start(&self, warnings: Warnings, progress: Progress) -> Result<()> {
+		let verbose = self.app.verbosity as u8 > Verbosity::Silent as u8;
+
 		if self.app.is_indexer && !self.app.is_server {
 			progress.show(ProgressStep::Ready(ProgressReadyType::Indexer, warnings));
 		}
@@ -65,8 +69,8 @@ impl Indexer {
 		let ret = tokio::select! {
 			_ = signal::ctrl_c() => Ok(()),
 			v = self.start_primary_check() => v,
-			v = self.index_blocks() => v,
-			v = self.index_upstream() => v,
+			v = self.index_blocks(verbose) => v,
+			v = self.index_upstream(verbose) => v,
 		};
 
 		if ret.is_err() {
@@ -116,6 +120,11 @@ impl Indexer {
 			style("Indexer").cyan().bold(),
 			style(format!("({index_type})")).dim()
 		);
+	}
+
+	fn format_number(&self, n: usize) -> Result<String> {
+		let locale = SystemLocale::default()?;
+		Ok(n.to_formatted_string(&locale))
 	}
 }
 

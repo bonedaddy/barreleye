@@ -1,6 +1,5 @@
 use console::style;
 use eyre::{ErrReport, Result};
-use num_format::{SystemLocale, ToFormattedString};
 use serde_json::{from_value as json_parse, json};
 use std::{
 	collections::{HashMap, HashSet},
@@ -19,20 +18,14 @@ use crate::{IndexType, Indexer, NetworkParams, Pipe};
 use barreleye_common::{
 	chain::WarehouseData,
 	models::{Config, ConfigKey},
-	utils, BlockHeight, Verbosity,
+	utils, BlockHeight,
 };
 
 impl Indexer {
-	pub async fn index_blocks(&self) -> Result<()> {
+	pub async fn index_blocks(&self, verbose: bool) -> Result<()> {
 		let mut warehouse_data = WarehouseData::new();
 		let mut config_key_map = HashMap::<ConfigKey, serde_json::Value>::new();
-		let verbose = self.app.verbosity as u8 > Verbosity::Silent as u8;
 		let mut started_indexing = false;
-
-		let num = |n: usize| -> Result<String> {
-			let locale = SystemLocale::default()?;
-			Ok(n.to_formatted_string(&locale))
-		};
 
 		'indexing: loop {
 			if !self.app.is_leading() {
@@ -225,7 +218,10 @@ impl Indexer {
 			if verbose {
 				self.log(
 					IndexType::Blocks,
-					&format!("Launching {} thread(s)", style(num(thread_count)?).bold(),),
+					&format!(
+						"Launching {} thread(s)",
+						style(self.format_number(thread_count)?).bold(),
+					),
 				);
 			}
 
@@ -389,7 +385,7 @@ impl Indexer {
 							self.log(IndexType::Blocks, &format!(
 								"Thread {} returned {} record(s)",
 								style(config_key).bold(),
-								num(new_data.len())?,
+								self.format_number(new_data.len())?,
 							));
 						}
 
@@ -409,7 +405,7 @@ impl Indexer {
 							if verbose {
 								self.log(IndexType::Blocks, &format!(
 									"Pushing {} record(s) to warehouse",
-									style(num(warehouse_data.len())?).bold(),
+									style(self.format_number(warehouse_data.len())?).bold(),
 								));
 							}
 
