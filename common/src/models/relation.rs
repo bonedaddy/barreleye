@@ -5,7 +5,7 @@ use uuid::Uuid;
 
 use crate::{chain::ModuleId, models::PrimaryId, utils, warehouse::Warehouse};
 
-static TABLE: &str = "experimental_relations";
+pub static TABLE: &str = "experimental_relations";
 
 #[repr(u16)]
 pub enum Reason {

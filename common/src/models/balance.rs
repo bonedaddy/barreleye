@@ -7,7 +7,7 @@ use crate::{
 	warehouse::Warehouse,
 };
 
-static TABLE: &str = "balances";
+pub static TABLE: &str = "balances";
 
 #[derive(PartialEq, Eq, Hash, Debug, Clone, Row, Serialize, Deserialize)]
 pub struct Model {

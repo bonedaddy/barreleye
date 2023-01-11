@@ -92,6 +92,10 @@ impl Model {
 		Ok(Entity::find().filter(Column::Address.eq(address)).one(db.get()).await?)
 	}
 
+	pub async fn get_all_by_network_ids(db: &Db, network_ids: Vec<PrimaryId>) -> Result<Vec<Self>> {
+		Ok(Entity::find().filter(Column::NetworkId.is_in(network_ids)).all(db.get()).await?)
+	}
+
 	pub async fn get_all_specific(
 		db: &Db,
 		label_id: PrimaryId,

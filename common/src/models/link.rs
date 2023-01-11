@@ -2,9 +2,13 @@ use clickhouse::Row;
 use eyre::Result;
 use serde::{Deserialize, Serialize};
 
-use crate::{models::PrimaryId, warehouse::Warehouse};
+use crate::{
+	models::{transfer::TABLE as TRANSFERS_TABLE, PrimaryId},
+	warehouse::Warehouse,
+	BlockHeight,
+};
 
-static TABLE: &str = "links";
+pub static TABLE: &str = "links";
 
 #[derive(PartialEq, Eq, Hash, Debug, Clone, Row, Serialize, Deserialize)]
 pub struct Model {
@@ -44,5 +48,56 @@ impl Model {
 		}
 
 		Ok(insert.end().await?)
+	}
+
+	pub async fn get_all_by_source(
+		warehouse: &Warehouse,
+		network_id: PrimaryId,
+		address: &str,
+	) -> Result<Vec<Self>> {
+		Ok(warehouse
+			.get()
+			.query(&format!(
+				r#"
+					SELECT *
+					FROM {TABLE}
+					WHERE network_id = ? AND from_address = ?
+                "#
+			))
+			.bind(network_id)
+			.bind(address.to_string())
+			.fetch_all::<Model>()
+			.await?)
+	}
+
+	pub async fn get_all_for_seed_blocks(
+		warehouse: &Warehouse,
+		network_id: PrimaryId,
+		block_height_range: (BlockHeight, BlockHeight),
+	) -> Result<Vec<Self>> {
+		Ok(warehouse
+			.get()
+			.query(&format!(
+				r#"
+					SELECT *
+					FROM {TABLE}
+					WHERE network_id = ? AND to_address IN (
+					    SELECT from_address
+					    FROM {TRANSFERS_TABLE}
+					    WHERE
+							network_id = ? AND
+							length(from_address) > 0 AND
+							length(to_address) > 0 AND
+							block_height >= ? AND
+							block_height <= ?
+					)
+                "#
+			))
+			.bind(network_id)
+			.bind(network_id)
+			.bind(block_height_range.0)
+			.bind(block_height_range.1)
+			.fetch_all::<Model>()
+			.await?)
 	}
 }

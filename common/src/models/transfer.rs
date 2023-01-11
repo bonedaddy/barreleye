@@ -8,9 +8,10 @@ use crate::{
 	models::PrimaryId,
 	utils,
 	warehouse::Warehouse,
+	BlockHeight,
 };
 
-static TABLE: &str = "transfers";
+pub static TABLE: &str = "transfers";
 
 #[derive(PartialEq, Eq, Hash, Debug, Clone, Row, Serialize, Deserialize)]
 pub struct Model {
@@ -67,5 +68,57 @@ impl Model {
 		}
 
 		Ok(insert.end().await?)
+	}
+
+	pub async fn get_first_by_source(
+		warehouse: &Warehouse,
+		network_id: PrimaryId,
+		address: &str,
+	) -> Result<Option<Self>> {
+		let results = warehouse
+			.get()
+			.query(&format!(
+				r#"
+					SELECT *
+					FROM {TABLE}
+					WHERE network_id = ? AND from_address = ?
+					ORDER BY created_at ASC
+					LIMIT 1
+                "#
+			))
+			.bind(network_id)
+			.bind(address.to_string())
+			.fetch_all::<Model>()
+			.await?;
+
+		Ok(match results.len() {
+			0 => None,
+			_ => Some(results[0].clone()),
+		})
+	}
+
+	pub async fn get_all_by_block_range(
+		warehouse: &Warehouse,
+		network_id: PrimaryId,
+		block_height_range: (BlockHeight, BlockHeight),
+	) -> Result<Vec<Self>> {
+		Ok(warehouse
+			.get()
+			.query(&format!(
+				r#"
+					SELECT *
+					FROM {TABLE}
+					WHERE
+						network_id = ? AND
+						block_height >= ? AND
+						block_height <= ?
+					ORDER BY block_height ASC
+                "#
+			))
+			.bind(network_id)
+			.bind(block_height_range.0)
+			.bind(block_height_range.1)
+			.fetch_all::<Model>()
+			.await?)
 	}
 }

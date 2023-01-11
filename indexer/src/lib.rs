@@ -1,14 +1,123 @@
+use console::style;
+use derive_more::Display;
 use eyre::Result;
 use serde_json::Value as JsonValue;
-use tokio::sync::{
-	broadcast,
-	mpsc::{self, Sender},
+use std::sync::Arc;
+use tokio::{
+	signal,
+	sync::{
+		broadcast,
+		mpsc::{self, Sender},
+	},
+	time::{sleep, Duration},
+};
+use uuid::Uuid;
+
+use barreleye_common::{
+	chain::{ModuleId, WarehouseData},
+	models::{Config, ConfigKey, PrimaryId},
+	quit, utils, App, AppError, BlockHeight, Progress, ProgressReadyType, ProgressStep, Warnings,
 };
 
-use barreleye_common::{chain::WarehouseData, models::ConfigKey};
-pub use indexer::Indexer;
+mod blocks;
+mod upstream;
 
-mod indexer;
+#[derive(Clone, Debug)]
+struct NetworkParams {
+	pub network_id: PrimaryId,
+	pub range: (BlockHeight, Option<BlockHeight>),
+	pub modules: Vec<ModuleId>,
+}
+
+impl NetworkParams {
+	pub fn new(
+		network_id: PrimaryId,
+		min: BlockHeight,
+		max: Option<BlockHeight>,
+		modules: &[ModuleId],
+	) -> Self {
+		Self { network_id, range: (min, max), modules: modules.to_vec() }
+	}
+}
+
+#[derive(Display, Debug)]
+enum IndexType {
+	#[display(fmt = "blocks")]
+	Blocks,
+	#[display(fmt = "upstream")]
+	Upstream,
+}
+
+pub struct Indexer {
+	app: Arc<App>,
+}
+
+impl Indexer {
+	pub fn new(app: Arc<App>) -> Self {
+		Self { app }
+	}
+
+	pub async fn start(&self, warnings: Warnings, progress: Progress) -> Result<()> {
+		if self.app.is_indexer && !self.app.is_server {
+			progress.show(ProgressStep::Ready(ProgressReadyType::Indexer, warnings));
+		}
+
+		let ret = tokio::select! {
+			_ = signal::ctrl_c() => Ok(()),
+			v = self.start_primary_check() => v,
+			v = self.index_blocks() => v,
+			v = self.index_upstream() => v,
+		};
+
+		if ret.is_err() {
+			quit(AppError::IndexingFailed { error: ret.as_ref().unwrap_err().to_string() });
+		}
+
+		ret
+	}
+
+	async fn start_primary_check(&self) -> Result<()> {
+		let primary_promotion = self.app.settings.primary_promotion;
+		let db = &self.app.db;
+		let uuid = self.app.uuid;
+
+		loop {
+			let cool_down_period = utils::ago_in_seconds(primary_promotion / 2);
+
+			let last_primary = Config::get::<Uuid>(db, ConfigKey::Primary).await?;
+			match last_primary {
+				None => {
+					// first run ever
+					Config::set::<Uuid>(db, ConfigKey::Primary, uuid).await?;
+				}
+				Some(hit) if hit.value == uuid && hit.updated_at >= cool_down_period => {
+					// if primary, check-in only if cool-down period has not started yet ↑
+					if Config::set_where::<Uuid>(db, ConfigKey::Primary, uuid, hit).await? {
+						self.app.set_is_primary(true).await?;
+					}
+				}
+				Some(hit) if utils::ago_in_seconds(primary_promotion) > hit.updated_at => {
+					// attempt to upgrade to primary (set is_primary on the next iteration)
+					Config::set_where::<Uuid>(db, ConfigKey::Primary, uuid, hit).await?;
+				}
+				_ => {
+					// either cool-down period has started or this is a secondary
+					self.app.set_is_primary(false).await?;
+				}
+			}
+
+			sleep(Duration::from_secs(self.app.settings.primary_ping)).await
+		}
+	}
+
+	fn log(&self, index_type: IndexType, message: &str) {
+		println!(
+			"{} {}: {message}",
+			style("Indexer").cyan().bold(),
+			style(format!("({index_type})")).dim()
+		);
+	}
+}
 
 pub struct Pipe {
 	config_key: ConfigKey,

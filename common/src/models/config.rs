@@ -23,6 +23,8 @@ pub enum ConfigKey {
 	IndexerModuleSync(PrimaryId, u16),
 	#[display(fmt = "indexer_module_synced_n{}_m{}", "_0", "_1")]
 	IndexerModuleSynced(PrimaryId, u16),
+	#[display(fmt = "indexer_upstream_sync_n{}_a{}", "_0", "_1")]
+	IndexerUpstreamSync(PrimaryId, PrimaryId),
 	#[display(fmt = "indexer_n{}_progress", "_0")]
 	IndexerProgress(PrimaryId),
 	#[display(fmt = "block_height_n{}", "_0")]
@@ -51,10 +53,13 @@ impl From<String> for ConfigKey {
 			"indexer_module_synced_n{}_m{}" if n.len() == 2 => {
 				Self::IndexerModuleSynced(n[0], n[1] as u16)
 			}
+			"indexer_upstream_sync_n{}_a{}" if n.len() == 2 => {
+				Self::IndexerUpstreamSync(n[0], n[1])
+			}
 			"indexer_n{}_progress" if n.len() == 1 => Self::IndexerProgress(n[0]),
 			"block_height_n{}" if n.len() == 1 => Self::BlockHeight(n[0]),
 			"networks_updated" => Self::NetworksUpdated,
-			_ => panic!("no match in From<String> for ConfigKey"),
+			_ => panic!("no match in From<String> for ConfigKey: {:?}", s),
 		}
 	}
 }
@@ -231,7 +236,7 @@ impl Model {
 		T: for<'a> Deserialize<'a>,
 	{
 		Ok(Entity::find()
-			.filter(Self::get_keyword_condition(keyword))
+			.filter(Self::get_keyword_conditions(vec![keyword.to_string()]))
 			.all(db.get())
 			.await?
 			.into_iter()
@@ -248,20 +253,36 @@ impl Model {
 			.collect())
 	}
 
+	pub async fn exist_by_keywords(db: &Db, keywords: Vec<String>) -> Result<bool> {
+		Ok(!Entity::find()
+			.filter(Self::get_keyword_conditions(keywords))
+			.all(db.get())
+			.await?
+			.is_empty())
+	}
+
 	pub async fn delete(db: &Db, key: ConfigKey) -> Result<()> {
 		Entity::delete_many().filter(Column::Key.eq(key.to_string())).exec(db.get()).await?;
 		Ok(())
 	}
 
 	pub async fn delete_all_by_keyword(db: &Db, keyword: &str) -> Result<()> {
-		Entity::delete_many().filter(Self::get_keyword_condition(keyword)).exec(db.get()).await?;
+		Entity::delete_many()
+			.filter(Self::get_keyword_conditions(vec![keyword.to_string()]))
+			.exec(db.get())
+			.await?;
 
 		Ok(())
 	}
 
-	fn get_keyword_condition(keyword: &str) -> Condition {
-		Condition::any()
-			.add(Column::Key.like(&format!("%_{keyword}_%")))
-			.add(Column::Key.like(&format!("%_{keyword}")))
+	fn get_keyword_conditions(keywords: Vec<String>) -> Condition {
+		let mut condition = Condition::any();
+
+		for keyword in keywords.into_iter() {
+			condition = condition.add(Column::Key.like(&format!("%_{keyword}_%")));
+			condition = condition.add(Column::Key.like(&format!("%_{keyword}")));
+		}
+
+		condition
 	}
 }
