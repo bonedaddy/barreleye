@@ -15,7 +15,7 @@ pub static TABLE: &str = "transfers";
 
 #[derive(PartialEq, Eq, Hash, Debug, Clone, Row, Serialize, Deserialize)]
 pub struct Model {
-	#[serde(with = "clickhouse::uuid")]
+	#[serde(with = "clickhouse::serde::uuid")]
 	pub uuid: Uuid,
 	pub module_id: u16,
 	pub network_id: u64,

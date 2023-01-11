@@ -89,7 +89,7 @@ impl WarehouseData {
 	}
 
 	pub fn should_commit(&self) -> bool {
-		utils::ago_in_seconds(5) > self.saved_at && !self.is_empty() ||
+		utils::ago_in_seconds(10) > self.saved_at && !self.is_empty() ||
 			utils::ago_in_seconds(1) > self.saved_at && self.len() > 10_000
 	}
 

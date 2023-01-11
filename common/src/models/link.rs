@@ -16,7 +16,9 @@ pub struct Model {
 	pub block_height: u64,
 	pub from_address: String,
 	pub to_address: String,
-	pub tx_hashes: Vec<String>,
+	// @TODO this should be `Uuid` but the current Clickhouse driver does not support Vec<Uuid> atm
+	// #[serde(with = "clickhouse::serde::uuid")]
+	pub transfer_uuids: Vec<String>,
 	pub created_at: u32,
 }
 
@@ -28,7 +30,7 @@ impl Model {
 		block_height: u64,
 		from_address: &str,
 		to_address: &str,
-		tx_hashes: Vec<String>,
+		transfer_uuids: Vec<String>,
 		created_at: u32,
 	) -> Self {
 		Self {
@@ -36,7 +38,7 @@ impl Model {
 			block_height,
 			from_address: from_address.to_string(),
 			to_address: to_address.to_string(),
-			tx_hashes,
+			transfer_uuids,
 			created_at,
 		}
 	}

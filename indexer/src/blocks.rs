@@ -29,6 +29,10 @@ impl Indexer {
 
 		'indexing: loop {
 			if !self.app.is_leading() {
+				if started_indexing {
+					self.log(IndexType::Blocks, "Stopping…");
+				}
+
 				started_indexing = false;
 				sleep(Duration::from_secs(1)).await;
 				continue;

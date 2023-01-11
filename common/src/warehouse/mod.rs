@@ -150,7 +150,7 @@ impl Warehouse {
 						block_height UInt64,
 						from_address String,
 						to_address String,
-						tx_hashes Array(String),
+						transfer_uuids Array(String),
 						created_at DateTime
 					)
 					ENGINE = ReplacingMergeTree
@@ -159,7 +159,7 @@ impl Warehouse {
 						block_height,
 						from_address,
 						to_address,
-						tx_hashes
+						transfer_uuids
 					)
 					PARTITION BY toYYYYMM(created_at);
 				"#,

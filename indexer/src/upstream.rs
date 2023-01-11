@@ -12,7 +12,7 @@ use tokio::{
 use crate::{IndexType, Indexer};
 use barreleye_common::{
 	chain::WarehouseData,
-	models::{Config, ConfigKey, LabeledAddress, Link, Network, Transfer},
+	models::{Config, ConfigKey, LabeledAddress, Link, Network, PrimaryId, Transfer},
 	BlockHeight,
 };
 
@@ -24,6 +24,10 @@ impl Indexer {
 
 		loop {
 			if !self.app.is_leading() {
+				if started_indexing {
+					self.log(IndexType::Upstream, "Stopping…");
+				}
+
 				started_indexing = false;
 				sleep(Duration::from_secs(1)).await;
 				continue;
@@ -57,24 +61,19 @@ impl Indexer {
 
 			// create a map of `network_id` -> `latest_block`
 			let block_height_map = {
-				let mut ret = HashMap::new();
+				let map = networks
+					.into_iter()
+					.map(|n| (ConfigKey::IndexerTailSync(n.network_id), n.network_id))
+					.collect::<HashMap<ConfigKey, PrimaryId>>();
 
-				// @TODO optimize with one `Config::get_many` call
-				for network in networks.into_iter() {
-					let block_height = Config::get::<BlockHeight>(
-						&self.app.db,
-						ConfigKey::IndexerTailSync(network.network_id),
-					)
+				Config::get_many::<BlockHeight>(&self.app.db, map.clone().into_keys().collect())
 					.await?
-					.map(|h| h.value)
-					.unwrap_or(0);
-
-					if block_height > 0 {
-						ret.insert(network.network_id, block_height);
-					}
-				}
-
-				ret
+					.into_iter()
+					.filter_map(|(config_key, hit)| match hit.value > 0 {
+						true => map.get(&config_key).map(|&network_id| (network_id, hit.value)),
+						_ => None,
+					})
+					.collect::<HashMap<PrimaryId, BlockHeight>>()
 			};
 			if block_height_map.is_empty() {
 				self.log(IndexType::Upstream, "No fully-synced active networks. Waiting…");
@@ -99,12 +98,15 @@ impl Indexer {
 			for labeled_address in labeled_addresses.into_iter() {
 				let network_id = labeled_address.network_id;
 
-				// get either latest saved block height or skip to first interaction
-				// for that particular labeled address
+				// get latest block for this labeled address, either by:
+				// 1. looking it up in cache map (last read block)
+				// 2. reading it from configs (1st loop run)
+				// 3. skipping to 1st interaction from warehouse (1st ever run)
 				let config_key =
 					ConfigKey::IndexerUpstreamSync(network_id, labeled_address.labeled_address_id);
-				let block_height =
-					match Config::get::<BlockHeight>(&self.app.db, config_key).await? {
+				let block_height = match config_key_map.get(&config_key) {
+					Some(&block_height) => block_height,
+					_ => match Config::get::<BlockHeight>(&self.app.db, config_key).await? {
 						Some(hit) => hit.value,
 						_ => Transfer::get_first_by_source(
 							&self.app.warehouse,
@@ -114,7 +116,8 @@ impl Indexer {
 						.await?
 						.map(|t| t.block_height - 1)
 						.unwrap_or(0),
-					};
+					},
+				};
 
 				// spawn a future if there's blocks to process
 				match block_height_map.get(&network_id) {
@@ -123,12 +126,31 @@ impl Indexer {
 							let warehouse = self.app.warehouse.clone();
 							let min_block_height = block_height + 1;
 							let max_block_height = cmp::min(block_height + 10, max_block_height);
+							let uncommitted_links = warehouse_data
+								.clone()
+								.links
+								.into_iter()
+								.filter(|l| l.network_id == network_id as u64)
+								.collect::<Vec<Link>>();
 
 							async move {
 								let mut ret = WarehouseData::new();
-								let mut tracking_addresses =
-									HashSet::from([labeled_address.address.clone()]);
+
+								// holder structures
+								let mut tracking_addresses = uncommitted_links
+									.iter()
+									.map(|l| l.to_address.clone())
+									.collect::<HashSet<String>>();
+								tracking_addresses.insert(labeled_address.address.clone());
 								let mut indexed_links = HashMap::<String, HashSet<Link>>::new();
+								for link in uncommitted_links.into_iter() {
+									if let Some(set) = indexed_links.get_mut(&link.to_address) {
+										set.insert(link);
+									} else {
+										indexed_links
+											.insert(link.to_address.clone(), HashSet::from([link]));
+									}
+								}
 
 								// seed links into an indexed structure
 								for link in Link::get_all_for_seed_blocks(
@@ -160,33 +182,37 @@ impl Indexer {
 									if tracking_addresses.contains(&transfer.from_address) {
 										let mut tmp_links = vec![];
 
-										let get_link = |tx_hashes| {
-											Link::new(
-												labeled_address.network_id,
-												transfer.block_height,
-												&transfer.from_address,
-												&transfer.to_address,
-												tx_hashes,
-												transfer.created_at,
-											)
-										};
-
 										// create new links
 										if let Some(set) = indexed_links.get(&transfer.from_address)
 										{
 											for prev_link in set.iter() {
 												// extending branch
-												let mut tx_hashes = prev_link.tx_hashes.clone();
-												tx_hashes.push(transfer.tx_hash.clone());
+												let mut transfer_uuids =
+													prev_link.transfer_uuids.clone();
+												transfer_uuids.push(transfer.uuid.to_string());
 
-												let link = get_link(tx_hashes);
+												let link = Link::new(
+													labeled_address.network_id,
+													transfer.block_height,
+													&prev_link.from_address,
+													&transfer.to_address,
+													transfer_uuids,
+													transfer.created_at,
+												);
 
 												ret.links.insert(link.clone());
 												tmp_links.push(link);
 											}
 										} else {
 											// starting new branch
-											let link = get_link(vec![transfer.tx_hash]);
+											let link = Link::new(
+												labeled_address.network_id,
+												transfer.block_height,
+												&transfer.from_address,
+												&transfer.to_address,
+												vec![transfer.uuid.to_string()],
+												transfer.created_at,
+											);
 
 											ret.links.insert(link.clone());
 											tmp_links.push(link);
@@ -217,6 +243,9 @@ impl Indexer {
 				}
 			}
 
+			// set flag to pause if no threads were ever launched
+			let should_pause = futures.is_empty();
+
 			// collect results
 			while let Some(res) = futures.join_next().await {
 				if let Ok((config_key, block_height, new_warehouse_data)) = res? {
@@ -246,7 +275,7 @@ impl Indexer {
 			}
 
 			// if no threads ever started, pause
-			if futures.is_empty() {
+			if should_pause {
 				sleep(Duration::from_secs(1)).await;
 			}
 		}
