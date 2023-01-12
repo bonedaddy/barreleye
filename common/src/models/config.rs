@@ -262,11 +262,16 @@ impl Model {
 		Ok(())
 	}
 
-	pub async fn delete_all_by_keyword(db: &Db, keyword: &str) -> Result<()> {
+	pub async fn delete_many(db: &Db, keys: Vec<ConfigKey>) -> Result<()> {
 		Entity::delete_many()
-			.filter(Self::get_keyword_conditions(vec![keyword.to_string()]))
+			.filter(Column::Key.is_in(keys.into_iter().map(|k| k.to_string())))
 			.exec(db.get())
 			.await?;
+		Ok(())
+	}
+
+	pub async fn delete_all_by_keywords(db: &Db, keywords: Vec<String>) -> Result<()> {
+		Entity::delete_many().filter(Self::get_keyword_conditions(keywords)).exec(db.get()).await?;
 
 		Ok(())
 	}

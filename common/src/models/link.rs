@@ -1,6 +1,7 @@
 use clickhouse::Row;
 use eyre::Result;
 use serde::{Deserialize, Serialize};
+use std::collections::{HashMap, HashSet};
 
 use crate::{
 	models::{transfer::TABLE as TRANSFERS_TABLE, PrimaryId},
@@ -101,5 +102,37 @@ impl Model {
 			.bind(block_height_max)
 			.fetch_all::<Model>()
 			.await?)
+	}
+
+	pub async fn delete_all_by_sources(
+		warehouse: &Warehouse,
+		sources: HashMap<PrimaryId, HashSet<String>>,
+	) -> Result<()> {
+		if !sources.is_empty() {
+			let filter = sources
+				.into_iter()
+				.map(|(network_id, addresses)| {
+					let escaped_addresses = addresses
+						.into_iter()
+						.map(|a| format!("'{}'", a.replace('\\', "\\\\").replace('\'', "\\'")))
+						.collect::<Vec<String>>()
+						.join(",");
+
+					format!(
+						"(network_id = {} AND from_address IN ({}))",
+						network_id, escaped_addresses
+					)
+				})
+				.collect::<Vec<String>>()
+				.join(" OR ");
+
+			warehouse
+				.get()
+				.query(&format!("ALTER TABLE {TABLE} DELETE WHERE {filter}"))
+				.execute()
+				.await?;
+		}
+
+		Ok(())
 	}
 }

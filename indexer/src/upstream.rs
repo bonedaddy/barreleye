@@ -12,7 +12,10 @@ use tokio::{
 use crate::{IndexType, Indexer};
 use barreleye_common::{
 	chain::WarehouseData,
-	models::{Config, ConfigKey, LabeledAddress, Link, Network, PrimaryId, Transfer},
+	models::{
+		Config, ConfigKey, Label, LabeledAddress, Link, Network, PrimaryId, SoftDeleteModel,
+		Transfer,
+	},
 	BlockHeight,
 };
 
@@ -71,6 +74,9 @@ impl Indexer {
 				started_indexing = true;
 				self.log(IndexType::Upstream, "Starting…");
 			}
+
+			// remove all soft-deleted records
+			self.prune().await?;
 
 			// get all networks that are not syncing in chunks
 			let mut networks = vec![];
@@ -293,5 +299,47 @@ impl Indexer {
 				sleep(Duration::from_secs(1)).await;
 			}
 		}
+	}
+
+	pub async fn prune(&self) -> Result<()> {
+		// get all deleted addresses
+		let labeled_addresses = LabeledAddress::get_all_deleted(&self.app.db).await?;
+		if !labeled_addresses.is_empty() {
+			// delete all upstream configs
+			Config::delete_many(
+				&self.app.db,
+				labeled_addresses
+					.iter()
+					.map(|a| ConfigKey::IndexerUpstreamSync(a.network_id, a.labeled_address_id))
+					.collect(),
+			)
+			.await?;
+
+			// delete all db records
+			LabeledAddress::prune_all_by_ids(
+				&self.app.db,
+				labeled_addresses.iter().map(|a| a.id.clone()).collect(),
+			)
+			.await?;
+
+			// prune warehouse
+			let mut sources: HashMap<PrimaryId, HashSet<String>> = HashMap::new();
+			for labeled_address in labeled_addresses.into_iter() {
+				if let Some(set) = sources.get_mut(&labeled_address.network_id) {
+					set.insert(labeled_address.address);
+				} else {
+					sources.insert(
+						labeled_address.network_id,
+						HashSet::from([labeled_address.address]),
+					);
+				}
+			}
+			Link::delete_all_by_sources(&self.app.warehouse, sources).await?;
+		}
+
+		// prune all labels
+		Label::prune_all(&self.app.db).await?;
+
+		Ok(())
 	}
 }

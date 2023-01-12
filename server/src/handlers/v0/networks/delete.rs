@@ -13,7 +13,7 @@ pub async fn handler(
 ) -> ServerResult<StatusCode> {
 	if let Some(network) = Network::get_by_id(&app.db, &network_id).await? {
 		Network::delete(&app.db, network.network_id).await?;
-		Config::delete_all_by_keyword(&app.db, &format!("n{network_id}")).await?;
+		Config::delete_all_by_keywords(&app.db, vec![format!("n{network_id}")]).await?;
 
 		// update config
 		if network.is_active {

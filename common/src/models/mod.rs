@@ -174,3 +174,51 @@ pub trait BasicModel {
 		Ok(res.rows_affected)
 	}
 }
+
+#[async_trait]
+pub trait SoftDeleteModel {
+	type ActiveModel: ActiveModelTrait + ActiveModelBehavior + Sized + Send;
+
+	async fn get_existing_by_id(
+		db: &Db,
+		id: &str,
+	) -> Result<
+		Option<<<Self::ActiveModel as ActiveModelTrait>::Entity as EntityTrait>::Model>,
+		DbErr,
+	> {
+		<Self::ActiveModel as ActiveModelTrait>::Entity::find()
+			.filter(Expr::col(Alias::new("id")).eq(id))
+			.filter(Expr::col(Alias::new("is_deleted")).eq(false))
+			.one(db.get())
+			.await
+	}
+
+	async fn get_all_deleted(
+		db: &Db,
+	) -> Result<Vec<<<Self::ActiveModel as ActiveModelTrait>::Entity as EntityTrait>::Model>, DbErr>
+	{
+		Ok(<Self::ActiveModel as ActiveModelTrait>::Entity::find()
+			.filter(Expr::col(Alias::new("is_deleted")).eq(true))
+			.all(db.get())
+			.await?)
+	}
+
+	async fn prune_all(db: &Db) -> Result<u64, DbErr> {
+		let res = <Self::ActiveModel as ActiveModelTrait>::Entity::delete_many()
+			.filter(Expr::col(Alias::new("is_deleted")).eq(true))
+			.exec(db.get())
+			.await?;
+
+		Ok(res.rows_affected)
+	}
+
+	async fn prune_all_by_ids(db: &Db, ids: Vec<String>) -> Result<u64, DbErr> {
+		let res = <Self::ActiveModel as ActiveModelTrait>::Entity::delete_many()
+			.filter(Expr::col(Alias::new("is_deleted")).eq(true))
+			.filter(Expr::col(Alias::new("id")).is_in(ids))
+			.exec(db.get())
+			.await?;
+
+		Ok(res.rows_affected)
+	}
+}

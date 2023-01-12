@@ -3,7 +3,7 @@ use serde::Deserialize;
 use std::{collections::HashMap, sync::Arc};
 
 use crate::{errors::ServerError, App, ServerResult};
-use barreleye_common::models::{BasicModel, Label, LabeledAddress, Network};
+use barreleye_common::models::{BasicModel, Label, LabeledAddress, Network, SoftDeleteModel};
 
 type Address = String;
 type Description = String;
@@ -20,15 +20,9 @@ pub async fn handler(
 	State(app): State<Arc<App>>,
 	Json(payload): Json<Payload>,
 ) -> ServerResult<Json<Vec<LabeledAddress>>> {
-	let label = match Label::get_by_id(&app.db, &payload.label).await? {
-		Some(label) if !label.is_deleted => label,
-		_ => {
-			return Err(ServerError::InvalidParam {
-				field: "label".to_string(),
-				value: payload.label,
-			})
-		}
-	};
+	let label = Label::get_existing_by_id(&app.db, &payload.label)
+		.await?
+		.ok_or(ServerError::InvalidParam { field: "label".to_string(), value: payload.label })?;
 
 	let network =
 		Network::get_by_id(&app.db, &payload.network).await?.ok_or(ServerError::InvalidParam {

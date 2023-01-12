@@ -8,7 +8,7 @@ use barreleye_common::models::{
 	labeled_address::Column::{
 		IsDeleted as LabeledAddressIsDeleted, LabelId as LabeledAddressLabelId,
 	},
-	BasicModel, Label, LabeledAddress,
+	BasicModel, Label, LabeledAddress, SoftDeleteModel,
 };
 
 #[derive(Deserialize)]
@@ -30,16 +30,13 @@ pub async fn handler(
 
 	if let Some(payload) = payload {
 		if let Some(label_id) = payload.label {
-			match Label::get_by_id(&app.db, &label_id).await? {
-				Some(label) if !label.is_deleted => {
-					conditions.push(LabeledAddressLabelId.eq(label.label_id))
-				}
-				_ => {
-					return Err(ServerError::InvalidParam {
-						field: "label".to_string(),
-						value: label_id,
-					});
-				}
+			if let Some(label) = Label::get_existing_by_id(&app.db, &label_id).await? {
+				conditions.push(LabeledAddressLabelId.eq(label.label_id))
+			} else {
+				return Err(ServerError::InvalidParam {
+					field: "label".to_string(),
+					value: label_id,
+				});
 			}
 		}
 

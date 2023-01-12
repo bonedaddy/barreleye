@@ -32,6 +32,17 @@ impl MigrationTrait for Migration {
 					)
 					.to_owned(),
 			)
+			.await?;
+
+		manager
+			.create_index(
+				Index::create()
+					.if_not_exists()
+					.name("ix_labels_is_deleted")
+					.table(Labels::Table)
+					.col(Labels::IsDeleted)
+					.to_owned(),
+			)
 			.await
 	}
 

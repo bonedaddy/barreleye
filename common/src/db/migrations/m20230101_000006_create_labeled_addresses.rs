@@ -54,6 +54,17 @@ impl MigrationTrait for Migration {
 			.create_index(
 				Index::create()
 					.if_not_exists()
+					.name("ix_labeled_addresses_is_deleted")
+					.table(LabeledAddresses::Table)
+					.col(LabeledAddresses::IsDeleted)
+					.to_owned(),
+			)
+			.await?;
+
+		manager
+			.create_index(
+				Index::create()
+					.if_not_exists()
 					.name("ux_labeled_addresses_label_id_network_id_address")
 					.table(LabeledAddresses::Table)
 					.unique()

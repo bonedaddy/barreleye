@@ -4,7 +4,7 @@ use sea_orm_migration::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-	models::{label, BasicModel, PrimaryId},
+	models::{label, BasicModel, PrimaryId, SoftDeleteModel},
 	utils, Db, IdPrefix,
 };
 
@@ -52,6 +52,10 @@ impl RelationTrait for Relation {
 impl ActiveModelBehavior for ActiveModel {}
 
 impl BasicModel for Model {
+	type ActiveModel = ActiveModel;
+}
+
+impl SoftDeleteModel for Model {
 	type ActiveModel = ActiveModel;
 }
 
