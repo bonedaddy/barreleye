@@ -130,14 +130,11 @@ impl Indexer {
 				let network_id = labeled_address.network_id;
 				let max_block_height = block_height_map[&network_id];
 
-				// let max_block_height = *block_height_map.get(&network_id).unwrap();
-
 				// get latest block for this labeled address:
 				// 1. if in cache -> get it from there
 				// 2. if cache is not set -> try reading from configs
 				// 3. if not in configs -> fast-forward to 1st interaction from warehouse
 				// 4. if not in warehouse -> no need to scan chain; set to chain height
-				// 5. else -> `0`
 				let config_key =
 					ConfigKey::IndexerUpstreamSync(network_id, labeled_address.labeled_address_id);
 				let block_height = match config_key_map.get(&config_key) {
@@ -150,13 +147,7 @@ impl Indexer {
 							&labeled_address.address,
 						)
 						.await?
-						.map_or_else(
-							|| match block_height_map.get(&network_id) {
-								Some(&max_block_height) => max_block_height,
-								_ => 0,
-							},
-							|t| t.block_height - 1,
-						),
+						.map_or_else(|| max_block_height, |t| t.block_height - 1),
 					},
 				};
 
