@@ -16,6 +16,9 @@ use barreleye_common::{
 	BlockHeight,
 };
 
+const BLOCKS_PER_LOOP: BlockHeight = 10;
+const MAX_ADDRESSES_PER_JOIN_SET: usize = 100;
+
 struct IndexedLinks {
 	address: String,
 	data: HashMap<String, HashSet<Link>>,
@@ -116,6 +119,7 @@ impl Indexer {
 			let labeled_addresses = LabeledAddress::get_all_by_network_ids(
 				&self.app.db,
 				block_height_map.clone().into_keys().collect(),
+				Some(false),
 			)
 			.await?;
 			if labeled_addresses.is_empty() {
@@ -139,16 +143,22 @@ impl Indexer {
 					ConfigKey::IndexerUpstreamSync(network_id, labeled_address.labeled_address_id);
 				let block_height = match config_key_map.get(&config_key) {
 					Some(&block_height) => block_height,
-					_ => match Config::get::<BlockHeight>(&self.app.db, config_key).await? {
-						Some(hit) => hit.value,
-						_ => Transfer::get_first_by_source(
-							&self.app.warehouse,
-							network_id,
-							&labeled_address.address,
-						)
-						.await?
-						.map_or_else(|| max_block_height, |t| t.block_height - 1),
-					},
+					_ => {
+						let block_height =
+							match Config::get::<BlockHeight>(&self.app.db, config_key).await? {
+								Some(hit) => hit.value,
+								_ => Transfer::get_first_by_source(
+									&self.app.warehouse,
+									network_id,
+									&labeled_address.address,
+								)
+								.await?
+								.map_or_else(|| max_block_height, |t| t.block_height - 1),
+							};
+
+						config_key_map.insert(config_key, block_height);
+						block_height
+					}
 				};
 
 				// process a new block range if we're not at the tip
@@ -156,7 +166,8 @@ impl Indexer {
 					futures.spawn({
 						let warehouse = self.app.warehouse.clone();
 						let min_block_height = block_height + 1;
-						let max_block_height = cmp::min(block_height + 10, max_block_height);
+						let max_block_height =
+							cmp::min(block_height + BLOCKS_PER_LOOP, max_block_height);
 						let uncommitted_links = warehouse_data
 							.clone()
 							.links
@@ -238,6 +249,11 @@ impl Indexer {
 							Ok::<_, ErrReport>((config_key, max_block_height, ret))
 						}
 					});
+				}
+
+				// don't process too many addresses at once
+				if futures.len() >= MAX_ADDRESSES_PER_JOIN_SET {
+					break;
 				}
 			}
 

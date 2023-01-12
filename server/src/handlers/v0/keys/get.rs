@@ -13,6 +13,6 @@ pub async fn handler(
 ) -> ServerResult<Json<ApiKey>> {
 	ApiKey::get_by_id(&app.db, &api_key_id)
 		.await?
-		.map(|ak| ak.format().into())
+		.map(|k| k.format().into())
 		.ok_or(ServerError::NotFound)
 }

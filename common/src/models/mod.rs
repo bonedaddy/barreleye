@@ -33,6 +33,13 @@ pub mod transfer;
 // @TODO `https://github.com/SeaQL/sea-orm/issues/1068`
 pub type PrimaryId = i64;
 
+pub fn set<T>(v: T) -> ActiveValue<T>
+where
+	T: Into<sea_orm::Value>,
+{
+	ActiveValue::set(v)
+}
+
 pub fn optional_set<T>(o: Option<T>) -> ActiveValue<T>
 where
 	T: Into<sea_orm::Value>,

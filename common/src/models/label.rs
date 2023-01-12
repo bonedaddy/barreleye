@@ -22,7 +22,7 @@ pub struct Model {
 	pub name: String,
 	pub description: String,
 	#[serde(skip_serializing)]
-	pub is_enabled: bool,
+	pub is_deleted: bool,
 	#[sea_orm(nullable)]
 	#[serde(skip_serializing)]
 	pub updated_at: Option<DateTime>,
@@ -48,23 +48,30 @@ impl BasicModel for Model {
 }
 
 impl Model {
-	pub fn new_model(name: &str, description: &str, is_enabled: bool) -> ActiveModel {
+	pub fn new_model(name: &str, description: &str) -> ActiveModel {
 		ActiveModel {
 			id: Set(utils::new_unique_id(IdPrefix::Label)),
 			name: Set(name.to_string()),
 			description: Set(description.to_string()),
-			is_enabled: Set(is_enabled),
+			is_deleted: Set(false),
 			..Default::default()
 		}
 	}
 
-	pub async fn get_by_name(db: &Db, name: &str) -> Result<Option<Self>> {
-		Ok(Entity::find()
-			.filter(
-				Condition::all()
-					.add(Func::lower(Expr::col(Column::Name)).equals(name.trim().to_lowercase())),
-			)
-			.one(db.get())
-			.await?)
+	pub async fn get_by_name(
+		db: &Db,
+		name: &str,
+		is_deleted: Option<bool>,
+	) -> Result<Option<Self>> {
+		let mut q = Entity::find().filter(
+			Condition::all()
+				.add(Func::lower(Expr::col(Column::Name)).equals(name.trim().to_lowercase())),
+		);
+
+		if is_deleted.is_some() {
+			q = q.filter(Column::IsDeleted.eq(is_deleted.unwrap()))
+		}
+
+		Ok(q.one(db.get()).await?)
 	}
 }

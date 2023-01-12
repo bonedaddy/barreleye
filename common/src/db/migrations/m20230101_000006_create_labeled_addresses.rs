@@ -24,6 +24,7 @@ impl MigrationTrait for Migration {
 					.col(ColumnDef::new(LabeledAddresses::Id).unique_key().string().not_null())
 					.col(ColumnDef::new(LabeledAddresses::Address).string().not_null())
 					.col(ColumnDef::new(LabeledAddresses::Description).string().not_null())
+					.col(ColumnDef::new(LabeledAddresses::IsDeleted).boolean().not_null())
 					.col(ColumnDef::new(LabeledAddresses::UpdatedAt).date_time().null())
 					.col(
 						ColumnDef::new(LabeledAddresses::CreatedAt)
@@ -78,6 +79,7 @@ enum LabeledAddresses {
 	Id,
 	Address,
 	Description,
+	IsDeleted,
 	UpdatedAt,
 	CreatedAt,
 }

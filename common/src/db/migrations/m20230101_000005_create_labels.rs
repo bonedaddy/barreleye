@@ -22,7 +22,7 @@ impl MigrationTrait for Migration {
 					.col(ColumnDef::new(Labels::Id).unique_key().string().not_null())
 					.col(ColumnDef::new(Labels::Name).unique_key().string().not_null())
 					.col(ColumnDef::new(Labels::Description).string().not_null())
-					.col(ColumnDef::new(Labels::IsEnabled).boolean().not_null())
+					.col(ColumnDef::new(Labels::IsDeleted).boolean().not_null())
 					.col(ColumnDef::new(Labels::UpdatedAt).date_time().null())
 					.col(
 						ColumnDef::new(Labels::CreatedAt)
@@ -48,7 +48,7 @@ enum Labels {
 	Id,
 	Name,
 	Description,
-	IsEnabled,
+	IsDeleted,
 	UpdatedAt,
 	CreatedAt,
 }

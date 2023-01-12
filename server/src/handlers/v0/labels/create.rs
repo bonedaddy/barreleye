@@ -17,13 +17,13 @@ pub async fn handler(
 	Json(payload): Json<Payload>,
 ) -> ServerResult<Json<Label>> {
 	// check for duplicate name
-	if Label::get_by_name(&app.db, &payload.name).await?.is_some() {
+	if Label::get_by_name(&app.db, &payload.name, None).await?.is_some() {
 		return Err(ServerError::Duplicate { field: "name".to_string(), value: payload.name });
 	}
 
 	// create new
 	let label_id =
-		Label::create(&app.db, Label::new_model(&payload.name, &payload.description, true)).await?;
+		Label::create(&app.db, Label::new_model(&payload.name, &payload.description)).await?;
 
 	// return newly created
 	Ok(Label::get(&app.db, label_id).await?.unwrap().into())

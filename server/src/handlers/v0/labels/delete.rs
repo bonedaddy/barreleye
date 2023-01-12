@@ -5,35 +5,36 @@ use axum::{
 use std::sync::Arc;
 
 use crate::{errors::ServerError, App, ServerResult};
-use barreleye_common::models::{BasicModel, Config, Label, LabeledAddress};
+use barreleye_common::models::{
+	set, BasicModel, Label, LabelActiveModel, LabeledAddress, LabeledAddressActiveModel,
+};
 
 pub async fn handler(
 	State(app): State<Arc<App>>,
 	Path(label_id): Path<String>,
 ) -> ServerResult<StatusCode> {
-	let label = Label::get_by_id(&app.db, &label_id).await?.ok_or(ServerError::NotFound)?;
+	if let Some(label) = Label::get_by_id(&app.db, &label_id).await? {
+		if !label.is_deleted {
+			// delete all associated addresses
+			LabeledAddress::update_by_label_id(
+				&app.db,
+				label.label_id,
+				LabeledAddressActiveModel { is_deleted: set(true), ..Default::default() },
+			)
+			.await?;
 
-	// dont delete if applied
-	let labeled_addresses =
-		LabeledAddress::get_all_by_label_ids(&app.db, vec![label.label_id]).await?;
-	if !labeled_addresses.is_empty() {
-		return Err(ServerError::BadRequest {
-			reason: format!(
-				"cannot delete applied label ({})",
-				labeled_addresses[..3]
-					.iter()
-					.map(|la| format!("`{}`", la.id))
-					.collect::<Vec<String>>()
-					.join(", ")
-			),
-		});
+			// delete label
+			Label::update_by_id(
+				&app.db,
+				&label_id,
+				LabelActiveModel { is_deleted: set(true), ..Default::default() },
+			)
+			.await?;
+
+			// ok
+			return Ok(StatusCode::NO_CONTENT);
+		}
 	}
 
-	// delete
-	if Label::delete_by_id(&app.db, &label_id).await? {
-		Config::delete_all_by_keyword(&app.db, &format!("l{label_id}")).await?;
-		Ok(StatusCode::NO_CONTENT)
-	} else {
-		Err(ServerError::NotFound)
-	}
+	Err(ServerError::NotFound)
 }

@@ -36,7 +36,8 @@ pub async fn handler(
 		labels: vec![],
 	};
 
-	if let Some(labeled_address) = LabeledAddress::get_by_address(&app.db, &payload.address).await?
+	if let Some(labeled_address) =
+		LabeledAddress::get_by_address(&app.db, &payload.address, Some(false)).await?
 	{
 		let label = Label::get(&app.db, labeled_address.label_id).await?.unwrap();
 

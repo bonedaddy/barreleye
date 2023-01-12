@@ -13,20 +13,26 @@ pub enum ServerError {
 	#[display(fmt = "unauthorized")]
 	Unauthorized,
 
-	#[display(fmt = "validation error on field `{field}`")]
+	#[display(fmt = "validation error @ `{field}`")]
 	Validation { field: String },
 
-	#[display(fmt = "invalid parameter @ `{field}`: `{value}`")]
+	#[display(fmt = "invalid parameter @ `{field}`: {value}")]
 	InvalidParam { field: String, value: String },
 
 	#[display(fmt = "could not connect to `{name}`")]
 	InvalidService { name: String },
 
-	#[display(fmt = "duplicate item found @ `{field}`: `{value}`")]
+	#[display(fmt = "duplicate found @ `{field}`: {value}")]
 	Duplicate { field: String, value: String },
+
+	#[display(fmt = "duplicates found @ `{field}`: {values}")]
+	Duplicates { field: String, values: String },
 
 	#[display(fmt = "bad request: {reason}")]
 	BadRequest { reason: String },
+
+	#[display(fmt = "conflict: {reason}")]
+	Conflict { reason: String },
 
 	#[display(fmt = "not found")]
 	NotFound,
@@ -38,13 +44,15 @@ pub enum ServerError {
 impl IntoResponse for ServerError {
 	fn into_response(self) -> Response {
 		let http_code = match self {
-			ServerError::Unauthorized => StatusCode::UNAUTHORIZED,
-			ServerError::Validation { .. } => StatusCode::BAD_REQUEST,
-			ServerError::InvalidParam { .. } => StatusCode::BAD_REQUEST,
-			ServerError::InvalidService { .. } => StatusCode::BAD_REQUEST,
-			ServerError::Duplicate { .. } => StatusCode::BAD_REQUEST,
-			ServerError::BadRequest { .. } => StatusCode::BAD_REQUEST,
+			ServerError::Validation { .. } |
+			ServerError::InvalidParam { .. } |
+			ServerError::InvalidService { .. } |
+			ServerError::Duplicate { .. } |
+			ServerError::Duplicates { .. } |
+			ServerError::BadRequest { .. } |
+			ServerError::Conflict { .. } => StatusCode::BAD_REQUEST,
 			ServerError::NotFound => StatusCode::NOT_FOUND,
+			ServerError::Unauthorized => StatusCode::UNAUTHORIZED,
 			ServerError::Internal { .. } => StatusCode::INTERNAL_SERVER_ERROR,
 		};
 

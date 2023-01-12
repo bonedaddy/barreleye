@@ -13,8 +13,6 @@ use crate::{models::PrimaryId, utils, BlockHeight, Db};
 pub enum ConfigKey {
 	#[display(fmt = "primary")]
 	Primary,
-	#[display(fmt = "label_fetched_l{}", "_0")]
-	LabelFetched(PrimaryId),
 	#[display(fmt = "indexer_tail_sync_n{}", "_0")]
 	IndexerTailSync(PrimaryId),
 	#[display(fmt = "indexer_chunk_sync_n{}_b{}", "_0", "_1")]
@@ -42,7 +40,6 @@ impl From<String> for ConfigKey {
 
 		match template.to_string().as_str() {
 			"primary" => Self::Primary,
-			"label_fetched_l{}" if n.len() == 1 => Self::LabelFetched(n[0]),
 			"indexer_tail_sync_n{}" if n.len() == 1 => Self::IndexerTailSync(n[0]),
 			"indexer_chunk_sync_n{}_b{}" if n.len() == 2 => {
 				Self::IndexerChunkSync(n[0], n[1] as BlockHeight)
@@ -72,7 +69,6 @@ mod tests {
 	fn test_config_key_str() {
 		let config_keys = HashMap::from([
 			(ConfigKey::Primary, "primary"),
-			(ConfigKey::LabelFetched(123), "label_fetched_l123"),
 			(ConfigKey::IndexerTailSync(123), "indexer_tail_sync_n123"),
 			(ConfigKey::IndexerChunkSync(123, 456), "indexer_chunk_sync_n123_b456"),
 			(ConfigKey::IndexerModuleSync(123, 456), "indexer_module_sync_n123_m456"),

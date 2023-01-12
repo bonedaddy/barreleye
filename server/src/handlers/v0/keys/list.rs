@@ -24,7 +24,7 @@ pub async fn handler(
 	Ok(ApiKey::get_all_where(&app.db, vec![], offset, limit)
 		.await?
 		.iter()
-		.map(|ak| ak.format())
+		.map(|k| k.format())
 		.collect::<Vec<ApiKey>>()
 		.into())
 }

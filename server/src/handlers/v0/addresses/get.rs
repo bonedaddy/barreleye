@@ -11,8 +11,8 @@ pub async fn handler(
 	State(app): State<Arc<App>>,
 	Path(label_address_id): Path<String>,
 ) -> ServerResult<Json<LabeledAddress>> {
-	LabeledAddress::get_by_id(&app.db, &label_address_id)
-		.await?
-		.map(|v| v.into())
-		.ok_or(ServerError::NotFound)
+	match LabeledAddress::get_by_id(&app.db, &label_address_id).await? {
+		Some(labeled_address) if !labeled_address.is_deleted => Ok(labeled_address.into()),
+		_ => Err(ServerError::NotFound),
+	}
 }

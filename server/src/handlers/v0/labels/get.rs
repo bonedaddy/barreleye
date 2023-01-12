@@ -11,5 +11,8 @@ pub async fn handler(
 	State(app): State<Arc<App>>,
 	Path(label_id): Path<String>,
 ) -> ServerResult<Json<Label>> {
-	Label::get_by_id(&app.db, &label_id).await?.map(|v| v.into()).ok_or(ServerError::NotFound)
+	match Label::get_by_id(&app.db, &label_id).await? {
+		Some(label) if !label.is_deleted => Ok(label.into()),
+		_ => Err(ServerError::NotFound),
+	}
 }

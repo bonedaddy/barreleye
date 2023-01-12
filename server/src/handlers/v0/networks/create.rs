@@ -43,7 +43,7 @@ pub async fn handler(
 	.is_some()
 	{
 		return Err(ServerError::Duplicate {
-			field: "chain_id".to_string(),
+			field: "chainId".to_string(),
 			value: payload.chain_id.to_string(),
 		});
 	}

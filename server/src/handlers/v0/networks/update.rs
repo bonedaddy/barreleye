@@ -3,6 +3,7 @@ use axum::{
 	http::StatusCode,
 	Json,
 };
+use sea_orm::ActiveModelTrait;
 use serde::Deserialize;
 use serde_json::json;
 use std::sync::Arc;
@@ -55,7 +56,7 @@ pub async fn handler(
 		.is_some()
 		{
 			return Err(ServerError::Duplicate {
-				field: "chain_id".to_string(),
+				field: "chainId".to_string(),
 				value: chain_id.to_string(),
 			});
 		}
@@ -74,27 +75,17 @@ pub async fn handler(
 		..Default::default()
 	};
 
-	if Network::update_by_id(&app.db, &network_id, update_data).await? {
+	if update_data.is_changed() {
+		// update network
+		Network::update_by_id(&app.db, &network_id, update_data).await?;
+
 		// update config
-		if payload.name.is_some() ||
-			payload.tag.is_some() ||
-			payload.env.is_some() ||
-			payload.blockchain.is_some() ||
-			payload.chain_id.is_some() ||
-			payload.block_time_ms.is_some() ||
-			payload.rpc_endpoints.is_some() ||
-			payload.rps.is_some() ||
-			payload.is_active.is_some()
-		{
-			Config::set::<u8>(&app.db, ConfigKey::NetworksUpdated, 1).await?;
-		}
+		Config::set::<u8>(&app.db, ConfigKey::NetworksUpdated, 1).await?;
 
 		// update app's networks
 		let mut networks = app.networks.write().await;
 		*networks = app.get_networks().await?;
-
-		Ok(StatusCode::NO_CONTENT)
-	} else {
-		Err(ServerError::NotFound)
 	}
+
+	Ok(StatusCode::NO_CONTENT)
 }

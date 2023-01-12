@@ -20,9 +20,15 @@ pub async fn handler(
 	State(app): State<Arc<App>>,
 	Json(payload): Json<Payload>,
 ) -> ServerResult<Json<Vec<LabeledAddress>>> {
-	let label = Label::get_by_id(&app.db, &payload.label)
-		.await?
-		.ok_or(ServerError::InvalidParam { field: "label".to_string(), value: payload.label })?;
+	let label = match Label::get_by_id(&app.db, &payload.label).await? {
+		Some(label) if !label.is_deleted => label,
+		_ => {
+			return Err(ServerError::InvalidParam {
+				field: "label".to_string(),
+				value: payload.label,
+			})
+		}
+	};
 
 	let network =
 		Network::get_by_id(&app.db, &payload.network).await?.ok_or(ServerError::InvalidParam {
@@ -30,17 +36,43 @@ pub async fn handler(
 			value: payload.network,
 		})?;
 
+	// check for soft-deleted records
+	let labeled_addresses = LabeledAddress::get_all_by_network_id_and_addresses(
+		&app.db,
+		network.network_id,
+		payload.addresses.clone().into_keys().collect(),
+		Some(true),
+	)
+	.await?;
+	if !labeled_addresses.is_empty() {
+		return Err(ServerError::Conflict {
+			reason: format!(
+				"the following addresses have not been properly deleted yet: {}; try again later",
+				labeled_addresses
+					.into_iter()
+					.map(|a| a.address)
+					.collect::<Vec<String>>()
+					.join(", ")
+			),
+		});
+	}
+
 	// check for duplicates
 	let labeled_addresses = LabeledAddress::get_all_by_network_id_and_addresses(
 		&app.db,
 		network.network_id,
 		payload.addresses.clone().into_keys().collect(),
+		Some(false),
 	)
 	.await?;
 	if !labeled_addresses.is_empty() {
-		return Err(ServerError::Duplicate {
+		return Err(ServerError::Duplicates {
 			field: "addresses".to_string(),
-			value: labeled_addresses[0].address.clone(),
+			values: labeled_addresses
+				.into_iter()
+				.map(|a| a.address)
+				.collect::<Vec<String>>()
+				.join(", "),
 		});
 	}
 
@@ -63,6 +95,7 @@ pub async fn handler(
 		&app.db,
 		network.network_id,
 		payload.addresses.into_keys().collect(),
+		Some(false),
 	)
 	.await?
 	.into())

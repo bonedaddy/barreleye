@@ -1,6 +1,6 @@
 use eyre::Result;
 use sea_orm::entity::{prelude::*, *};
-use sea_orm_migration::prelude::OnConflict;
+use sea_orm_migration::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -22,6 +22,8 @@ pub struct Model {
 	pub id: String,
 	pub address: String,
 	pub description: String,
+	#[serde(skip_serializing)]
+	pub is_deleted: bool,
 	#[sea_orm(nullable)]
 	#[serde(skip_serializing)]
 	pub updated_at: Option<DateTime>,
@@ -66,6 +68,7 @@ impl Model {
 			id: Set(utils::new_unique_id(IdPrefix::LabeledAddress)),
 			address: Set(address.to_string()),
 			description: Set(description.to_string()),
+			is_deleted: Set(false),
 			..Default::default()
 		}
 	}
@@ -84,27 +87,74 @@ impl Model {
 		Ok(insert_result.last_insert_id)
 	}
 
-	pub async fn get_all_by_label_ids(db: &Db, label_ids: Vec<PrimaryId>) -> Result<Vec<Self>> {
-		Ok(Entity::find().filter(Column::LabelId.is_in(label_ids)).all(db.get()).await?)
+	pub async fn get_all_by_label_ids(
+		db: &Db,
+		label_ids: Vec<PrimaryId>,
+		is_deleted: Option<bool>,
+	) -> Result<Vec<Self>> {
+		let mut q = Entity::find().filter(Column::LabelId.is_in(label_ids));
+		if is_deleted.is_some() {
+			q = q.filter(Column::IsDeleted.eq(is_deleted.unwrap()))
+		}
+
+		Ok(q.all(db.get()).await?)
 	}
 
-	pub async fn get_by_address(db: &Db, address: &str) -> Result<Option<Self>> {
-		Ok(Entity::find().filter(Column::Address.eq(address)).one(db.get()).await?)
+	pub async fn get_by_address(
+		db: &Db,
+		address: &str,
+		is_deleted: Option<bool>,
+	) -> Result<Option<Self>> {
+		let mut q = Entity::find().filter(Column::Address.eq(address));
+		if is_deleted.is_some() {
+			q = q.filter(Column::IsDeleted.eq(is_deleted.unwrap()))
+		}
+
+		Ok(q.one(db.get()).await?)
 	}
 
-	pub async fn get_all_by_network_ids(db: &Db, network_ids: Vec<PrimaryId>) -> Result<Vec<Self>> {
-		Ok(Entity::find().filter(Column::NetworkId.is_in(network_ids)).all(db.get()).await?)
+	pub async fn get_all_by_network_ids(
+		db: &Db,
+		network_ids: Vec<PrimaryId>,
+		is_deleted: Option<bool>,
+	) -> Result<Vec<Self>> {
+		let mut q = Entity::find().filter(Column::NetworkId.is_in(network_ids));
+		if is_deleted.is_some() {
+			q = q.filter(Column::IsDeleted.eq(is_deleted.unwrap()))
+		}
+
+		Ok(q.all(db.get()).await?)
 	}
 
 	pub async fn get_all_by_network_id_and_addresses(
 		db: &Db,
 		network_id: PrimaryId,
 		addresses: Vec<String>,
+		is_deleted: Option<bool>,
 	) -> Result<Vec<Self>> {
-		Ok(Entity::find()
+		let mut q = Entity::find()
 			.filter(Column::NetworkId.eq(network_id))
-			.filter(Column::Address.is_in(addresses))
-			.all(db.get())
-			.await?)
+			.filter(Column::Address.is_in(addresses));
+
+		if is_deleted.is_some() {
+			q = q.filter(Column::IsDeleted.eq(is_deleted.unwrap()))
+		}
+
+		Ok(q.all(db.get()).await?)
+	}
+
+	pub async fn update_by_label_id(
+		db: &Db,
+		label_id: PrimaryId,
+		data: ActiveModel,
+	) -> Result<u64> {
+		let res = Entity::update_many()
+			.col_expr(Alias::new("updated_at"), Expr::value(utils::now()))
+			.set(data)
+			.filter(Column::LabelId.eq(label_id))
+			.exec(db.get())
+			.await?;
+
+		Ok(res.rows_affected)
 	}
 }
