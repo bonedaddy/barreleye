@@ -73,7 +73,7 @@ impl Model {
 	pub async fn create_many(db: &Db, data: Vec<ActiveModel>) -> Result<PrimaryId> {
 		let insert_result = Entity::insert_many(data)
 			.on_conflict(
-				OnConflict::columns([Column::LabelId, Column::NetworkId, Column::Address])
+				OnConflict::columns([Column::NetworkId, Column::Address])
 					// @TODO this should be a `.do_nothing()`, but: `https://github.com/SeaQL/sea-orm/issues/899`
 					.update_column(Column::LabeledAddressId)
 					.to_owned(),
@@ -96,14 +96,12 @@ impl Model {
 		Ok(Entity::find().filter(Column::NetworkId.is_in(network_ids)).all(db.get()).await?)
 	}
 
-	pub async fn get_all_specific(
+	pub async fn get_all_by_network_id_and_addresses(
 		db: &Db,
-		label_id: PrimaryId,
 		network_id: PrimaryId,
 		addresses: Vec<String>,
 	) -> Result<Vec<Self>> {
 		Ok(Entity::find()
-			.filter(Column::LabelId.eq(label_id))
 			.filter(Column::NetworkId.eq(network_id))
 			.filter(Column::Address.is_in(addresses))
 			.all(db.get())

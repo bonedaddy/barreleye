@@ -38,7 +38,7 @@ impl Indexer {
 				self.log(IndexType::Upstream, "Starting…");
 			}
 
-			// proceed only with those networks that are not chunk-syncing
+			// get all networks that are not syncing in chunks
 			let mut networks = vec![];
 			for network in Network::get_all_by_env(&self.app.db, self.app.env).await?.into_iter() {
 				let tail_is_syncing = Config::exist_by_keywords(
@@ -81,7 +81,7 @@ impl Indexer {
 				continue;
 			}
 
-			// fetch labeled addresses
+			// fetch all labeled addresses
 			let labeled_addresses = LabeledAddress::get_all_by_network_ids(
 				&self.app.db,
 				block_height_map.clone().into_keys().collect(),
@@ -97,11 +97,16 @@ impl Indexer {
 			let mut futures = JoinSet::new();
 			for labeled_address in labeled_addresses.into_iter() {
 				let network_id = labeled_address.network_id;
+				let max_block_height = block_height_map[&network_id];
 
-				// get latest block for this labeled address, either by:
-				// 1. looking it up in cache map (last read block)
-				// 2. reading it from configs (1st loop run)
-				// 3. skipping to 1st interaction from warehouse (1st ever run)
+				// let max_block_height = *block_height_map.get(&network_id).unwrap();
+
+				// get latest block for this labeled address:
+				// 1. if in cache -> get it from there
+				// 2. if cache is not set -> try reading from configs
+				// 3. if not in configs -> fast-forward to 1st interaction from warehouse
+				// 4. if not in warehouse -> no need to scan chain; set to chain height
+				// 5. else -> `0`
 				let config_key =
 					ConfigKey::IndexerUpstreamSync(network_id, labeled_address.labeled_address_id);
 				let block_height = match config_key_map.get(&config_key) {
@@ -114,136 +119,135 @@ impl Indexer {
 							&labeled_address.address,
 						)
 						.await?
-						.map(|t| t.block_height - 1)
-						.unwrap_or(0),
+						.map_or_else(
+							|| match block_height_map.get(&network_id) {
+								Some(&max_block_height) => max_block_height,
+								_ => 0,
+							},
+							|t| t.block_height - 1,
+						),
 					},
 				};
 
-				// spawn a future if there's blocks to process
-				match block_height_map.get(&network_id) {
-					Some(&max_block_height) if block_height < max_block_height => {
-						futures.spawn({
-							let warehouse = self.app.warehouse.clone();
-							let min_block_height = block_height + 1;
-							let max_block_height = cmp::min(block_height + 10, max_block_height);
-							let uncommitted_links = warehouse_data
-								.clone()
-								.links
-								.into_iter()
-								.filter(|l| l.network_id == network_id as u64)
-								.collect::<Vec<Link>>();
+				// process a new block range if we're not at the tip
+				if block_height < max_block_height {
+					futures.spawn({
+						let warehouse = self.app.warehouse.clone();
+						let min_block_height = block_height + 1;
+						let max_block_height = cmp::min(block_height + 10, max_block_height);
+						let uncommitted_links = warehouse_data
+							.clone()
+							.links
+							.into_iter()
+							.filter(|l| l.network_id == network_id as u64)
+							.collect::<Vec<Link>>();
 
-							async move {
-								let mut ret = WarehouseData::new();
+						async move {
+							let mut ret = WarehouseData::new();
 
-								// holder structures
-								let mut tracking_addresses = uncommitted_links
-									.iter()
-									.map(|l| l.to_address.clone())
-									.collect::<HashSet<String>>();
-								tracking_addresses.insert(labeled_address.address.clone());
-								let mut indexed_links = HashMap::<String, HashSet<Link>>::new();
-								for link in uncommitted_links.into_iter() {
-									if let Some(set) = indexed_links.get_mut(&link.to_address) {
-										set.insert(link);
-									} else {
-										indexed_links
-											.insert(link.to_address.clone(), HashSet::from([link]));
-									}
+							// holder structures
+							let mut tracking_addresses = uncommitted_links
+								.iter()
+								.map(|l| l.to_address.clone())
+								.collect::<HashSet<String>>();
+							tracking_addresses.insert(labeled_address.address.clone());
+							let mut indexed_links = HashMap::<String, HashSet<Link>>::new();
+							for link in uncommitted_links.into_iter() {
+								if let Some(set) = indexed_links.get_mut(&link.to_address) {
+									set.insert(link);
+								} else {
+									indexed_links
+										.insert(link.to_address.clone(), HashSet::from([link]));
 								}
+							}
 
-								// seed links into an indexed structure
-								for link in Link::get_all_for_seed_blocks(
-									&warehouse,
-									network_id,
-									(min_block_height, max_block_height),
-								)
-								.await?
-								.into_iter()
-								{
-									tracking_addresses.insert(link.to_address.clone());
-									if let Some(set) = indexed_links.get_mut(&link.to_address) {
-										set.insert(link);
-									} else {
-										indexed_links
-											.insert(link.to_address.clone(), HashSet::from([link]));
-									}
+							// seed links into an indexed structure
+							for link in Link::get_all_for_seed_blocks(
+								&warehouse,
+								network_id,
+								(min_block_height, max_block_height),
+							)
+							.await?
+							.into_iter()
+							{
+								tracking_addresses.insert(link.to_address.clone());
+								if let Some(set) = indexed_links.get_mut(&link.to_address) {
+									set.insert(link);
+								} else {
+									indexed_links
+										.insert(link.to_address.clone(), HashSet::from([link]));
 								}
+							}
 
-								// process transfers for a range of blocks
-								for transfer in Transfer::get_all_by_block_range(
-									&warehouse,
-									network_id,
-									(min_block_height, max_block_height),
-								)
-								.await?
-								.into_iter()
-								{
-									if tracking_addresses.contains(&transfer.from_address) {
-										let mut tmp_links = vec![];
+							// process transfers for a range of blocks
+							for transfer in Transfer::get_all_by_block_range(
+								&warehouse,
+								network_id,
+								(min_block_height, max_block_height),
+							)
+							.await?
+							.into_iter()
+							{
+								if tracking_addresses.contains(&transfer.from_address) {
+									let mut tmp_links = vec![];
 
-										// create new links
-										if let Some(set) = indexed_links.get(&transfer.from_address)
-										{
-											for prev_link in set.iter() {
-												// extending branch
-												let mut transfer_uuids =
-													prev_link.transfer_uuids.clone();
-												transfer_uuids.push(transfer.uuid.to_string());
+									// create new links
+									if let Some(set) = indexed_links.get(&transfer.from_address) {
+										for prev_link in set.iter() {
+											// extending branch
+											let mut transfer_uuids =
+												prev_link.transfer_uuids.clone();
+											transfer_uuids.push(transfer.uuid.to_string());
 
-												let link = Link::new(
-													labeled_address.network_id,
-													transfer.block_height,
-													&prev_link.from_address,
-													&transfer.to_address,
-													transfer_uuids,
-													transfer.created_at,
-												);
-
-												ret.links.insert(link.clone());
-												tmp_links.push(link);
-											}
-										} else {
-											// starting new branch
 											let link = Link::new(
 												labeled_address.network_id,
 												transfer.block_height,
-												&transfer.from_address,
+												&prev_link.from_address,
 												&transfer.to_address,
-												vec![transfer.uuid.to_string()],
+												transfer_uuids,
 												transfer.created_at,
 											);
 
 											ret.links.insert(link.clone());
 											tmp_links.push(link);
 										}
+									} else {
+										// starting new branch
+										let link = Link::new(
+											labeled_address.network_id,
+											transfer.block_height,
+											&transfer.from_address,
+											&transfer.to_address,
+											vec![transfer.uuid.to_string()],
+											transfer.created_at,
+										);
 
-										// add to indexed data
-										tracking_addresses.insert(transfer.to_address);
-										for link in tmp_links.into_iter() {
-											if let Some(set) =
-												indexed_links.get_mut(&link.to_address)
-											{
-												set.insert(link);
-											} else {
-												indexed_links.insert(
-													link.to_address.clone(),
-													HashSet::from([link]),
-												);
-											}
+										ret.links.insert(link.clone());
+										tmp_links.push(link);
+									}
+
+									// add to indexed data
+									tracking_addresses.insert(transfer.to_address);
+									for link in tmp_links.into_iter() {
+										if let Some(set) = indexed_links.get_mut(&link.to_address) {
+											set.insert(link);
+										} else {
+											indexed_links.insert(
+												link.to_address.clone(),
+												HashSet::from([link]),
+											);
 										}
 									}
 								}
-
-								Ok::<_, ErrReport>((config_key, max_block_height, ret))
 							}
-						});
-					}
-					_ => {}
+
+							Ok::<_, ErrReport>((config_key, max_block_height, ret))
+						}
+					});
 				}
 			}
 
-			// set flag to pause if no threads were ever launched
+			// if no new blocks or addresses to scan, give it a break before restarting
 			let should_pause = futures.is_empty();
 
 			// collect results
@@ -255,7 +259,7 @@ impl Indexer {
 			}
 
 			// commit if collected enough
-			if warehouse_data.should_commit() {
+			if warehouse_data.should_commit() && self.app.is_leading() {
 				if verbose {
 					self.log(
 						IndexType::Upstream,

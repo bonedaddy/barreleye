@@ -31,9 +31,8 @@ pub async fn handler(
 		})?;
 
 	// check for duplicates
-	let labeled_addresses = LabeledAddress::get_all_specific(
+	let labeled_addresses = LabeledAddress::get_all_by_network_id_and_addresses(
 		&app.db,
-		label.label_id,
 		network.network_id,
 		payload.addresses.clone().into_keys().collect(),
 	)
@@ -60,9 +59,8 @@ pub async fn handler(
 	.await?;
 
 	// return newly created
-	Ok(LabeledAddress::get_all_specific(
+	Ok(LabeledAddress::get_all_by_network_id_and_addresses(
 		&app.db,
-		label.label_id,
 		network.network_id,
 		payload.addresses.into_keys().collect(),
 	)

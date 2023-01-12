@@ -56,7 +56,6 @@ impl MigrationTrait for Migration {
 					.name("ux_labeled_addresses_label_id_network_id_address")
 					.table(LabeledAddresses::Table)
 					.unique()
-					.col(LabeledAddresses::LabelId)
 					.col(LabeledAddresses::NetworkId)
 					.col(LabeledAddresses::Address)
 					.to_owned(),
