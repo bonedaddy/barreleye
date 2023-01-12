@@ -16,6 +16,37 @@ use barreleye_common::{
 	BlockHeight,
 };
 
+struct IndexedLinks {
+	address: String,
+	data: HashMap<String, HashSet<Link>>,
+}
+
+impl IndexedLinks {
+	pub fn new(address: &str, links: Vec<Link>) -> Self {
+		let mut s = Self { address: address.to_string(), data: HashMap::new() };
+		s.push(links);
+		s
+	}
+
+	pub fn get(&self, key: &str) -> Option<&HashSet<Link>> {
+		self.data.get(key)
+	}
+
+	pub fn contains(&self, key: &str) -> bool {
+		self.address == key || self.data.get(key).is_some()
+	}
+
+	pub fn push(&mut self, links: Vec<Link>) {
+		for link in links.into_iter() {
+			if let Some(set) = self.data.get_mut(&link.to_address) {
+				set.insert(link);
+			} else {
+				self.data.insert(link.to_address.clone(), HashSet::from([link]));
+			}
+		}
+	}
+}
+
 impl Indexer {
 	pub async fn index_upstream(&self, verbose: bool) -> Result<()> {
 		let mut warehouse_data = WarehouseData::new();
@@ -145,39 +176,21 @@ impl Indexer {
 						async move {
 							let mut ret = WarehouseData::new();
 
-							// holder structures
-							let mut tracking_addresses = uncommitted_links
-								.iter()
-								.map(|l| l.to_address.clone())
-								.collect::<HashSet<String>>();
-							tracking_addresses.insert(labeled_address.address.clone());
-							let mut indexed_links = HashMap::<String, HashSet<Link>>::new();
-							for link in uncommitted_links.into_iter() {
-								if let Some(set) = indexed_links.get_mut(&link.to_address) {
-									set.insert(link);
-								} else {
-									indexed_links
-										.insert(link.to_address.clone(), HashSet::from([link]));
-								}
-							}
+							// seed data from processed but uncommitted links
+							let mut indexed_links = IndexedLinks::new(
+								&labeled_address.address.clone(),
+								uncommitted_links,
+							);
 
-							// seed links into an indexed structure
-							for link in Link::get_all_for_seed_blocks(
-								&warehouse,
-								network_id,
-								(min_block_height, max_block_height),
-							)
-							.await?
-							.into_iter()
-							{
-								tracking_addresses.insert(link.to_address.clone());
-								if let Some(set) = indexed_links.get_mut(&link.to_address) {
-									set.insert(link);
-								} else {
-									indexed_links
-										.insert(link.to_address.clone(), HashSet::from([link]));
-								}
-							}
+							// seed data from warehouse
+							indexed_links.push(
+								Link::get_all_for_seed_blocks(
+									&warehouse,
+									network_id,
+									(min_block_height, max_block_height),
+								)
+								.await?,
+							);
 
 							// process transfers for a range of blocks
 							for transfer in Transfer::get_all_by_block_range(
@@ -188,13 +201,13 @@ impl Indexer {
 							.await?
 							.into_iter()
 							{
-								if tracking_addresses.contains(&transfer.from_address) {
-									let mut tmp_links = vec![];
+								if indexed_links.contains(&transfer.from_address) {
+									let mut new_links = vec![];
 
 									// create new links
 									if let Some(set) = indexed_links.get(&transfer.from_address) {
+										// extending branch
 										for prev_link in set.iter() {
-											// extending branch
 											let mut transfer_uuids =
 												prev_link.transfer_uuids.clone();
 											transfer_uuids.push(transfer.uuid.to_string());
@@ -209,7 +222,7 @@ impl Indexer {
 											);
 
 											ret.links.insert(link.clone());
-											tmp_links.push(link);
+											new_links.push(link);
 										}
 									} else {
 										// starting new branch
@@ -223,21 +236,11 @@ impl Indexer {
 										);
 
 										ret.links.insert(link.clone());
-										tmp_links.push(link);
+										new_links.push(link);
 									}
 
 									// add to indexed data
-									tracking_addresses.insert(transfer.to_address);
-									for link in tmp_links.into_iter() {
-										if let Some(set) = indexed_links.get_mut(&link.to_address) {
-											set.insert(link);
-										} else {
-											indexed_links.insert(
-												link.to_address.clone(),
-												HashSet::from([link]),
-											);
-										}
-									}
+									indexed_links.push(new_links);
 								}
 							}
 

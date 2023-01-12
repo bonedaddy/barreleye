@@ -100,7 +100,7 @@ impl Model {
 	pub async fn get_all_by_block_range(
 		warehouse: &Warehouse,
 		network_id: PrimaryId,
-		block_height_range: (BlockHeight, BlockHeight),
+		(block_height_min, block_height_max): (BlockHeight, BlockHeight),
 	) -> Result<Vec<Self>> {
 		Ok(warehouse
 			.get()
@@ -116,8 +116,8 @@ impl Model {
                 "#
 			))
 			.bind(network_id)
-			.bind(block_height_range.0)
-			.bind(block_height_range.1)
+			.bind(block_height_min)
+			.bind(block_height_max)
 			.fetch_all::<Model>()
 			.await?)
 	}
