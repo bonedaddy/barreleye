@@ -76,7 +76,7 @@ impl Indexer {
 			}
 
 			// remove all soft-deleted records
-			self.prune().await?;
+			self.prune_upstream().await?;
 
 			// get all networks that are not syncing in chunks
 			let mut networks = vec![];
@@ -301,7 +301,7 @@ impl Indexer {
 		}
 	}
 
-	pub async fn prune(&self) -> Result<()> {
+	async fn prune_upstream(&self) -> Result<()> {
 		// get all deleted addresses
 		let labeled_addresses = LabeledAddress::get_all_deleted(&self.app.db).await?;
 		if !labeled_addresses.is_empty() {
