@@ -106,25 +106,23 @@ curl -X POST \
   http://localhost:22775/v0/networks
 ```
 
-## Analytics
+⏳ Indexing will take a while.
 
-⏳ Indexing might take a while.
+## Analytics
 
 To get networks, assets, labels, etc:
 
 ```bash
 curl -X GET \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer <API_KEY>" \
   http://localhost:22775/v0/info?address=<BLOCKCHAIN_ADDRESS>
 ```
 
-To find connected labeled addresses that might have gone through multiple hops:
+To find connected labeled addresses that might have funded through multiple hops:
 
 ```bash
 curl -X GET \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer <API_KEY>" \
   http://localhost:22775/v0/upstream?address=<BLOCKCHAIN_ADDRESS>
 ```
 
