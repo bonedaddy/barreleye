@@ -48,11 +48,13 @@ Notes:
 
 - Out of the box Barreleye is configured to use [SQLite](https://www.sqlite.org/) ([MySQL](https://www.mysql.com/) and [PostgreSQL](https://www.postgresql.org/) are also supported)
 
-## How does it work
+## Basics
 
-Barreleye consists of two parts: the indexer and the server. The indexer will connect to specified RPC nodes and continuously process new blocks, and the server will handle requests for processed output. You can decouple the two using CLI params.
+Barreleye consists of two parts: the indexer and the server. The indexer connects to specified RPC nodes to process blocks, and the server handles management and analytics requests.
 
-Running multiple indexers in parallel is supported, but only one will be active at a time. To start indexing without the server: `cargo run -- --indexer`
+**Note:** Indexing not only keeps up with continuous block creation, but also runs through historical blocks. This process makes significant amount of RPC calls.
+
+To start just the indexer, without the server (only one indexer will be active at a time): `cargo run -- --indexer`
 
 To run the server without indexing: `cargo run -- --server`
 
@@ -69,7 +71,7 @@ select uuid from api_keys;
 Add a Bitcoin RPC node:
 
 ```bash
-curl -i -X POST \
+curl -X POST \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <API_KEY>" \
   -d '{
@@ -85,10 +87,10 @@ curl -i -X POST \
   http://localhost:22775/v0/networks
 ```
 
-Add an Ethereum RPC node:
+Add an EVM-based RPC node:
 
 ```bash
-curl -i -X POST \
+curl -X POST \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <API_KEY>" \
   -d '{
@@ -104,22 +106,31 @@ curl -i -X POST \
   http://localhost:22775/v0/networks
 ```
 
-## MVP Todos
+## Analytics
 
-🚧 This project is a work-in-progress and not ready for prod use. Most APIs are under "v0/" and crate versions are "v0.x.x". A quick glance at the current todos:
+⏳ Indexing might take a while.
 
-- [x] Basic indexing for Bitcoin and EVM-based chains
-- [x] `v0/networks` handler
-- [x] `v0/addresses` handler
-- [x] `v0/labels` handler
-- [x] `v0/keys` handler
-- [x] `v0/heartbeat` handler
-- [x] Basic `v0/stats` handler
-- [ ] Basic `v0/info` handler
-- [ ] Basic `v0/upstream` handler
+To get networks, assets, labels, etc:
+
+```bash
+curl -X GET \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <API_KEY>" \
+  http://localhost:22775/v0/info?address=<BLOCKCHAIN_ADDRESS>
+```
+
+To find connected labeled addresses that might have gone through multiple hops:
+
+```bash
+curl -X GET \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <API_KEY>" \
+  http://localhost:22775/v0/upstream?address=<BLOCKCHAIN_ADDRESS>
+```
 
 ## Random Notes
 
+- Be aware of your RPC node limits. Indexer makes a significant amount of RPC calls to index historical and new blocks.
 - For indexing, you might have to set Clickhouse's `max_server_memory_usage_to_ram_ratio` to `2` ([read more](https://github.com/ClickHouse/ClickHouse/issues/17631))
 - Warehouse's `experimental_relations` table (along with modules) is not accurate and should not be relied on right now
 
