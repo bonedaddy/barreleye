@@ -60,4 +60,30 @@ impl Model {
 
 		Ok(insert.end().await?)
 	}
+
+	pub async fn get_all_network_ids_by_address(
+		warehouse: &Warehouse,
+		address: &str,
+	) -> Result<Vec<PrimaryId>> {
+		#[derive(PartialEq, Eq, Hash, Debug, Clone, Row, Serialize, Deserialize)]
+		struct Data {
+			network_id: u64,
+		}
+
+		Ok(warehouse
+			.get()
+			.query(&format!(
+				r#"
+					SELECT DISTINCT network_id
+					FROM {TABLE}
+					WHERE address = ?
+                "#
+			))
+			.bind(address)
+			.fetch_all::<Data>()
+			.await?
+			.into_iter()
+			.map(|d| d.network_id as PrimaryId)
+			.collect::<Vec<PrimaryId>>())
+	}
 }

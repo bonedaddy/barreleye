@@ -4,12 +4,11 @@ use std::sync::Arc;
 use crate::App;
 
 mod addresses;
-mod assets;
 mod heartbeat;
+mod info;
 mod keys;
 mod labels;
 mod networks;
-mod related;
 mod stats;
 mod upstream;
 
@@ -21,7 +20,6 @@ pub fn get_routes() -> Router<Arc<App>> {
 		.nest("/networks", networks::get_routes())
 		.nest("/labels", labels::get_routes())
 		.nest("/addresses", addresses::get_routes())
-		.nest("/assets", assets::get_routes())
+		.nest("/info", info::get_routes())
 		.nest("/upstream", upstream::get_routes())
-		.nest("/related", related::get_routes())
 }

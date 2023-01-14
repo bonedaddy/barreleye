@@ -115,9 +115,8 @@ curl -i -X POST \
 - [x] `v0/keys` handler
 - [x] `v0/heartbeat` handler
 - [x] Basic `v0/stats` handler
-- [x] Minimal `v0/assets` handler
-- [ ] Minimal `v0/upstream` handler
-- [ ] Minimal `v0/related` handler
+- [ ] Basic `v0/info` handler
+- [ ] Basic `v0/upstream` handler
 
 ## Random Notes
 

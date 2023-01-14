@@ -104,17 +104,17 @@ impl Model {
 		Ok(q.all(db.get()).await?)
 	}
 
-	pub async fn get_by_address(
+	pub async fn get_all_by_addresses(
 		db: &Db,
-		address: &str,
+		addresses: Vec<String>,
 		is_deleted: Option<bool>,
-	) -> Result<Option<Self>> {
-		let mut q = Entity::find().filter(Column::Address.eq(address));
+	) -> Result<Vec<Self>> {
+		let mut q = Entity::find().filter(Column::Address.is_in(addresses));
 		if is_deleted.is_some() {
 			q = q.filter(Column::IsDeleted.eq(is_deleted.unwrap()))
 		}
 
-		Ok(q.one(db.get()).await?)
+		Ok(q.all(db.get()).await?)
 	}
 
 	pub async fn get_all_by_network_ids(

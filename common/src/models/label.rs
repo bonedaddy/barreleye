@@ -78,4 +78,8 @@ impl Model {
 
 		Ok(q.one(db.get()).await?)
 	}
+
+	pub async fn get_all_by_label_ids(db: &Db, label_ids: Vec<PrimaryId>) -> Result<Vec<Self>> {
+		Ok(Entity::find().filter(Column::LabelId.is_in(label_ids)).all(db.get()).await?)
+	}
 }

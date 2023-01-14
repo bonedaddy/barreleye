@@ -121,4 +121,19 @@ impl Model {
 			.fetch_all::<Model>()
 			.await?)
 	}
+
+	pub async fn get_all_by_uuids(warehouse: &Warehouse, uuids: Vec<Uuid>) -> Result<Vec<Self>> {
+		Ok(warehouse
+			.get()
+			.query(&format!(
+				r#"
+					SELECT *
+					FROM {TABLE}
+					WHERE uuid IN ?
+                "#
+			))
+			.bind(uuids)
+			.fetch_all::<Model>()
+			.await?)
+	}
 }

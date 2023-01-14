@@ -192,7 +192,7 @@ impl Indexer {
 
 							// seed data from warehouse
 							indexed_links.push(
-								Link::get_all_for_seed_blocks(
+								Link::get_all_to_seed_blocks(
 									&warehouse,
 									network_id,
 									(min_block_height, max_block_height),

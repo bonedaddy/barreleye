@@ -25,6 +25,8 @@ pub struct Model {
 
 pub use Model as Link;
 
+type NetworkId = PrimaryId;
+
 impl Model {
 	pub fn new(
 		network_id: PrimaryId,
@@ -53,27 +55,41 @@ impl Model {
 		Ok(insert.end().await?)
 	}
 
-	pub async fn get_all_by_source(
-		warehouse: &Warehouse,
-		network_id: PrimaryId,
-		address: &str,
-	) -> Result<Vec<Self>> {
+	pub async fn get_all_by_address(warehouse: &Warehouse, address: &str) -> Result<Vec<Self>> {
 		Ok(warehouse
 			.get()
 			.query(&format!(
 				r#"
 					SELECT *
 					FROM {TABLE}
-					WHERE network_id = ? AND from_address = ?
+					WHERE to_address = ?
                 "#
 			))
-			.bind(network_id)
 			.bind(address.to_string())
 			.fetch_all::<Model>()
 			.await?)
 	}
 
-	pub async fn get_all_for_seed_blocks(
+	pub async fn get_all_disinct_by_address(
+		warehouse: &Warehouse,
+		address: &str,
+	) -> Result<Vec<Self>> {
+		Ok(warehouse
+			.get()
+			.query(&format!(
+				r#"
+					SELECT DISTINCT ON (network_id, from_address) *
+					FROM {TABLE}
+					WHERE to_address = ?
+					ORDER BY LENGTH(transfer_uuids) ASC
+                "#
+			))
+			.bind(address.to_string())
+			.fetch_all::<Model>()
+			.await?)
+	}
+
+	pub async fn get_all_to_seed_blocks(
 		warehouse: &Warehouse,
 		network_id: PrimaryId,
 		(block_height_min, block_height_max): (BlockHeight, BlockHeight),
@@ -106,7 +122,7 @@ impl Model {
 
 	pub async fn delete_all_by_sources(
 		warehouse: &Warehouse,
-		sources: HashMap<PrimaryId, HashSet<String>>,
+		sources: HashMap<NetworkId, HashSet<String>>,
 	) -> Result<()> {
 		if !sources.is_empty() {
 			let filter = sources

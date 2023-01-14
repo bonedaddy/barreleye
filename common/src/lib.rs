@@ -346,18 +346,6 @@ pub enum Blockchain {
 	Evm = 2,
 }
 
-#[derive(Serialize, Deserialize)]
-pub enum Risk {
-	#[serde(rename = "LOW")]
-	Low = 10,
-	#[serde(rename = "MEDIUM")]
-	Medium = 20,
-	#[serde(rename = "HIGH")]
-	High = 30,
-	#[serde(rename = "SEVERE")]
-	Severe = 40,
-}
-
 pub fn quit(app_error: AppError) {
 	println!("{} {}Shutting down…\n\n› {}", style("[err]").bold().dim(), EMOJI_QUIT, app_error,);
 
