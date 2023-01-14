@@ -118,7 +118,7 @@ curl -X GET \
   http://localhost:22775/v0/info?address=<BLOCKCHAIN_ADDRESS>
 ```
 
-To find connected labeled addresses that might have funded through multiple hops:
+To find connected labeled addresses that might have funded the requested address through multiple hops:
 
 ```bash
 curl -X GET \

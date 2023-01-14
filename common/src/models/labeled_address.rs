@@ -91,19 +91,6 @@ impl Model {
 		Ok(insert_result.last_insert_id)
 	}
 
-	pub async fn get_all_by_label_ids(
-		db: &Db,
-		label_ids: Vec<PrimaryId>,
-		is_deleted: Option<bool>,
-	) -> Result<Vec<Self>> {
-		let mut q = Entity::find().filter(Column::LabelId.is_in(label_ids));
-		if is_deleted.is_some() {
-			q = q.filter(Column::IsDeleted.eq(is_deleted.unwrap()))
-		}
-
-		Ok(q.all(db.get()).await?)
-	}
-
 	pub async fn get_all_by_addresses(
 		db: &Db,
 		addresses: Vec<String>,
