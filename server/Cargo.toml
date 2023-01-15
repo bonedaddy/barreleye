@@ -16,7 +16,7 @@ eyre = "0.6.8"
 axum = "0.6.2"
 derive_more = "0.99.17"
 serde = "1.0.152"
-console = "0.15.4"
+console = "0.15.5"
 serde_json = "1.0.91"
 hyper = "0.14.23"
 uuid = { version = "1.2.2", features = ["v4", "fast-rng"] }
