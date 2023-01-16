@@ -150,7 +150,7 @@ impl Warehouse {
 						block_height UInt64,
 						from_address String,
 						to_address String,
-						transfer_uuids Array(String),
+						transfer_uuids Array(UUID),
 						created_at DateTime
 					)
 					ENGINE = ReplacingMergeTree

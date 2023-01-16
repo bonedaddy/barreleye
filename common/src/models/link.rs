@@ -2,6 +2,7 @@ use clickhouse::Row;
 use eyre::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
+use uuid::Uuid;
 
 use crate::{
 	models::{transfer::TABLE as TRANSFERS_TABLE, PrimaryId},
@@ -11,15 +12,17 @@ use crate::{
 
 pub static TABLE: &str = "links";
 
+// @TODO ideally this wouldn't have to be wrapped
+#[derive(PartialEq, Eq, Hash, Debug, Clone, Row, Serialize, Deserialize)]
+pub struct LinkUuid(#[serde(with = "clickhouse::serde::uuid")] pub Uuid);
+
 #[derive(PartialEq, Eq, Hash, Debug, Clone, Row, Serialize, Deserialize)]
 pub struct Model {
 	pub network_id: u64,
 	pub block_height: u64,
 	pub from_address: String,
 	pub to_address: String,
-	// @TODO this should be `Uuid` but the current Clickhouse driver does not support Vec<Uuid> atm
-	// #[serde(with = "clickhouse::serde::uuid")]
-	pub transfer_uuids: Vec<String>,
+	pub transfer_uuids: Vec<LinkUuid>,
 	pub created_at: u32,
 }
 
@@ -33,7 +36,7 @@ impl Model {
 		block_height: u64,
 		from_address: &str,
 		to_address: &str,
-		transfer_uuids: Vec<String>,
+		transfer_uuids: Vec<LinkUuid>,
 		created_at: u32,
 	) -> Self {
 		Self {

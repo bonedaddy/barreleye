@@ -6,7 +6,6 @@ use eyre::Result;
 use serde::{Deserialize, Serialize};
 use std::{
 	collections::{HashMap, HashSet},
-	str::FromStr,
 	sync::Arc,
 };
 use uuid::Uuid;
@@ -59,27 +58,24 @@ pub async fn handler(
 	};
 
 	// get transfers (@TODO ideally this step would be combined with link fetching)
-	async fn get_transfers(app: Arc<App>, links: Vec<Link>) -> Result<HashMap<String, Transfer>> {
+	async fn get_transfers(app: Arc<App>, links: Vec<Link>) -> Result<HashMap<Uuid, Transfer>> {
 		let transfer_uuids = {
 			let mut ret = HashSet::new();
 
 			for link in links.into_iter() {
 				for transfer_uuid in link.transfer_uuids.into_iter() {
-					ret.insert(transfer_uuid);
+					ret.insert(transfer_uuid.0);
 				}
 			}
 
 			ret
 		};
 
-		Ok(Transfer::get_all_by_uuids(
-			&app.warehouse,
-			transfer_uuids.into_iter().map(|u| Uuid::from_str(&u).unwrap()).collect(),
-		)
-		.await?
-		.into_iter()
-		.map(|t| (t.uuid.to_string(), t))
-		.collect::<HashMap<String, Transfer>>())
+		Ok(Transfer::get_all_by_uuids(&app.warehouse, transfer_uuids.into_iter().collect())
+			.await?
+			.into_iter()
+			.map(|t| (t.uuid, t))
+			.collect::<HashMap<Uuid, Transfer>>())
 	}
 
 	// get networks
@@ -164,7 +160,7 @@ pub async fn handler(
 							.transfer_uuids
 							.into_iter()
 							.filter_map(|uuid| {
-								transfers.get(&uuid).map(|t| ResponseTransaction {
+								transfers.get(&uuid.0).map(|t| ResponseTransaction {
 									hash: t.tx_hash.clone(),
 									from_address: t.from_address.clone(),
 									to_address: t.to_address.clone(),

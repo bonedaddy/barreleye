@@ -14,7 +14,7 @@ pub use api_key::{ApiKey, ApiKeyActiveModel};
 pub use balance::Balance;
 pub use label::{Label, LabelActiveModel};
 pub use labeled_address::{LabeledAddress, LabeledAddressActiveModel};
-pub use link::Link;
+pub use link::{Link, LinkUuid};
 pub use network::{Network, NetworkActiveModel};
 pub use relation::{Reason as RelationReason, Relation};
 pub use transfer::Transfer;

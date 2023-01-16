@@ -13,8 +13,8 @@ use crate::{IndexType, Indexer};
 use barreleye_common::{
 	chain::WarehouseData,
 	models::{
-		Config, ConfigKey, Label, LabeledAddress, Link, Network, PrimaryId, SoftDeleteModel,
-		Transfer,
+		Config, ConfigKey, Label, LabeledAddress, Link, LinkUuid, Network, PrimaryId,
+		SoftDeleteModel, Transfer,
 	},
 	BlockHeight,
 };
@@ -218,7 +218,7 @@ impl Indexer {
 										for prev_link in set.iter() {
 											let mut transfer_uuids =
 												prev_link.transfer_uuids.clone();
-											transfer_uuids.push(transfer.uuid.to_string());
+											transfer_uuids.push(LinkUuid(transfer.uuid));
 
 											let link = Link::new(
 												labeled_address.network_id,
@@ -239,7 +239,7 @@ impl Indexer {
 											transfer.block_height,
 											&transfer.from_address,
 											&transfer.to_address,
-											vec![transfer.uuid.to_string()],
+											vec![LinkUuid(transfer.uuid)],
 											transfer.created_at,
 										);
 
