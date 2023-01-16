@@ -14,7 +14,7 @@ pub struct Payload {
 	address: String,
 }
 
-#[derive(Serialize, Default)]
+#[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ResponseAsset {
 	network: String,
@@ -22,7 +22,7 @@ pub struct ResponseAsset {
 	balance: String,
 }
 
-#[derive(Serialize, Default)]
+#[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Response {
 	address: String,

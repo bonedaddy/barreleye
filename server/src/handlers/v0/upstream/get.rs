@@ -19,7 +19,7 @@ pub struct Payload {
 	detailed: Option<bool>,
 }
 
-#[derive(Serialize, Default)]
+#[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ResponseTransaction {
 	hash: String,
@@ -27,7 +27,7 @@ pub struct ResponseTransaction {
 	to_address: String,
 }
 
-#[derive(Serialize, Default)]
+#[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ResponseUpstream {
 	network: String,
@@ -36,7 +36,7 @@ pub struct ResponseUpstream {
 	transactions: Vec<ResponseTransaction>,
 }
 
-#[derive(Serialize, Default)]
+#[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Response {
 	address: String,
