@@ -18,7 +18,6 @@ use barreleye_common::{
 #[serde(rename_all = "camelCase")]
 pub struct Payload {
 	name: Option<String>,
-	tag: Option<String>,
 	env: Option<Env>,
 	blockchain: Option<Blockchain>,
 	chain_id: Option<u64>,
@@ -64,7 +63,6 @@ pub async fn handler(
 
 	let update_data = NetworkActiveModel {
 		name: optional_set(payload.name.clone()),
-		tag: optional_set(payload.tag.clone()),
 		env: optional_set(payload.env),
 		blockchain: optional_set(payload.blockchain),
 		chain_id: optional_set(payload.chain_id.map(|v| v as i64)),

@@ -22,7 +22,6 @@ pub struct Model {
 	pub network_id: PrimaryId,
 	pub id: String,
 	pub name: String,
-	pub tag: String,
 	pub env: Env,
 	pub blockchain: Blockchain,
 	pub chain_id: i64,
@@ -57,7 +56,6 @@ impl BasicModel for Model {
 impl Model {
 	pub fn new_model(
 		name: &str,
-		tag: &str,
 		env: Env,
 		blockchain: Blockchain,
 		chain_id: i64,
@@ -68,7 +66,6 @@ impl Model {
 		ActiveModel {
 			id: Set(utils::new_unique_id(IdPrefix::Network)),
 			name: Set(name.to_string()),
-			tag: Set(tag.to_string()),
 			env: Set(env),
 			blockchain: Set(blockchain),
 			chain_id: Set(chain_id),

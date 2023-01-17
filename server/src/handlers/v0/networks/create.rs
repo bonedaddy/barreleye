@@ -14,7 +14,6 @@ use barreleye_common::{
 #[serde(rename_all = "camelCase")]
 pub struct Payload {
 	name: String,
-	tag: String,
 	env: Env,
 	blockchain: Blockchain,
 	chain_id: u64,
@@ -64,7 +63,6 @@ pub async fn handler(
 		&app.db,
 		Network::new_model(
 			&payload.name,
-			&payload.tag,
 			payload.env,
 			payload.blockchain,
 			payload.chain_id as i64,

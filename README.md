@@ -1,10 +1,11 @@
 # Barreleye
 
-[![](https://img.shields.io/badge/status-beta-ff69b4.svg?style=flat-square)](https://github.com/barreleye/barreleye)
+[![Status beta](https://img.shields.io/badge/status-beta-ff69b4.svg?style=flat-square)](https://github.com/barreleye/barreleye)
 [![Contributions](https://img.shields.io/badge/contributions-welcome-ff69b4?style=flat-square)](/CONTRIBUTING.md "Go to contributions doc")
+[![Docs](https://img.shields.io/badge/docs-view-44cc11.svg?style=flat-square)](https://docs.rs/crate/barreleye/latest)
+[![Crates.io](https://img.shields.io/crates/v/barreleye?color=brightgreen&style=flat-square)](https://crates.io/crates/barreleye)
 [![Github Actions](https://img.shields.io/github/actions/workflow/status/barreleye/barreleye/tests.yml?style=flat-square)](https://github.com/barreleye/barreleye/actions)
 [![Dependency Status](https://deps.rs/repo/github/barreleye/barreleye/status.svg?style=flat-square)](https://deps.rs/repo/github/barreleye/barreleye)
-[![Crates.io](https://img.shields.io/crates/v/barreleye?color=brightgreen&style=flat-square)](https://crates.io/crates/barreleye)
 [![License](https://img.shields.io/github/license/barreleye/barreleye?color=9cf&style=flat-square)](/LICENSE)
 [![Downloads](https://img.shields.io/crates/d/barreleye?color=blue&style=flat-square)](https://crates.io/crates/barreleye)
 ![Activity](https://img.shields.io/github/commit-activity/m/barreleye/barreleye?style=flat-square)
@@ -76,7 +77,6 @@ curl -X POST \
   -H "Authorization: Bearer <API_KEY>" \
   -d '{
     "name": "Bitcoin",
-    "tag": "Bitcoin",
     "env": "mainnet",
     "blockchain": "bitcoin",
     "chainId": 0,
@@ -95,7 +95,6 @@ curl -X POST \
   -H "Authorization: Bearer <API_KEY>" \
   -d '{
     "name": "Ethereum",
-    "tag": "Ethereum",
     "env": "mainnet",
     "blockchain": "evm",
     "chainId": 1,

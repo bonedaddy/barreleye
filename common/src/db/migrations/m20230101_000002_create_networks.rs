@@ -21,7 +21,6 @@ impl MigrationTrait for Migration {
 					)
 					.col(ColumnDef::new(Networks::Id).unique_key().string().not_null())
 					.col(ColumnDef::new(Networks::Name).unique_key().string().not_null())
-					.col(ColumnDef::new(Networks::Tag).string().not_null())
 					.col(ColumnDef::new(Networks::Env).small_integer().not_null())
 					.col(ColumnDef::new(Networks::Blockchain).small_integer().not_null())
 					.col(ColumnDef::new(Networks::ChainId).big_integer().not_null())
@@ -53,7 +52,6 @@ enum Networks {
 	NetworkId,
 	Id,
 	Name,
-	Tag,
 	Env,
 	Blockchain,
 	ChainId,
