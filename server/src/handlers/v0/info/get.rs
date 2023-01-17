@@ -18,7 +18,7 @@ pub struct Payload {
 #[serde(rename_all = "camelCase")]
 pub struct ResponseAsset {
 	network: String,
-	address: String,
+	address: Option<String>,
 	balance: String,
 }
 
@@ -54,9 +54,9 @@ pub async fn handler(
 					ret.push(ResponseAsset {
 						network: chain.get_network().id,
 						address: if balance_data.asset_address.is_empty() {
-							"".to_string()
+							None
 						} else {
-							chain.format_address(&balance_data.asset_address)
+							Some(chain.format_address(&balance_data.asset_address))
 						},
 						balance: balance_data.balance.to_string(),
 					});
