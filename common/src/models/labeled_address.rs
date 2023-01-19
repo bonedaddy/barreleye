@@ -80,10 +80,7 @@ impl Model {
 	pub async fn create_many(db: &Db, data: Vec<ActiveModel>) -> Result<PrimaryId> {
 		let insert_result = Entity::insert_many(data)
 			.on_conflict(
-				OnConflict::columns([Column::NetworkId, Column::Address])
-					// @TODO this should be a `.do_nothing()`, but: `https://github.com/SeaQL/sea-orm/issues/899`
-					.update_column(Column::LabeledAddressId)
-					.to_owned(),
+				OnConflict::columns([Column::NetworkId, Column::Address]).do_nothing().to_owned(),
 			)
 			.exec(db.get())
 			.await?;
