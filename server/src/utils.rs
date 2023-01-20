@@ -24,8 +24,8 @@ pub fn extract_primary_ids(
 			});
 		}
 
-		Ok(map.into_values().collect())
-	} else {
-		Ok(vec![])
+		return Ok(map.into_values().collect());
 	}
+
+	Ok(vec![])
 }

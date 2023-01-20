@@ -7,7 +7,7 @@ use sea_orm::ActiveModelTrait;
 use serde::Deserialize;
 use std::sync::Arc;
 
-use crate::{errors::ServerError, utils, App, ServerResult};
+use crate::{errors::ServerError, utils::extract_primary_ids, App, ServerResult};
 use barreleye_common::models::{
 	optional_set, BasicModel, Entity, EntityActiveModel, EntityTagMap, SoftDeleteModel, Tag,
 };
@@ -15,7 +15,7 @@ use barreleye_common::models::{
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Payload {
-	name: Option<String>,
+	name: Option<Option<String>>,
 	tags: Option<Vec<String>>,
 }
 
@@ -26,7 +26,7 @@ pub async fn handler(
 ) -> ServerResult<StatusCode> {
 	if let Some(entity) = Entity::get_existing_by_id(&app.db, &entity_id).await? {
 		// check for duplicate name
-		if let Some(name) = payload.name.clone() {
+		if let Some(Some(name)) = payload.name.clone() {
 			if let Some(other_entity) = Entity::get_by_name(&app.db, &name, None).await? {
 				if other_entity.id != entity.id {
 					return Err(ServerError::Duplicate { field: "name".to_string(), value: name });
@@ -37,7 +37,7 @@ pub async fn handler(
 		// check for invalid tags
 		let mut tag_ids = vec![];
 		if let Some(tags) = payload.tags {
-			tag_ids = utils::extract_primary_ids(
+			tag_ids = extract_primary_ids(
 				"tags",
 				tags.clone(),
 				Tag::get_all_by_ids(&app.db, tags)

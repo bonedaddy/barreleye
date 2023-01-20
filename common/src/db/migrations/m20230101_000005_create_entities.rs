@@ -20,7 +20,7 @@ impl MigrationTrait for Migration {
 							.primary_key(),
 					)
 					.col(ColumnDef::new(Entities::Id).unique_key().string().not_null())
-					.col(ColumnDef::new(Entities::Name).unique_key().string().not_null())
+					.col(ColumnDef::new(Entities::Name).unique_key().string().null())
 					.col(ColumnDef::new(Entities::Description).string().not_null())
 					.col(ColumnDef::new(Entities::IsDeleted).boolean().not_null())
 					.col(ColumnDef::new(Entities::UpdatedAt).date_time().null())

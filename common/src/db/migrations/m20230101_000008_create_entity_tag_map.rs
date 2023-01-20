@@ -20,9 +20,7 @@ impl MigrationTrait for Migration {
 							.not_null()
 							.extra("DEFAULT CURRENT_TIMESTAMP".to_owned()),
 					)
-					.primary_key(
-						sea_query::Index::create().col(Tags::EntityId).col(Tags::TagId),
-					)
+					.primary_key(sea_query::Index::create().col(Tags::EntityId).col(Tags::TagId))
 					.to_owned(),
 			)
 			.await

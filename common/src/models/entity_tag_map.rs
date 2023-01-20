@@ -88,8 +88,7 @@ impl Model {
 	}
 
 	pub async fn delete_all_by_tag_ids(db: &Db, tag_ids: Vec<PrimaryId>) -> Result<u64> {
-		let res =
-			Entity::delete_many().filter(Column::TagId.is_in(tag_ids)).exec(db.get()).await?;
+		let res = Entity::delete_many().filter(Column::TagId.is_in(tag_ids)).exec(db.get()).await?;
 
 		Ok(res.rows_affected)
 	}

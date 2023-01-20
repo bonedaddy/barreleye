@@ -19,7 +19,8 @@ pub struct Model {
 	#[serde(skip_serializing, skip_deserializing)]
 	pub entity_id: PrimaryId,
 	pub id: String,
-	pub name: String,
+	#[sea_orm(nullable)]
+	pub name: Option<String>,
 	pub description: String,
 	#[serde(skip_serializing)]
 	pub is_deleted: bool,
@@ -52,10 +53,10 @@ impl SoftDeleteModel for Model {
 }
 
 impl Model {
-	pub fn new_model(name: &str, description: &str) -> ActiveModel {
+	pub fn new_model(name: Option<String>, description: &str) -> ActiveModel {
 		ActiveModel {
 			id: Set(utils::new_unique_id(IdPrefix::Entity)),
-			name: Set(name.to_string()),
+			name: Set(name),
 			description: Set(description.to_string()),
 			is_deleted: Set(false),
 			..Default::default()
