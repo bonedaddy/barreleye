@@ -24,7 +24,7 @@ impl MigrationTrait for Migration {
 					.col(ColumnDef::new(ApiKeys::Id).unique_key().string().not_null())
 					.col(ColumnDef::new(ApiKeys::Uuid).unique_key().uuid().not_null())
 					.col(ColumnDef::new(ApiKeys::IsActive).boolean().not_null())
-					.col(ColumnDef::new(ApiKeys::UpdatedAt).date_time().null()) // @TODO index
+					.col(ColumnDef::new(ApiKeys::UpdatedAt).date_time().null())
 					.col(
 						ColumnDef::new(ApiKeys::CreatedAt)
 							.date_time()

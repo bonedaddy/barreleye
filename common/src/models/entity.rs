@@ -12,12 +12,12 @@ use crate::{
 };
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, DeriveEntityModel)]
-#[sea_orm(table_name = "labels")]
+#[sea_orm(table_name = "entities")]
 #[serde(rename_all = "camelCase")]
 pub struct Model {
 	#[sea_orm(primary_key)]
 	#[serde(skip_serializing, skip_deserializing)]
-	pub label_id: PrimaryId,
+	pub entity_id: PrimaryId,
 	pub id: String,
 	pub name: String,
 	pub description: String,
@@ -29,8 +29,8 @@ pub struct Model {
 	pub created_at: DateTime,
 }
 
-pub use ActiveModel as LabelActiveModel;
-pub use Model as Label;
+pub use ActiveModel as LabeledEntityActiveModel;
+pub use Model as LabeledEntity;
 
 #[derive(Copy, Clone, Debug, EnumIter)]
 pub enum Relation {}
@@ -54,7 +54,7 @@ impl SoftDeleteModel for Model {
 impl Model {
 	pub fn new_model(name: &str, description: &str) -> ActiveModel {
 		ActiveModel {
-			id: Set(utils::new_unique_id(IdPrefix::Label)),
+			id: Set(utils::new_unique_id(IdPrefix::Entity)),
 			name: Set(name.to_string()),
 			description: Set(description.to_string()),
 			is_deleted: Set(false),
@@ -79,7 +79,7 @@ impl Model {
 		Ok(q.one(db.get()).await?)
 	}
 
-	pub async fn get_all_by_label_ids(db: &Db, label_ids: Vec<PrimaryId>) -> Result<Vec<Self>> {
-		Ok(Entity::find().filter(Column::LabelId.is_in(label_ids)).all(db.get()).await?)
+	pub async fn get_all_by_entity_ids(db: &Db, entity_ids: Vec<PrimaryId>) -> Result<Vec<Self>> {
+		Ok(Entity::find().filter(Column::EntityId.is_in(entity_ids)).all(db.get()).await?)
 	}
 }

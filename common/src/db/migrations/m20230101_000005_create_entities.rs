@@ -10,22 +10,22 @@ impl MigrationTrait for Migration {
 		manager
 			.create_table(
 				Table::create()
-					.table(Labels::Table)
+					.table(Entities::Table)
 					.if_not_exists()
 					.col(
-						ColumnDef::new(Labels::LabelId)
+						ColumnDef::new(Entities::EntityId)
 							.big_integer()
 							.not_null()
 							.auto_increment()
 							.primary_key(),
 					)
-					.col(ColumnDef::new(Labels::Id).unique_key().string().not_null())
-					.col(ColumnDef::new(Labels::Name).unique_key().string().not_null())
-					.col(ColumnDef::new(Labels::Description).string().not_null())
-					.col(ColumnDef::new(Labels::IsDeleted).boolean().not_null())
-					.col(ColumnDef::new(Labels::UpdatedAt).date_time().null())
+					.col(ColumnDef::new(Entities::Id).unique_key().string().not_null())
+					.col(ColumnDef::new(Entities::Name).unique_key().string().not_null())
+					.col(ColumnDef::new(Entities::Description).string().not_null())
+					.col(ColumnDef::new(Entities::IsDeleted).boolean().not_null())
+					.col(ColumnDef::new(Entities::UpdatedAt).date_time().null())
 					.col(
-						ColumnDef::new(Labels::CreatedAt)
+						ColumnDef::new(Entities::CreatedAt)
 							.date_time()
 							.not_null()
 							.extra("DEFAULT CURRENT_TIMESTAMP".to_owned()),
@@ -38,24 +38,24 @@ impl MigrationTrait for Migration {
 			.create_index(
 				Index::create()
 					.if_not_exists()
-					.name("ix_labels_is_deleted")
-					.table(Labels::Table)
-					.col(Labels::IsDeleted)
+					.name("ix_entities_is_deleted")
+					.table(Entities::Table)
+					.col(Entities::IsDeleted)
 					.to_owned(),
 			)
 			.await
 	}
 
 	async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-		manager.drop_table(Table::drop().table(Labels::Table).to_owned()).await
+		manager.drop_table(Table::drop().table(Entities::Table).to_owned()).await
 	}
 }
 
 #[derive(Iden)]
-enum Labels {
-	#[iden = "labels"]
+enum Entities {
+	#[iden = "entities"]
 	Table,
-	LabelId,
+	EntityId,
 	Id,
 	Name,
 	Description,

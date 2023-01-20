@@ -5,16 +5,14 @@ use std::sync::Arc;
 
 use crate::{errors::ServerError, App, ServerResult};
 use barreleye_common::models::{
-	labeled_address::Column::{
-		IsDeleted as LabeledAddressIsDeleted, LabelId as LabeledAddressLabelId,
-	},
-	BasicModel, Label, LabeledAddress, SoftDeleteModel,
+	address::Column::{EntityId as AddressEntityId, IsDeleted as AddressIsDeleted},
+	Address, BasicModel, Entity, SoftDeleteModel,
 };
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Payload {
-	label: Option<String>,
+	entity: Option<String>,
 	offset: Option<u64>,
 	limit: Option<u64>,
 }
@@ -22,20 +20,20 @@ pub struct Payload {
 pub async fn handler(
 	State(app): State<Arc<App>>,
 	Json(payload): Json<Option<Payload>>,
-) -> ServerResult<Json<Vec<LabeledAddress>>> {
-	let mut conditions = vec![LabeledAddressIsDeleted.eq(false)];
+) -> ServerResult<Json<Vec<Address>>> {
+	let mut conditions = vec![AddressIsDeleted.eq(false)];
 
 	let mut offset = None;
 	let mut limit = None;
 
 	if let Some(payload) = payload {
-		if let Some(label_id) = payload.label {
-			if let Some(label) = Label::get_existing_by_id(&app.db, &label_id).await? {
-				conditions.push(LabeledAddressLabelId.eq(label.label_id))
+		if let Some(entity_id) = payload.entity {
+			if let Some(entity) = Entity::get_existing_by_id(&app.db, &entity_id).await? {
+				conditions.push(AddressEntityId.eq(entity.entity_id))
 			} else {
 				return Err(ServerError::InvalidParam {
-					field: "label".to_string(),
-					value: label_id,
+					field: "entity".to_string(),
+					value: entity_id,
 				});
 			}
 		}
@@ -44,5 +42,5 @@ pub async fn handler(
 		limit = payload.limit;
 	}
 
-	Ok(LabeledAddress::get_all_where(&app.db, conditions, offset, limit).await?.into())
+	Ok(Address::get_all_where(&app.db, conditions, offset, limit).await?.into())
 }

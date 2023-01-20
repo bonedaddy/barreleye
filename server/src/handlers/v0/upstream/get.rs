@@ -11,7 +11,7 @@ use std::{
 use uuid::Uuid;
 
 use crate::{App, ServerResult};
-use barreleye_common::models::{Amount, Label, LabeledAddress, Link, Network, PrimaryId, Transfer};
+use barreleye_common::models::{Address, Amount, Entity, Link, Network, PrimaryId, Transfer};
 
 #[derive(Deserialize)]
 pub struct Payload {
@@ -32,7 +32,7 @@ pub struct ResponseTransaction {
 pub struct ResponseUpstream {
 	network: String,
 	address: String,
-	label: String,
+	entity: String,
 	transactions: Vec<ResponseTransaction>,
 }
 
@@ -42,7 +42,7 @@ pub struct Response {
 	address: String,
 	upstream: Vec<ResponseUpstream>,
 	networks: Vec<Network>,
-	labels: Vec<Label>,
+	entities: Vec<Entity>,
 }
 
 pub async fn handler(
@@ -93,52 +93,50 @@ pub async fn handler(
 		Ok(ret)
 	}
 
-	// get labels data
-	async fn get_labels_data(
+	// get entities data
+	async fn get_entities_data(
 		app: Arc<App>,
 		addresses: Vec<String>,
-	) -> Result<(HashMap<(PrimaryId, String), PrimaryId>, HashMap<PrimaryId, Label>)> {
-		let mut labeled_address_map = HashMap::new();
-		let mut labels = HashMap::new();
+	) -> Result<(HashMap<(PrimaryId, String), PrimaryId>, HashMap<PrimaryId, Entity>)> {
+		let mut address_map = HashMap::new();
+		let mut entities = HashMap::new();
 
-		let labeled_addresses =
-			LabeledAddress::get_all_by_addresses(&app.db, addresses, Some(false)).await?;
+		let addresses = Address::get_all_by_addresses(&app.db, addresses, Some(false)).await?;
 
-		if !labeled_addresses.is_empty() {
-			labeled_address_map = labeled_addresses
+		if !addresses.is_empty() {
+			address_map = addresses
 				.iter()
-				.map(|a| ((a.network_id, a.address.clone()), a.label_id))
+				.map(|a| ((a.network_id, a.address.clone()), a.entity_id))
 				.collect::<HashMap<(PrimaryId, String), PrimaryId>>();
 
-			let mut label_ids =
-				labeled_addresses.into_iter().map(|a| a.label_id).collect::<Vec<PrimaryId>>();
+			let mut entity_ids =
+				addresses.into_iter().map(|a| a.entity_id).collect::<Vec<PrimaryId>>();
 
-			label_ids.sort_unstable();
-			label_ids.dedup();
+			entity_ids.sort_unstable();
+			entity_ids.dedup();
 
-			for label in Label::get_all_by_label_ids(&app.db, label_ids).await?.into_iter() {
-				labels.insert(label.label_id, label);
+			for entity in Entity::get_all_by_entity_ids(&app.db, entity_ids).await?.into_iter() {
+				entities.insert(entity.entity_id, entity);
 			}
 		}
 
-		Ok((labeled_address_map, labels))
+		Ok((address_map, entities))
 	}
 
-	let mut labeled_addresses =
-		links.iter().map(|l| l.from_address.clone()).collect::<Vec<String>>();
+	let mut addresses = links.iter().map(|l| l.from_address.clone()).collect::<Vec<String>>();
 
-	labeled_addresses.sort_unstable();
-	labeled_addresses.dedup();
+	addresses.sort_unstable();
+	addresses.dedup();
 
-	let (transfers, networks, labels_data) = tokio::join!(
+	let (transfers, networks, entities_data) = tokio::join!(
 		get_transfers(app.clone(), links.clone()),
 		get_networks(app.clone(), &address),
-		get_labels_data(app.clone(), labeled_addresses),
+		get_entities_data(app.clone(), addresses),
 	);
 
 	let transfers = transfers?;
 	let networks = networks?;
-	let (labeled_address_map, labels_map) = labels_data?;
+	let (address_map, entities_map) = entities_data?;
 
 	// assemble upstream
 	let mut upstream = vec![];
@@ -148,14 +146,12 @@ pub async fn handler(
 		if let Some(chain) = n.get(&network_id) {
 			let network = chain.get_network();
 
-			if let Some(&label_id) =
-				labeled_address_map.get(&(network_id, link.from_address.clone()))
-			{
-				if let Some(label) = labels_map.get(&label_id) {
+			if let Some(&entity_id) = address_map.get(&(network_id, link.from_address.clone())) {
+				if let Some(entity) = entities_map.get(&entity_id) {
 					upstream.push(ResponseUpstream {
 						network: network.id,
 						address: link.from_address,
-						label: label.id.clone(),
+						entity: entity.id.clone(),
 						transactions: link
 							.transfer_uuids
 							.into_iter()
@@ -173,5 +169,6 @@ pub async fn handler(
 		}
 	}
 
-	Ok(Response { address, upstream, networks, labels: labels_map.into_values().collect() }.into())
+	Ok(Response { address, upstream, networks, entities: entities_map.into_values().collect() }
+		.into())
 }

@@ -9,25 +9,27 @@ use sea_orm::{
 
 pub use self::config::{Config, ConfigKey};
 use crate::{utils, Db};
+pub use address::{Address, AddressActiveModel};
 pub use amount::Amount;
 pub use api_key::{ApiKey, ApiKeyActiveModel};
 pub use balance::Balance;
-pub use label::{Label, LabelActiveModel};
-pub use labeled_address::{LabeledAddress, LabeledAddressActiveModel};
+pub use entity::{LabeledEntity as Entity, LabeledEntityActiveModel as EntityActiveModel};
 pub use link::{Link, LinkUuid};
 pub use network::{Network, NetworkActiveModel};
 pub use relation::{Reason as RelationReason, Relation};
+pub use tag::{Tag, TagActiveModel};
 pub use transfer::Transfer;
 
+pub mod address;
 pub mod amount;
 pub mod api_key;
 pub mod balance;
 pub mod config;
-pub mod label;
-pub mod labeled_address;
+pub mod entity;
 pub mod link;
 pub mod network;
 pub mod relation;
+pub mod tag;
 pub mod transfer;
 
 // @TODO `https://github.com/SeaQL/sea-orm/issues/1068`

@@ -5,19 +5,17 @@ use axum::{
 use std::sync::Arc;
 
 use crate::{errors::ServerError, App, ServerResult};
-use barreleye_common::models::{
-	set, BasicModel, LabeledAddress, LabeledAddressActiveModel, SoftDeleteModel,
-};
+use barreleye_common::models::{set, Address, AddressActiveModel, BasicModel, SoftDeleteModel};
 
 pub async fn handler(
 	State(app): State<Arc<App>>,
-	Path(label_address_id): Path<String>,
+	Path(address_id): Path<String>,
 ) -> ServerResult<StatusCode> {
-	if LabeledAddress::get_existing_by_id(&app.db, &label_address_id).await?.is_some() {
-		LabeledAddress::update_by_id(
+	if Address::get_existing_by_id(&app.db, &address_id).await?.is_some() {
+		Address::update_by_id(
 			&app.db,
-			&label_address_id,
-			LabeledAddressActiveModel { is_deleted: set(true), ..Default::default() },
+			&address_id,
+			AddressActiveModel { is_deleted: set(true), ..Default::default() },
 		)
 		.await?;
 

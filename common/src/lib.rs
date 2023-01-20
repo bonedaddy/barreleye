@@ -300,10 +300,12 @@ pub enum IdPrefix {
 	Network,
 	#[display(fmt = "key")]
 	ApiKey,
-	#[display(fmt = "lab")]
-	Label,
-	#[display(fmt = "lab_adr")]
-	LabeledAddress,
+	#[display(fmt = "ent")]
+	Entity,
+	#[display(fmt = "adr")]
+	Address,
+	#[display(fmt = "tag")]
+	Tag,
 }
 
 #[derive(

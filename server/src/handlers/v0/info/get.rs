@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 use crate::{App, ServerResult};
-use barreleye_common::models::{Amount, Balance, Label, LabeledAddress, Network, PrimaryId};
+use barreleye_common::models::{Address, Amount, Balance, Entity, Network, PrimaryId};
 
 #[derive(Deserialize)]
 pub struct Payload {
@@ -28,7 +28,7 @@ pub struct Response {
 	address: String,
 	assets: Vec<ResponseAsset>,
 	networks: Vec<Network>,
-	labels: Vec<Label>,
+	entities: Vec<Entity>,
 }
 
 pub async fn handler(
@@ -82,34 +82,38 @@ pub async fn handler(
 		Ok(ret)
 	}
 
-	// get labels
-	async fn get_labels(app: Arc<App>, address: &str) -> Result<Vec<Label>> {
+	// get entities
+	async fn get_entities(app: Arc<App>, address: &str) -> Result<Vec<Entity>> {
 		let mut ret = vec![];
 
-		let labeled_addresses =
-			LabeledAddress::get_all_by_addresses(&app.db, vec![address.to_string()], Some(false))
-				.await?;
-		if !labeled_addresses.is_empty() {
-			let mut label_ids =
-				labeled_addresses.into_iter().map(|a| a.label_id).collect::<Vec<PrimaryId>>();
+		let addresses =
+			Address::get_all_by_addresses(&app.db, vec![address.to_string()], Some(false)).await?;
+		if !addresses.is_empty() {
+			let mut entity_ids =
+				addresses.into_iter().map(|a| a.entity_id).collect::<Vec<PrimaryId>>();
 
-			label_ids.sort_unstable();
-			label_ids.dedup();
+			entity_ids.sort_unstable();
+			entity_ids.dedup();
 
-			for label in Label::get_all_by_label_ids(&app.db, label_ids).await?.into_iter() {
-				ret.push(label);
+			for entity in Entity::get_all_by_entity_ids(&app.db, entity_ids).await?.into_iter() {
+				ret.push(entity);
 			}
 		}
 
 		Ok(ret)
 	}
 
-	let (assets, networks, labels) = tokio::join!(
+	let (assets, networks, entities) = tokio::join!(
 		get_assets(app.clone(), &address),
 		get_networks(app.clone(), &address),
-		get_labels(app.clone(), &address),
+		get_entities(app.clone(), &address),
 	);
 
-	Ok(Response { address: address.clone(), assets: assets?, networks: networks?, labels: labels? }
-		.into())
+	Ok(Response {
+		address: address.clone(),
+		assets: assets?,
+		networks: networks?,
+		entities: entities?,
+	}
+	.into())
 }

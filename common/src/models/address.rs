@@ -4,19 +4,19 @@ use sea_orm_migration::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-	models::{label, BasicModel, PrimaryId, SoftDeleteModel},
+	models::{entity, BasicModel, PrimaryId, SoftDeleteModel},
 	utils, Db, IdPrefix,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, DeriveEntityModel)]
-#[sea_orm(table_name = "labeled_addresses")]
+#[sea_orm(table_name = "addresses")]
 #[serde(rename_all = "camelCase")]
 pub struct Model {
 	#[sea_orm(primary_key)]
 	#[serde(skip_serializing, skip_deserializing)]
-	pub labeled_address_id: PrimaryId,
+	pub address_id: PrimaryId,
 	#[serde(skip_serializing)]
-	pub label_id: PrimaryId,
+	pub entity_id: PrimaryId,
 	#[serde(skip_serializing)]
 	pub network_id: PrimaryId,
 	pub id: String,
@@ -30,20 +30,20 @@ pub struct Model {
 	pub created_at: DateTime,
 }
 
-pub use ActiveModel as LabeledAddressActiveModel;
-pub use Model as LabeledAddress;
+pub use ActiveModel as AddressActiveModel;
+pub use Model as Address;
 
 #[derive(Copy, Clone, Debug, EnumIter)]
 pub enum Relation {
-	Label,
+	Entity,
 }
 
 impl RelationTrait for Relation {
 	fn def(&self) -> RelationDef {
 		match self {
-			Self::Label => Entity::belongs_to(label::Entity)
-				.from(Column::LabelId)
-				.to(label::Column::LabelId)
+			Self::Entity => Entity::belongs_to(entity::Entity)
+				.from(Column::EntityId)
+				.to(entity::Column::EntityId)
 				.into(),
 		}
 	}
@@ -61,15 +61,15 @@ impl SoftDeleteModel for Model {
 
 impl Model {
 	pub fn new_model(
-		label_id: PrimaryId,
+		entity_id: PrimaryId,
 		network_id: PrimaryId,
 		address: &str,
 		description: &str,
 	) -> ActiveModel {
 		ActiveModel {
-			label_id: Set(label_id),
+			entity_id: Set(entity_id),
 			network_id: Set(network_id),
-			id: Set(utils::new_unique_id(IdPrefix::LabeledAddress)),
+			id: Set(utils::new_unique_id(IdPrefix::Address)),
 			address: Set(address.to_string()),
 			description: Set(description.to_string()),
 			is_deleted: Set(false),
@@ -131,15 +131,15 @@ impl Model {
 		Ok(q.all(db.get()).await?)
 	}
 
-	pub async fn update_by_label_id(
+	pub async fn update_by_entity_id(
 		db: &Db,
-		label_id: PrimaryId,
+		entity_id: PrimaryId,
 		data: ActiveModel,
 	) -> Result<u64> {
 		let res = Entity::update_many()
 			.col_expr(Alias::new("updated_at"), Expr::value(utils::now()))
 			.set(data)
-			.filter(Column::LabelId.eq(label_id))
+			.filter(Column::EntityId.eq(entity_id))
 			.exec(db.get())
 			.await?;
 

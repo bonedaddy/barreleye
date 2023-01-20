@@ -13,8 +13,8 @@ use crate::{IndexType, Indexer};
 use barreleye_common::{
 	chain::WarehouseData,
 	models::{
-		Config, ConfigKey, Label, LabeledAddress, Link, LinkUuid, Network, PrimaryId,
-		SoftDeleteModel, Transfer,
+		Address, Config, ConfigKey, Entity, Link, LinkUuid, Network, PrimaryId, SoftDeleteModel,
+		Transfer,
 	},
 	BlockHeight,
 };
@@ -121,32 +121,31 @@ impl Indexer {
 				continue;
 			}
 
-			// fetch all labeled addresses
-			let labeled_addresses = LabeledAddress::get_all_by_network_ids(
+			// fetch all addresses
+			let addresses = Address::get_all_by_network_ids(
 				&self.app.db,
 				block_height_map.clone().into_keys().collect(),
 				Some(false),
 			)
 			.await?;
-			if labeled_addresses.is_empty() {
-				self.log(IndexType::Upstream, "Nothing to do (no labeled addresses)");
+			if addresses.is_empty() {
+				self.log(IndexType::Upstream, "Nothing to do (no addresses)");
 				sleep(Duration::from_secs(5)).await;
 				continue;
 			}
 
-			// process a chunk of blocks per labeled address
+			// process a chunk of blocks per address
 			let mut futures = JoinSet::new();
-			for labeled_address in labeled_addresses.into_iter() {
-				let network_id = labeled_address.network_id;
+			for address in addresses.into_iter() {
+				let network_id = address.network_id;
 				let max_block_height = block_height_map[&network_id];
 
-				// get latest block for this labeled address:
+				// get latest block for this address:
 				// 1. if in cache -> get it from there
 				// 2. if cache is not set -> try reading from configs
 				// 3. if not in configs -> fast-forward to 1st interaction from warehouse
 				// 4. if not in warehouse -> no need to scan chain; set to chain height
-				let config_key =
-					ConfigKey::IndexerUpstreamSync(network_id, labeled_address.labeled_address_id);
+				let config_key = ConfigKey::IndexerUpstreamSync(network_id, address.address_id);
 				let block_height = match config_key_map.get(&config_key) {
 					Some(&block_height) => block_height,
 					_ => {
@@ -156,7 +155,7 @@ impl Indexer {
 								_ => Transfer::get_first_by_source(
 									&self.app.warehouse,
 									network_id,
-									&labeled_address.address,
+									&address.address,
 								)
 								.await?
 								.map_or_else(|| max_block_height, |t| t.block_height - 1),
@@ -185,10 +184,8 @@ impl Indexer {
 							let mut ret = WarehouseData::new();
 
 							// seed data from processed but uncommitted links
-							let mut indexed_links = IndexedLinks::new(
-								&labeled_address.address.clone(),
-								uncommitted_links,
-							);
+							let mut indexed_links =
+								IndexedLinks::new(&address.address.clone(), uncommitted_links);
 
 							// seed data from warehouse
 							indexed_links.push(
@@ -221,7 +218,7 @@ impl Indexer {
 											transfer_uuids.push(LinkUuid(transfer.uuid));
 
 											let link = Link::new(
-												labeled_address.network_id,
+												address.network_id,
 												transfer.block_height,
 												&prev_link.from_address,
 												&transfer.to_address,
@@ -235,7 +232,7 @@ impl Indexer {
 									} else {
 										// starting new branch
 										let link = Link::new(
-											labeled_address.network_id,
+											address.network_id,
 											transfer.block_height,
 											&transfer.from_address,
 											&transfer.to_address,
@@ -303,42 +300,39 @@ impl Indexer {
 
 	async fn prune_upstream(&self) -> Result<()> {
 		// get all deleted addresses
-		let labeled_addresses = LabeledAddress::get_all_deleted(&self.app.db).await?;
-		if !labeled_addresses.is_empty() {
+		let addresses = Address::get_all_deleted(&self.app.db).await?;
+		if !addresses.is_empty() {
 			// delete all upstream configs
 			Config::delete_many(
 				&self.app.db,
-				labeled_addresses
+				addresses
 					.iter()
-					.map(|a| ConfigKey::IndexerUpstreamSync(a.network_id, a.labeled_address_id))
+					.map(|a| ConfigKey::IndexerUpstreamSync(a.network_id, a.address_id))
 					.collect(),
 			)
 			.await?;
 
 			// delete all db records
-			LabeledAddress::prune_all_by_ids(
+			Address::prune_all_by_ids(
 				&self.app.db,
-				labeled_addresses.iter().map(|a| a.id.clone()).collect(),
+				addresses.iter().map(|a| a.id.clone()).collect(),
 			)
 			.await?;
 
 			// prune warehouse
 			let mut sources: HashMap<PrimaryId, HashSet<String>> = HashMap::new();
-			for labeled_address in labeled_addresses.into_iter() {
-				if let Some(set) = sources.get_mut(&labeled_address.network_id) {
-					set.insert(labeled_address.address);
+			for address in addresses.into_iter() {
+				if let Some(set) = sources.get_mut(&address.network_id) {
+					set.insert(address.address);
 				} else {
-					sources.insert(
-						labeled_address.network_id,
-						HashSet::from([labeled_address.address]),
-					);
+					sources.insert(address.network_id, HashSet::from([address.address]));
 				}
 			}
 			Link::delete_all_by_sources(&self.app.warehouse, sources).await?;
 		}
 
-		// prune all labels
-		Label::prune_all(&self.app.db).await?;
+		// prune all entities
+		Entity::prune_all(&self.app.db).await?;
 
 		Ok(())
 	}

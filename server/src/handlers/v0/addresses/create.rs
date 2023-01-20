@@ -3,26 +3,23 @@ use serde::Deserialize;
 use std::{collections::HashMap, sync::Arc};
 
 use crate::{errors::ServerError, App, ServerResult};
-use barreleye_common::models::{BasicModel, Label, LabeledAddress, Network, SoftDeleteModel};
-
-type Address = String;
-type Description = String;
+use barreleye_common::models::{Address, BasicModel, Entity, Network, SoftDeleteModel};
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Payload {
-	label: String,
+	entity: String,
 	network: String,
-	addresses: HashMap<Address, Description>,
+	addresses: HashMap<String, String>, // address -> description
 }
 
 pub async fn handler(
 	State(app): State<Arc<App>>,
 	Json(payload): Json<Payload>,
-) -> ServerResult<Json<Vec<LabeledAddress>>> {
-	let label = Label::get_existing_by_id(&app.db, &payload.label)
+) -> ServerResult<Json<Vec<Address>>> {
+	let entity = Entity::get_existing_by_id(&app.db, &payload.entity)
 		.await?
-		.ok_or(ServerError::InvalidParam { field: "label".to_string(), value: payload.label })?;
+		.ok_or(ServerError::InvalidParam { field: "entity".to_string(), value: payload.entity })?;
 
 	let network =
 		Network::get_by_id(&app.db, &payload.network).await?.ok_or(ServerError::InvalidParam {
@@ -31,61 +28,53 @@ pub async fn handler(
 		})?;
 
 	// check for soft-deleted records
-	let labeled_addresses = LabeledAddress::get_all_by_network_id_and_addresses(
+	let addresses = Address::get_all_by_network_id_and_addresses(
 		&app.db,
 		network.network_id,
 		payload.addresses.clone().into_keys().collect(),
 		Some(true),
 	)
 	.await?;
-	if !labeled_addresses.is_empty() {
+	if !addresses.is_empty() {
 		return Err(ServerError::Conflict {
 			reason: format!(
 				"the following addresses have not been properly deleted yet: {}; try again later",
-				labeled_addresses
-					.into_iter()
-					.map(|a| a.address)
-					.collect::<Vec<String>>()
-					.join(", ")
+				addresses.into_iter().map(|a| a.address).collect::<Vec<String>>().join(", ")
 			),
 		});
 	}
 
 	// check for duplicates
-	let labeled_addresses = LabeledAddress::get_all_by_network_id_and_addresses(
+	let addresses = Address::get_all_by_network_id_and_addresses(
 		&app.db,
 		network.network_id,
 		payload.addresses.clone().into_keys().collect(),
 		Some(false),
 	)
 	.await?;
-	if !labeled_addresses.is_empty() {
+	if !addresses.is_empty() {
 		return Err(ServerError::Duplicates {
 			field: "addresses".to_string(),
-			values: labeled_addresses
-				.into_iter()
-				.map(|a| a.address)
-				.collect::<Vec<String>>()
-				.join(", "),
+			values: addresses.into_iter().map(|a| a.address).collect::<Vec<String>>().join(", "),
 		});
 	}
 
 	// create new
-	LabeledAddress::create_many(
+	Address::create_many(
 		&app.db,
 		payload
 			.addresses
 			.clone()
 			.iter()
 			.map(|(address, description)| {
-				LabeledAddress::new_model(label.label_id, network.network_id, address, description)
+				Address::new_model(entity.entity_id, network.network_id, address, description)
 			})
 			.collect(),
 	)
 	.await?;
 
 	// return newly created
-	Ok(LabeledAddress::get_all_by_network_id_and_addresses(
+	Ok(Address::get_all_by_network_id_and_addresses(
 		&app.db,
 		network.network_id,
 		payload.addresses.into_keys().collect(),
