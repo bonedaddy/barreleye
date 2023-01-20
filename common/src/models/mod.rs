@@ -14,6 +14,7 @@ pub use amount::Amount;
 pub use api_key::{ApiKey, ApiKeyActiveModel};
 pub use balance::Balance;
 pub use entity::{LabeledEntity as Entity, LabeledEntityActiveModel as EntityActiveModel};
+pub use entity_tag_map::EntityTagMap;
 pub use link::{Link, LinkUuid};
 pub use network::{Network, NetworkActiveModel};
 pub use relation::{Reason as RelationReason, Relation};
@@ -26,6 +27,7 @@ pub mod api_key;
 pub mod balance;
 pub mod config;
 pub mod entity;
+pub mod entity_tag_map;
 pub mod link;
 pub mod network;
 pub mod relation;
@@ -100,6 +102,17 @@ pub trait BasicModel {
 		<Self::ActiveModel as ActiveModelTrait>::Entity::find()
 			.filter(Expr::col(Alias::new("id")).eq(id))
 			.one(db.get())
+			.await
+	}
+
+	async fn get_all_by_ids(
+		db: &Db,
+		ids: Vec<String>,
+	) -> Result<Vec<<<Self::ActiveModel as ActiveModelTrait>::Entity as EntityTrait>::Model>, DbErr>
+	{
+		<Self::ActiveModel as ActiveModelTrait>::Entity::find()
+			.filter(Expr::col(Alias::new("id")).is_in(ids))
+			.all(db.get())
 			.await
 	}
 

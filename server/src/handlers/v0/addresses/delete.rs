@@ -12,6 +12,7 @@ pub async fn handler(
 	Path(address_id): Path<String>,
 ) -> ServerResult<StatusCode> {
 	if Address::get_existing_by_id(&app.db, &address_id).await?.is_some() {
+		// soft-delete address
 		Address::update_by_id(
 			&app.db,
 			&address_id,

@@ -6,7 +6,8 @@ use std::sync::Arc;
 
 use crate::{errors::ServerError, App, ServerResult};
 use barreleye_common::models::{
-	set, Address, AddressActiveModel, BasicModel, Entity, EntityActiveModel, SoftDeleteModel,
+	set, Address, AddressActiveModel, BasicModel, Entity, EntityActiveModel, EntityTagMap,
+	SoftDeleteModel,
 };
 
 pub async fn handler(
@@ -14,7 +15,7 @@ pub async fn handler(
 	Path(entity_id): Path<String>,
 ) -> ServerResult<StatusCode> {
 	if let Some(entity) = Entity::get_existing_by_id(&app.db, &entity_id).await? {
-		// delete all associated addresses
+		// soft-delete all associated addresses
 		Address::update_by_entity_id(
 			&app.db,
 			entity.entity_id,
@@ -22,13 +23,16 @@ pub async fn handler(
 		)
 		.await?;
 
-		// delete entity
+		// soft-delete entity
 		Entity::update_by_id(
 			&app.db,
 			&entity_id,
 			EntityActiveModel { is_deleted: set(true), ..Default::default() },
 		)
 		.await?;
+
+		// delete entity/tag mappings
+		EntityTagMap::delete_all_by_entity_ids(&app.db, vec![entity.entity_id]).await?;
 
 		Ok(StatusCode::NO_CONTENT)
 	} else {

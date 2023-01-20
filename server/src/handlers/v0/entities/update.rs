@@ -7,15 +7,16 @@ use sea_orm::ActiveModelTrait;
 use serde::Deserialize;
 use std::sync::Arc;
 
-use crate::{errors::ServerError, App, ServerResult};
+use crate::{errors::ServerError, utils, App, ServerResult};
 use barreleye_common::models::{
-	optional_set, BasicModel, Entity, EntityActiveModel, SoftDeleteModel,
+	optional_set, BasicModel, Entity, EntityActiveModel, EntityTagMap, SoftDeleteModel, Tag,
 };
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Payload {
 	name: Option<String>,
+	tags: Option<Vec<String>>,
 }
 
 pub async fn handler(
@@ -33,11 +34,39 @@ pub async fn handler(
 			}
 		}
 
-		// update
+		// check for invalid tags
+		let mut tag_ids = vec![];
+		if let Some(tags) = payload.tags {
+			tag_ids = utils::extract_primary_ids(
+				"tags",
+				tags.clone(),
+				Tag::get_all_by_ids(&app.db, tags)
+					.await?
+					.into_iter()
+					.map(|t| (t.id, t.tag_id))
+					.collect(),
+			)?;
+		}
+
+		// update entity
 		let update_data =
 			EntityActiveModel { name: optional_set(payload.name), ..Default::default() };
 		if update_data.is_changed() {
 			Entity::update_by_id(&app.db, &entity_id, update_data).await?;
+		}
+
+		// upsert entity/tag mappings
+		if !tag_ids.is_empty() {
+			EntityTagMap::delete_not_included_tags(&app.db, entity.entity_id, tag_ids.clone())
+				.await?;
+			EntityTagMap::create_many(
+				&app.db,
+				tag_ids
+					.iter()
+					.map(|tag_id| EntityTagMap::new_model(entity.entity_id, *tag_id))
+					.collect(),
+			)
+			.await?;
 		}
 
 		Ok(StatusCode::NO_CONTENT)

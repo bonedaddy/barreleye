@@ -7,6 +7,7 @@ mod m20230101_000004_create_api_keys;
 mod m20230101_000005_create_entities;
 mod m20230101_000006_create_addresses;
 mod m20230101_000007_create_tags;
+mod m20230101_000008_create_entity_tag_map;
 
 pub struct Migrator;
 
@@ -20,6 +21,7 @@ impl MigratorTrait for Migrator {
 			Box::new(m20230101_000005_create_entities::Migration),
 			Box::new(m20230101_000006_create_addresses::Migration),
 			Box::new(m20230101_000007_create_tags::Migration),
+			Box::new(m20230101_000008_create_entity_tag_map::Migration),
 		]
 	}
 }

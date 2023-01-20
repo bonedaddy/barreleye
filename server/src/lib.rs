@@ -28,6 +28,7 @@ use barreleye_common::{
 
 mod errors;
 mod handlers;
+mod utils;
 
 pub type ServerResult<T> = Result<T, ServerError>;
 

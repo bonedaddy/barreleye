@@ -19,6 +19,9 @@ pub enum ServerError {
 	#[display(fmt = "invalid parameter @ `{field}`: {value}")]
 	InvalidParam { field: String, value: String },
 
+	#[display(fmt = "invalid value(s) @ parameter `{field}`: {values}")]
+	InvalidValues { field: String, values: String },
+
 	#[display(fmt = "could not connect to `{name}`")]
 	InvalidService { name: String },
 
@@ -46,6 +49,7 @@ impl IntoResponse for ServerError {
 		let http_code = match self {
 			ServerError::Validation { .. } |
 			ServerError::InvalidParam { .. } |
+			ServerError::InvalidValues { .. } |
 			ServerError::InvalidService { .. } |
 			ServerError::Duplicate { .. } |
 			ServerError::Duplicates { .. } |
