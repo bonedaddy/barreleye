@@ -1,9 +1,8 @@
-use crate::Db;
 use eyre::Result;
 use sea_orm::{
 	entity::prelude::*,
 	sea_query::{func::Func, Expr},
-	Condition, Set,
+	Condition, ConnectionTrait, Set,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -77,35 +76,47 @@ impl Model {
 		}
 	}
 
-	pub async fn get_all_by_env(db: &Db, env: Env) -> Result<Vec<Self>> {
-		Ok(Entity::find().filter(Column::Env.eq(env)).all(db.get()).await?)
+	pub async fn get_all_by_env<C>(c: &C, env: Env) -> Result<Vec<Self>>
+	where
+		C: ConnectionTrait,
+	{
+		Ok(Entity::find().filter(Column::Env.eq(env)).all(c).await?)
 	}
 
-	pub async fn get_all_by_network_ids(db: &Db, network_ids: Vec<PrimaryId>) -> Result<Vec<Self>> {
-		Ok(Entity::find().filter(Column::NetworkId.is_in(network_ids)).all(db.get()).await?)
+	pub async fn get_all_by_network_ids<C>(c: &C, network_ids: Vec<PrimaryId>) -> Result<Vec<Self>>
+	where
+		C: ConnectionTrait,
+	{
+		Ok(Entity::find().filter(Column::NetworkId.is_in(network_ids)).all(c).await?)
 	}
 
-	pub async fn get_by_name(db: &Db, name: &str) -> Result<Option<Self>> {
+	pub async fn get_by_name<C>(c: &C, name: &str) -> Result<Option<Self>>
+	where
+		C: ConnectionTrait,
+	{
 		Ok(Entity::find()
 			.filter(
 				Condition::all()
 					.add(Func::lower(Expr::col(Column::Name)).equals(name.trim().to_lowercase())),
 			)
-			.one(db.get())
+			.one(c)
 			.await?)
 	}
 
-	pub async fn get_by_env_blockchain_and_chain_id(
-		db: &Db,
+	pub async fn get_by_env_blockchain_and_chain_id<C>(
+		c: &C,
 		env: Env,
 		blockchain: Blockchain,
 		chain_id: i64,
-	) -> Result<Option<Self>> {
+	) -> Result<Option<Self>>
+	where
+		C: ConnectionTrait,
+	{
 		Ok(Entity::find()
 			.filter(Column::Env.eq(env))
 			.filter(Column::Blockchain.eq(blockchain))
 			.filter(Column::ChainId.eq(chain_id))
-			.one(db.get())
+			.one(c)
 			.await?)
 	}
 }

@@ -37,6 +37,7 @@ impl MigrationTrait for Migration {
 							.name("fk_addresses_entity_id")
 							.from(Addresses::Table, Addresses::EntityId)
 							.to(Alias::new("entities"), Alias::new("entity_id"))
+							.on_delete(ForeignKeyAction::Cascade)
 							.to_owned(),
 					)
 					.foreign_key(
@@ -44,6 +45,7 @@ impl MigrationTrait for Migration {
 							.name("fk_addresses_network_id")
 							.from(Addresses::Table, Addresses::NetworkId)
 							.to(Alias::new("networks"), Alias::new("network_id"))
+							.on_delete(ForeignKeyAction::Cascade)
 							.to_owned(),
 					)
 					.to_owned(),

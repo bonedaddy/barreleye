@@ -82,27 +82,27 @@ impl Indexer {
 
 	async fn start_primary_check(&self) -> Result<()> {
 		let primary_promotion = self.app.settings.primary_promotion;
-		let db = &self.app.db;
+		let db = self.app.db();
 		let uuid = self.app.uuid;
 
 		loop {
 			let cool_down_period = utils::ago_in_seconds(primary_promotion / 2);
 
-			let last_primary = Config::get::<Uuid>(db, ConfigKey::Primary).await?;
+			let last_primary = Config::get::<_, Uuid>(db, ConfigKey::Primary).await?;
 			match last_primary {
 				None => {
 					// first run ever
-					Config::set::<Uuid>(db, ConfigKey::Primary, uuid).await?;
+					Config::set::<_, Uuid>(db, ConfigKey::Primary, uuid).await?;
 				}
 				Some(hit) if hit.value == uuid && hit.updated_at >= cool_down_period => {
 					// if primary, check-in only if cool-down period has not started yet ↑
-					if Config::set_where::<Uuid>(db, ConfigKey::Primary, uuid, hit).await? {
+					if Config::set_where::<_, Uuid>(db, ConfigKey::Primary, uuid, hit).await? {
 						self.app.set_is_primary(true).await?;
 					}
 				}
 				Some(hit) if utils::ago_in_seconds(primary_promotion) > hit.updated_at => {
 					// attempt to upgrade to primary (set is_primary on the next iteration)
-					Config::set_where::<Uuid>(db, ConfigKey::Primary, uuid, hit).await?;
+					Config::set_where::<_, Uuid>(db, ConfigKey::Primary, uuid, hit).await?;
 				}
 				_ => {
 					// either cool-down period has started or this is a secondary

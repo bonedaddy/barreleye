@@ -2,13 +2,13 @@ use eyre::Result;
 use sea_orm::{
 	entity::prelude::*,
 	sea_query::{func::Func, Expr},
-	Condition, Set,
+	Condition, ConnectionTrait, Set,
 };
 use serde::{Deserialize, Serialize};
 
 use crate::{
 	models::{BasicModel, PrimaryId, SoftDeleteModel},
-	utils, Db, IdPrefix,
+	utils, IdPrefix,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, DeriveEntityModel)]
@@ -63,11 +63,10 @@ impl Model {
 		}
 	}
 
-	pub async fn get_by_name(
-		db: &Db,
-		name: &str,
-		is_deleted: Option<bool>,
-	) -> Result<Option<Self>> {
+	pub async fn get_by_name<C>(c: &C, name: &str, is_deleted: Option<bool>) -> Result<Option<Self>>
+	where
+		C: ConnectionTrait,
+	{
 		let mut q = Entity::find().filter(
 			Condition::all()
 				.add(Func::lower(Expr::col(Column::Name)).equals(name.trim().to_lowercase())),
@@ -77,10 +76,25 @@ impl Model {
 			q = q.filter(Column::IsDeleted.eq(is_deleted.unwrap()))
 		}
 
-		Ok(q.one(db.get()).await?)
+		Ok(q.one(c).await?)
 	}
 
-	pub async fn get_all_by_entity_ids(db: &Db, entity_ids: Vec<PrimaryId>) -> Result<Vec<Self>> {
-		Ok(Entity::find().filter(Column::EntityId.is_in(entity_ids)).all(db.get()).await?)
+	pub async fn get_all_by_entity_ids<C>(c: &C, entity_ids: Vec<PrimaryId>) -> Result<Vec<Self>>
+	where
+		C: ConnectionTrait,
+	{
+		Ok(Entity::find().filter(Column::EntityId.is_in(entity_ids)).all(c).await?)
+	}
+
+	pub async fn prune_all_by_entity_ids<C>(c: &C, entity_ids: Vec<PrimaryId>) -> Result<u64>
+	where
+		C: ConnectionTrait,
+	{
+		let res = Entity::delete_many()
+			.filter(Column::IsDeleted.eq(true))
+			.filter(Column::EntityId.is_in(entity_ids))
+			.exec(c)
+			.await?;
+		Ok(res.rows_affected)
 	}
 }

@@ -1,10 +1,13 @@
 use eyre::Result;
-use sea_orm::entity::{prelude::*, *};
+use sea_orm::{
+	entity::{prelude::*, *},
+	ConnectionTrait,
+};
 use serde::{Deserialize, Serialize};
 
 use crate::{
 	models::{BasicModel, PrimaryId},
-	utils, Db, IdPrefix,
+	utils, IdPrefix,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, DeriveEntityModel)]
@@ -55,8 +58,11 @@ impl Model {
 		}
 	}
 
-	pub async fn get_by_uuid(db: &Db, uuid: &Uuid) -> Result<Option<Self>> {
-		Ok(Entity::find().filter(Column::Uuid.eq(*uuid)).one(db.get()).await?)
+	pub async fn get_by_uuid<C>(c: &C, uuid: &Uuid) -> Result<Option<Self>>
+	where
+		C: ConnectionTrait,
+	{
+		Ok(Entity::find().filter(Column::Uuid.eq(*uuid)).one(c).await?)
 	}
 
 	pub fn format(&self) -> Self {

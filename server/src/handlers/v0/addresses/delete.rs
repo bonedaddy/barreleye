@@ -11,10 +11,10 @@ pub async fn handler(
 	State(app): State<Arc<App>>,
 	Path(address_id): Path<String>,
 ) -> ServerResult<StatusCode> {
-	if Address::get_existing_by_id(&app.db, &address_id).await?.is_some() {
+	if Address::get_existing_by_id(app.db(), &address_id).await?.is_some() {
 		// soft-delete address
 		Address::update_by_id(
-			&app.db,
+			app.db(),
 			&address_id,
 			AddressActiveModel { is_deleted: set(true), ..Default::default() },
 		)

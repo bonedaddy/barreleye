@@ -59,19 +59,19 @@ impl Indexer {
 				let nid = *network_id;
 
 				let mut last_read_block =
-					Config::get::<BlockHeight>(&self.app.db, ConfigKey::IndexerTailSync(nid))
+					Config::get::<_, BlockHeight>(self.app.db(), ConfigKey::IndexerTailSync(nid))
 						.await?
 						.map(|h| h.value)
 						.unwrap_or(0);
 
 				let block_height = {
 					let config_key = ConfigKey::BlockHeight(nid);
-					match Config::get::<BlockHeight>(&self.app.db, config_key).await? {
+					match Config::get::<_, BlockHeight>(self.app.db(), config_key).await? {
 						Some(hit) if hit.value > last_read_block => hit.value,
 						_ => {
 							let block_height = chain.get_block_height().await?;
 
-							Config::set::<BlockHeight>(&self.app.db, config_key, block_height)
+							Config::set::<_, BlockHeight>(self.app.db(), config_key, block_height)
 								.await?;
 
 							block_height
@@ -82,8 +82,8 @@ impl Indexer {
 				// if first time, split up network into chunks for faster initial syncing
 				let chunks = num_cpus::get();
 				if last_read_block == 0 &&
-					chunks > 0 && Config::get_many_by_keyword::<(BlockHeight, BlockHeight)>(
-					&self.app.db,
+					chunks > 0 && Config::get_many_by_keyword::<_, (BlockHeight, BlockHeight)>(
+					self.app.db(),
 					&format!("chunk_sync_n{nid}"),
 				)
 				.await?
@@ -116,21 +116,24 @@ impl Indexer {
 					};
 
 					// create tail-sync indexes
-					Config::set_many::<(BlockHeight, BlockHeight)>(&self.app.db, block_sync_ranges)
-						.await?;
+					Config::set_many::<_, (BlockHeight, BlockHeight)>(
+						self.app.db(),
+						block_sync_ranges,
+					)
+					.await?;
 
 					// fast-forward last read block to almost block_height
 					last_read_block = block_height - 1;
-					Config::set::<BlockHeight>(
-						&self.app.db,
+					Config::set::<_, BlockHeight>(
+						self.app.db(),
 						ConfigKey::IndexerTailSync(nid),
 						last_read_block,
 					)
 					.await?;
 
 					// no need for individual module syncs, so mark all as done
-					Config::set_many::<u8>(
-						&self.app.db,
+					Config::set_many::<_, u8>(
+						self.app.db(),
 						chain
 							.get_module_ids()
 							.into_iter()
@@ -150,10 +153,10 @@ impl Indexer {
 				);
 
 				// push all fast-sync block ranges
-				for (config_key, block_range) in Config::get_many_by_keyword::<(
-					BlockHeight,
-					BlockHeight,
-				)>(&self.app.db, &format!("chunk_sync_n{nid}"))
+				for (config_key, block_range) in Config::get_many_by_keyword::<
+					_,
+					(BlockHeight, BlockHeight),
+				>(self.app.db(), &format!("chunk_sync_n{nid}"))
 				.await?
 				{
 					network_params_map.insert(
@@ -172,11 +175,11 @@ impl Indexer {
 					let mid = module_id as u16;
 
 					let ck_synced = ConfigKey::IndexerModuleSynced(nid, mid);
-					if Config::get::<u8>(&self.app.db, ck_synced).await?.is_none() {
+					if Config::get::<_, u8>(self.app.db(), ck_synced).await?.is_none() {
 						let ck_block_range = ConfigKey::IndexerModuleSync(nid, mid);
 
-						let block_range = match Config::get::<(BlockHeight, BlockHeight)>(
-							&self.app.db,
+						let block_range = match Config::get::<_, (BlockHeight, BlockHeight)>(
+							self.app.db(),
 							ck_block_range,
 						)
 						.await?
@@ -186,8 +189,8 @@ impl Indexer {
 								let block_range = (0, last_read_block);
 
 								if last_read_block > 0 {
-									Config::set::<(BlockHeight, BlockHeight)>(
-										&self.app.db,
+									Config::set::<_, (BlockHeight, BlockHeight)>(
+										self.app.db(),
 										ck_block_range,
 										block_range,
 									)
@@ -245,7 +248,7 @@ impl Indexer {
 						receipt,
 						abort_sender.subscribe(),
 					);
-					let db = self.app.db.clone();
+					let db = self.app.db().clone();
 
 					async move {
 						let mut warehouse_data = WarehouseData::new();
@@ -280,7 +283,7 @@ impl Indexer {
 								None => {
 									let config_key = ConfigKey::BlockHeight(nid);
 									let saved_block_height =
-										Config::get::<BlockHeight>(&db, config_key)
+										Config::get::<_, BlockHeight>(&db, config_key)
 											.await?
 											.map(|v| v.value)
 											.unwrap_or(0);
@@ -289,7 +292,7 @@ impl Indexer {
 										let latest_block_height = chain.get_block_height().await?;
 
 										if latest_block_height > saved_block_height {
-											Config::set::<BlockHeight>(
+											Config::set::<_, BlockHeight>(
 												&db,
 												config_key,
 												latest_block_height,
@@ -341,10 +344,11 @@ impl Indexer {
 			drop(pipe_sender);
 
 			// vars to keep network in sync
-			let networks_updated_at = Config::get::<u8>(&self.app.db, ConfigKey::NetworksUpdated)
-				.await?
-				.map(|v| v.updated_at)
-				.unwrap_or_else(utils::now);
+			let networks_updated_at =
+				Config::get::<_, u8>(self.app.db(), ConfigKey::NetworksUpdated)
+					.await?
+					.map(|v| v.updated_at)
+					.unwrap_or_else(utils::now);
 
 			let abort = || -> Result<()> {
 				should_keep_going.store(false, Ordering::SeqCst);
@@ -357,7 +361,7 @@ impl Indexer {
 				tokio::select! {
 					_ = sleep(Duration::from_secs(1)) => {
 						if let Some(value) =
-							Config::get::<u8>(&self.app.db, ConfigKey::NetworksUpdated)
+							Config::get::<_, u8>(self.app.db(), ConfigKey::NetworksUpdated)
 								.await?
 						{
 							if value.updated_at != networks_updated_at {
@@ -418,14 +422,14 @@ impl Indexer {
 
 							// commit config marker updates
 							for (config_key, config_value) in config_key_map.iter() {
-								let db = &self.app.db;
+								let db = self.app.db();
 								let key = *config_key;
 								let value = config_value.clone();
 
 								match config_key {
 									ConfigKey::IndexerTailSync(nid) => {
 										let value = json_parse::<BlockHeight>(value)?;
-										Config::set::<BlockHeight>(db, key, value).await?;
+										Config::set::<_, BlockHeight>(db, key, value).await?;
 
 										updated_network_ids.insert(*nid);
 									}
@@ -434,7 +438,7 @@ impl Indexer {
 											json_parse::<(BlockHeight, BlockHeight)>(value)?;
 
 										if block_range_min < block_range_max {
-											Config::set::<(BlockHeight, BlockHeight)>(
+											Config::set::<_, (BlockHeight, BlockHeight)>(
 												db,
 												key,
 												(block_range_min, block_range_max),
@@ -449,11 +453,11 @@ impl Indexer {
 									ConfigKey::IndexerModuleSync(nid, mid) => {
 										let value =
 											json_parse::<(BlockHeight, BlockHeight)>(value)?;
-										Config::set::<(BlockHeight, BlockHeight)>(db, key, value)
+										Config::set::<_, (BlockHeight, BlockHeight)>(db, key, value)
 											.await?;
 
 										if value.0 >= value.1 {
-											Config::set::<u8>(
+											Config::set::<_, u8>(
 												db,
 												ConfigKey::IndexerModuleSynced(*nid, *mid),
 												1,
@@ -465,7 +469,7 @@ impl Indexer {
 									}
 									ConfigKey::IndexerModuleSynced(nid, _) => {
 										let value = json_parse::<u8>(value)?;
-										Config::set::<u8>(db, key, value).await?;
+										Config::set::<_, u8>(db, key, value).await?;
 
 										updated_network_ids.insert(*nid);
 									}
@@ -479,7 +483,7 @@ impl Indexer {
 							for (config_key, _) in config_key_map.iter() {
 								if let ConfigKey::IndexerModuleSynced(nid, mid) = config_key {
 									let ck_block_range = ConfigKey::IndexerModuleSync(*nid, *mid);
-									Config::delete(&self.app.db, ck_block_range).await?;
+									Config::delete(self.app.db(), ck_block_range).await?;
 								}
 							}
 
@@ -494,8 +498,8 @@ impl Indexer {
 								let networks = self.app.networks.read().await;
 								let chain = networks[&network_id].clone();
 
-								let block_height = Config::get::<BlockHeight>(
-									&self.app.db,
+								let block_height = Config::get::<_, BlockHeight>(
+									self.app.db(),
 									ConfigKey::BlockHeight(nid),
 								)
 								.await?
@@ -505,8 +509,8 @@ impl Indexer {
 								if block_height == 0 {
 									scores.push(0.0);
 								} else {
-									let tail_block = Config::get::<BlockHeight>(
-										&self.app.db,
+									let tail_block = Config::get::<_, BlockHeight>(
+										self.app.db(),
 										ConfigKey::IndexerTailSync(nid),
 									)
 									.await?
@@ -515,8 +519,8 @@ impl Indexer {
 
 									let mut done_blocks = tail_block;
 									for (_, block_range) in
-										Config::get_many_by_keyword::<(BlockHeight, BlockHeight)>(
-											&self.app.db,
+										Config::get_many_by_keyword::<_, (BlockHeight, BlockHeight)>(
+											self.app.db(),
 											&format!("chunk_sync_n{nid}"),
 										)
 										.await?
@@ -530,13 +534,13 @@ impl Indexer {
 										let mid = module_id as u16;
 
 										let ck_synced = ConfigKey::IndexerModuleSynced(nid, mid);
-										if Config::get::<u8>(&self.app.db, ck_synced)
+										if Config::get::<_, u8>(self.app.db(), ck_synced)
 											.await?
 											.is_none()
 										{
 											let (block_range_min, block_range_max) =
-												Config::get::<(BlockHeight, BlockHeight)>(
-													&self.app.db,
+												Config::get::<_, (BlockHeight, BlockHeight)>(
+													self.app.db(),
 													ConfigKey::IndexerModuleSync(nid, mid),
 												)
 												.await?
@@ -553,8 +557,8 @@ impl Indexer {
 								}
 
 								let progress = scores.iter().sum::<f64>() / scores.len() as f64;
-								Config::set::<f64>(
-									&self.app.db,
+								Config::set::<_, f64>(
+									self.app.db(),
 									ConfigKey::IndexerProgress(nid),
 									progress,
 								)

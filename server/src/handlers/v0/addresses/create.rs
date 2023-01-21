@@ -17,19 +17,19 @@ pub async fn handler(
 	State(app): State<Arc<App>>,
 	Json(payload): Json<Payload>,
 ) -> ServerResult<Json<Vec<Address>>> {
-	let entity = Entity::get_existing_by_id(&app.db, &payload.entity)
+	let entity = Entity::get_existing_by_id(app.db(), &payload.entity)
 		.await?
 		.ok_or(ServerError::InvalidParam { field: "entity".to_string(), value: payload.entity })?;
 
 	let network =
-		Network::get_by_id(&app.db, &payload.network).await?.ok_or(ServerError::InvalidParam {
+		Network::get_by_id(app.db(), &payload.network).await?.ok_or(ServerError::InvalidParam {
 			field: "network".to_string(),
 			value: payload.network,
 		})?;
 
 	// check for soft-deleted records
 	let addresses = Address::get_all_by_network_id_and_addresses(
-		&app.db,
+		app.db(),
 		network.network_id,
 		payload.addresses.clone().into_keys().collect(),
 		Some(true),
@@ -46,7 +46,7 @@ pub async fn handler(
 
 	// check for duplicates
 	let addresses = Address::get_all_by_network_id_and_addresses(
-		&app.db,
+		app.db(),
 		network.network_id,
 		payload.addresses.clone().into_keys().collect(),
 		Some(false),
@@ -61,7 +61,7 @@ pub async fn handler(
 
 	// create new
 	Address::create_many(
-		&app.db,
+		app.db(),
 		payload
 			.addresses
 			.clone()
@@ -75,7 +75,7 @@ pub async fn handler(
 
 	// return newly created
 	Ok(Address::get_all_by_network_id_and_addresses(
-		&app.db,
+		app.db(),
 		network.network_id,
 		payload.addresses.into_keys().collect(),
 		Some(false),

@@ -87,7 +87,7 @@ pub async fn handler(
 		let mut ret = vec![];
 
 		let addresses =
-			Address::get_all_by_addresses(&app.db, vec![address.to_string()], Some(false)).await?;
+			Address::get_all_by_addresses(app.db(), vec![address.to_string()], Some(false)).await?;
 		if !addresses.is_empty() {
 			let mut entity_ids =
 				addresses.into_iter().map(|a| a.entity_id).collect::<Vec<PrimaryId>>();
@@ -95,7 +95,7 @@ pub async fn handler(
 			entity_ids.sort_unstable();
 			entity_ids.dedup();
 
-			for entity in Entity::get_all_by_entity_ids(&app.db, entity_ids).await?.into_iter() {
+			for entity in Entity::get_all_by_entity_ids(app.db(), entity_ids).await?.into_iter() {
 				ret.push(entity);
 			}
 		}

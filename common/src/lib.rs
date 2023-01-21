@@ -11,7 +11,7 @@ use governor::{
 };
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use itertools::{Either, Itertools};
-use sea_orm::entity::prelude::*;
+use sea_orm::{entity::prelude::*, DatabaseTransaction, TransactionTrait};
 use serde::{Deserialize, Serialize};
 use std::{
 	collections::HashMap,
@@ -60,7 +60,7 @@ pub struct App {
 	pub networks: Arc<RwLock<HashMap<PrimaryId, Arc<BoxedChain>>>>,
 	pub settings: Arc<Settings>,
 	pub cache: Arc<RwLock<Cache>>,
-	pub db: Arc<Db>,
+	db: Arc<Db>,
 	pub warehouse: Arc<Warehouse>,
 	pub env: Env,
 	pub verbosity: Verbosity,
@@ -103,10 +103,18 @@ impl App {
 		Ok(app)
 	}
 
+	pub fn db(&self) -> &DatabaseConnection {
+		self.db.get()
+	}
+
+	pub async fn db_tx(&self) -> Result<DatabaseTransaction> {
+		Ok(self.db().begin().await?)
+	}
+
 	pub async fn get_networks(&self) -> Result<HashMap<PrimaryId, Arc<BoxedChain>>> {
 		let mut ret = HashMap::new();
 
-		let networks = Network::get_all_by_env(&self.db, self.env)
+		let networks = Network::get_all_by_env(self.db(), self.env)
 			.await?
 			.into_iter()
 			.filter(|n| n.is_active)
@@ -130,10 +138,11 @@ impl App {
 	pub async fn should_reconnect(&self) -> Result<bool> {
 		Ok(match *self.connected_at.read().await {
 			Some(connected_at) => {
-				let networks_updated_at = Config::get::<u8>(&self.db, ConfigKey::NetworksUpdated)
-					.await?
-					.map(|v| v.updated_at)
-					.unwrap_or_else(utils::now);
+				let networks_updated_at =
+					Config::get::<_, u8>(self.db(), ConfigKey::NetworksUpdated)
+						.await?
+						.map(|v| v.updated_at)
+						.unwrap_or_else(utils::now);
 
 				connected_at < networks_updated_at
 			}
@@ -151,7 +160,7 @@ impl App {
 
 		let m = MultiProgress::new();
 
-		let networks = Network::get_all_by_env(&self.db, self.env)
+		let networks = Network::get_all_by_env(self.db(), self.env)
 			.await?
 			.into_iter()
 			.filter(|n| n.is_active)

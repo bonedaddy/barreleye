@@ -21,5 +21,5 @@ pub async fn handler(
 		_ => (None, None),
 	};
 
-	Ok(Network::get_all_where(&app.db, vec![], offset, limit).await?.into())
+	Ok(Network::get_all_where(app.db(), vec![], offset, limit).await?.into())
 }

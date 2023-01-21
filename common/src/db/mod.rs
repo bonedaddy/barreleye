@@ -2,7 +2,8 @@ use derive_more::Display;
 use eyre::{Result, WrapErr};
 use log::LevelFilter;
 use sea_orm::{
-	ConnectOptions, ConnectionTrait, Database, DatabaseConnection, DbBackend, Statement,
+	ConnectOptions, ConnectionTrait, Database, DatabaseConnection, DatabaseTransaction, DbBackend,
+	Statement, TransactionTrait,
 };
 use serde::{Deserialize, Serialize};
 use std::{sync::Arc, time::Duration};
@@ -117,5 +118,9 @@ impl Db {
 
 	pub fn get(&self) -> &DatabaseConnection {
 		&self.db
+	}
+
+	pub async fn get_tx(&self) -> Result<DatabaseTransaction> {
+		Ok(self.db.begin().await?)
 	}
 }

@@ -24,20 +24,20 @@ pub struct Response {
 pub async fn handler(State(app): State<Arc<App>>) -> ServerResult<Json<Response>> {
 	let mut networks = vec![];
 
-	for network in Network::get_all(&app.db).await?.into_iter() {
+	for network in Network::get_all(app.db()).await?.into_iter() {
 		let nid = network.network_id;
 
-		let block_height = Config::get::<u64>(&app.db, ConfigKey::BlockHeight(nid))
+		let block_height = Config::get::<_, u64>(app.db(), ConfigKey::BlockHeight(nid))
 			.await?
 			.map(|v| v.value)
 			.unwrap_or(0);
 
-		let tail_index = Config::get::<u64>(&app.db, ConfigKey::IndexerTailSync(nid))
+		let tail_index = Config::get::<_, u64>(app.db(), ConfigKey::IndexerTailSync(nid))
 			.await?
 			.map(|v| v.value)
 			.unwrap_or(0);
 
-		let sync = Config::get::<f64>(&app.db, ConfigKey::IndexerProgress(nid))
+		let sync = Config::get::<_, f64>(app.db(), ConfigKey::IndexerProgress(nid))
 			.await?
 			.map(|v| v.value)
 			.unwrap_or(0.0);

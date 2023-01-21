@@ -11,7 +11,7 @@ pub async fn handler(
 	State(app): State<Arc<App>>,
 	Path(entity_id): Path<String>,
 ) -> ServerResult<Json<Entity>> {
-	Entity::get_existing_by_id(&app.db, &entity_id)
+	Entity::get_existing_by_id(app.db(), &entity_id)
 		.await?
 		.map(|l| l.into())
 		.ok_or(ServerError::NotFound)

@@ -21,7 +21,7 @@ pub async fn handler(
 		_ => (None, None),
 	};
 
-	Ok(ApiKey::get_all_where(&app.db, vec![], offset, limit)
+	Ok(ApiKey::get_all_where(app.db(), vec![], offset, limit)
 		.await?
 		.iter()
 		.map(|k| k.format())

@@ -1,11 +1,14 @@
 use eyre::Result;
-use sea_orm::entity::{prelude::*, *};
+use sea_orm::{
+	entity::{prelude::*, *},
+	ConnectionTrait,
+};
 use sea_orm_migration::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use crate::{
 	models::{BasicModel, PrimaryId},
-	utils, Db, IdPrefix,
+	utils, IdPrefix,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, DeriveEntityModel)]
@@ -50,13 +53,16 @@ impl Model {
 		}
 	}
 
-	pub async fn get_by_name(db: &Db, name: &str) -> Result<Option<Self>> {
+	pub async fn get_by_name<C>(c: &C, name: &str) -> Result<Option<Self>>
+	where
+		C: ConnectionTrait,
+	{
 		Ok(Entity::find()
 			.filter(
 				Condition::all()
 					.add(Func::lower(Expr::col(Column::Name)).equals(name.trim().to_lowercase())),
 			)
-			.one(db.get())
+			.one(c)
 			.await?)
 	}
 }

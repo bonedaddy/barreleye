@@ -22,5 +22,7 @@ pub async fn handler(
 		_ => (None, None),
 	};
 
-	Ok(Entity::get_all_where(&app.db, vec![EntityIsDeleted.eq(false)], offset, limit).await?.into())
+	Ok(Entity::get_all_where(app.db(), vec![EntityIsDeleted.eq(false)], offset, limit)
+		.await?
+		.into())
 }

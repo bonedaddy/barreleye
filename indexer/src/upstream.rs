@@ -80,14 +80,14 @@ impl Indexer {
 
 			// get all networks that are not syncing in chunks
 			let mut networks = vec![];
-			for network in Network::get_all_by_env(&self.app.db, self.app.env).await?.into_iter() {
+			for network in Network::get_all_by_env(self.app.db(), self.app.env).await?.into_iter() {
 				let tail_is_syncing = Config::exist_by_keywords(
-					&self.app.db,
+					self.app.db(),
 					vec![format!("tail_sync_n{}", network.network_id)],
 				);
 
 				let is_actively_syncing = Config::exist_by_keywords(
-					&self.app.db,
+					self.app.db(),
 					vec![
 						format!("chunk_sync_n{}", network.network_id),
 						format!("module_sync_n{}", network.network_id),
@@ -106,7 +106,7 @@ impl Indexer {
 					.map(|n| (ConfigKey::IndexerTailSync(n.network_id), n.network_id))
 					.collect::<HashMap<ConfigKey, PrimaryId>>();
 
-				Config::get_many::<BlockHeight>(&self.app.db, map.clone().into_keys().collect())
+				Config::get_many::<_, BlockHeight>(self.app.db(), map.clone().into_keys().collect())
 					.await?
 					.into_iter()
 					.filter_map(|(config_key, hit)| match hit.value > 0 {
@@ -123,7 +123,7 @@ impl Indexer {
 
 			// fetch all addresses
 			let addresses = Address::get_all_by_network_ids(
-				&self.app.db,
+				self.app.db(),
 				block_height_map.clone().into_keys().collect(),
 				Some(false),
 			)
@@ -150,7 +150,7 @@ impl Indexer {
 					Some(&block_height) => block_height,
 					_ => {
 						let block_height =
-							match Config::get::<BlockHeight>(&self.app.db, config_key).await? {
+							match Config::get::<_, BlockHeight>(self.app.db(), config_key).await? {
 								Some(hit) => hit.value,
 								_ => Transfer::get_first_by_source(
 									&self.app.warehouse,
@@ -287,7 +287,7 @@ impl Indexer {
 				warehouse_data.commit(&self.app.warehouse).await?;
 
 				// commit config marker updates
-				Config::set_many::<BlockHeight>(&self.app.db, config_key_map.clone()).await?;
+				Config::set_many::<_, BlockHeight>(self.app.db(), config_key_map.clone()).await?;
 				config_key_map.clear();
 			}
 
@@ -300,11 +300,11 @@ impl Indexer {
 
 	async fn prune_upstream(&self) -> Result<()> {
 		// get all deleted addresses
-		let addresses = Address::get_all_deleted(&self.app.db).await?;
+		let addresses = Address::get_all_deleted(self.app.db()).await?;
 		if !addresses.is_empty() {
 			// delete all upstream configs
 			Config::delete_many(
-				&self.app.db,
+				self.app.db(),
 				addresses
 					.iter()
 					.map(|a| ConfigKey::IndexerUpstreamSync(a.network_id, a.address_id))
@@ -312,9 +312,9 @@ impl Indexer {
 			)
 			.await?;
 
-			// delete all db records
+			// delete all addresses
 			Address::prune_all_by_ids(
-				&self.app.db,
+				self.app.db(),
 				addresses.iter().map(|a| a.id.clone()).collect(),
 			)
 			.await?;
@@ -332,7 +332,7 @@ impl Indexer {
 		}
 
 		// prune all entities
-		Entity::prune_all(&self.app.db).await?;
+		Entity::prune_all(self.app.db()).await?;
 
 		Ok(())
 	}

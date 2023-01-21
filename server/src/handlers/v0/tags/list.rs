@@ -21,5 +21,5 @@ pub async fn handler(
 		_ => (None, None),
 	};
 
-	Ok(Tag::get_all_where(&app.db, vec![], offset, limit).await?.into())
+	Ok(Tag::get_all_where(app.db(), vec![], offset, limit).await?.into())
 }

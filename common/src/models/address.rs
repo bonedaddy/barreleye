@@ -1,11 +1,15 @@
+use async_trait::async_trait;
 use eyre::Result;
-use sea_orm::entity::{prelude::*, *};
+use sea_orm::{
+	entity::{prelude::*, *},
+	ConnectionTrait,
+};
 use sea_orm_migration::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use crate::{
 	models::{entity, BasicModel, PrimaryId, SoftDeleteModel},
-	utils, Db, IdPrefix,
+	utils, IdPrefix,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, DeriveEntityModel)]
@@ -55,8 +59,30 @@ impl BasicModel for Model {
 	type ActiveModel = ActiveModel;
 }
 
+#[async_trait]
 impl SoftDeleteModel for Model {
 	type ActiveModel = ActiveModel;
+
+	async fn get_all_deleted<C>(c: &C) -> Result<Vec<Self>>
+	where
+		C: ConnectionTrait,
+	{
+		Ok(Entity::find()
+			.filter(Column::IsDeleted.eq(true))
+			.filter(
+				Condition::any().add(
+					Column::EntityId.in_subquery(
+						Query::select()
+							.column(entity::Column::EntityId)
+							.from(entity::Entity)
+							.and_where(entity::Column::IsDeleted.eq(true))
+							.to_owned(),
+					),
+				),
+			)
+			.all(c)
+			.await?)
+	}
 }
 
 impl Model {
@@ -77,49 +103,61 @@ impl Model {
 		}
 	}
 
-	pub async fn create_many(db: &Db, data: Vec<ActiveModel>) -> Result<PrimaryId> {
+	pub async fn create_many<C>(c: &C, data: Vec<ActiveModel>) -> Result<PrimaryId>
+	where
+		C: ConnectionTrait,
+	{
 		let insert_result = Entity::insert_many(data)
 			.on_conflict(
 				OnConflict::columns([Column::NetworkId, Column::Address]).do_nothing().to_owned(),
 			)
-			.exec(db.get())
+			.exec(c)
 			.await?;
 
 		Ok(insert_result.last_insert_id)
 	}
 
-	pub async fn get_all_by_addresses(
-		db: &Db,
+	pub async fn get_all_by_addresses<C>(
+		c: &C,
 		addresses: Vec<String>,
 		is_deleted: Option<bool>,
-	) -> Result<Vec<Self>> {
+	) -> Result<Vec<Self>>
+	where
+		C: ConnectionTrait,
+	{
 		let mut q = Entity::find().filter(Column::Address.is_in(addresses));
 		if is_deleted.is_some() {
 			q = q.filter(Column::IsDeleted.eq(is_deleted.unwrap()))
 		}
 
-		Ok(q.all(db.get()).await?)
+		Ok(q.all(c).await?)
 	}
 
-	pub async fn get_all_by_network_ids(
-		db: &Db,
+	pub async fn get_all_by_network_ids<C>(
+		c: &C,
 		network_ids: Vec<PrimaryId>,
 		is_deleted: Option<bool>,
-	) -> Result<Vec<Self>> {
+	) -> Result<Vec<Self>>
+	where
+		C: ConnectionTrait,
+	{
 		let mut q = Entity::find().filter(Column::NetworkId.is_in(network_ids));
 		if is_deleted.is_some() {
 			q = q.filter(Column::IsDeleted.eq(is_deleted.unwrap()))
 		}
 
-		Ok(q.all(db.get()).await?)
+		Ok(q.all(c).await?)
 	}
 
-	pub async fn get_all_by_network_id_and_addresses(
-		db: &Db,
+	pub async fn get_all_by_network_id_and_addresses<C>(
+		c: &C,
 		network_id: PrimaryId,
 		addresses: Vec<String>,
 		is_deleted: Option<bool>,
-	) -> Result<Vec<Self>> {
+	) -> Result<Vec<Self>>
+	where
+		C: ConnectionTrait,
+	{
 		let mut q = Entity::find()
 			.filter(Column::NetworkId.eq(network_id))
 			.filter(Column::Address.is_in(addresses));
@@ -128,19 +166,22 @@ impl Model {
 			q = q.filter(Column::IsDeleted.eq(is_deleted.unwrap()))
 		}
 
-		Ok(q.all(db.get()).await?)
+		Ok(q.all(c).await?)
 	}
 
-	pub async fn update_by_entity_id(
-		db: &Db,
+	pub async fn update_by_entity_id<C>(
+		c: &C,
 		entity_id: PrimaryId,
 		data: ActiveModel,
-	) -> Result<u64> {
+	) -> Result<u64>
+	where
+		C: ConnectionTrait,
+	{
 		let res = Entity::update_many()
 			.col_expr(Alias::new("updated_at"), Expr::value(utils::now()))
 			.set(data)
 			.filter(Column::EntityId.eq(entity_id))
-			.exec(db.get())
+			.exec(c)
 			.await?;
 
 		Ok(res.rows_affected)

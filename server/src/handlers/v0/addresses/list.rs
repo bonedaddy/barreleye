@@ -28,7 +28,7 @@ pub async fn handler(
 
 	if let Some(payload) = payload {
 		if let Some(entity_id) = payload.entity {
-			if let Some(entity) = Entity::get_existing_by_id(&app.db, &entity_id).await? {
+			if let Some(entity) = Entity::get_existing_by_id(app.db(), &entity_id).await? {
 				conditions.push(AddressEntityId.eq(entity.entity_id))
 			} else {
 				return Err(ServerError::InvalidParam {
@@ -42,5 +42,5 @@ pub async fn handler(
 		limit = payload.limit;
 	}
 
-	Ok(Address::get_all_where(&app.db, conditions, offset, limit).await?.into())
+	Ok(Address::get_all_where(app.db(), conditions, offset, limit).await?.into())
 }

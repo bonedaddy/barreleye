@@ -1,15 +1,15 @@
 use eyre::Result;
-use sea_orm::entity::{prelude::*, *};
+use sea_orm::{
+	entity::{prelude::*, *},
+	ConnectionTrait,
+};
 use sea_orm_migration::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use crate::{
-	models::{entity, tag, BasicModel, PrimaryId},
-	Db,
-};
+use crate::models::{entity, tag, BasicModel, PrimaryId};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, DeriveEntityModel)]
-#[sea_orm(table_name = "entity_tag_map")]
+#[sea_orm(table_name = "entity_tags")]
 #[serde(rename_all = "camelCase")]
 pub struct Model {
 	#[sea_orm(primary_key)]
@@ -21,8 +21,8 @@ pub struct Model {
 	pub created_at: DateTime,
 }
 
-pub use ActiveModel as EntityTagMapActiveModel;
-pub use Model as EntityTagMap;
+pub use ActiveModel as EntityTagsActiveModel;
+pub use Model as EntityTags;
 
 #[derive(Copy, Clone, Debug, EnumIter)]
 pub enum Relation {
@@ -55,41 +55,50 @@ impl Model {
 		ActiveModel { entity_id: Set(entity_id), tag_id: Set(tag_id), ..Default::default() }
 	}
 
-	pub async fn create_many(db: &Db, data: Vec<ActiveModel>) -> Result<(PrimaryId, PrimaryId)> {
+	pub async fn create_many<C>(c: &C, data: Vec<ActiveModel>) -> Result<(PrimaryId, PrimaryId)>
+	where
+		C: ConnectionTrait,
+	{
 		let insert_result = Entity::insert_many(data)
 			.on_conflict(
 				OnConflict::columns([Column::EntityId, Column::TagId]).do_nothing().to_owned(),
 			)
-			.exec(db.get())
+			.exec(c)
 			.await?;
 
 		Ok(insert_result.last_insert_id)
 	}
 
-	pub async fn delete_not_included_tags(
-		db: &Db,
+	pub async fn delete_not_included_tags<C>(
+		c: &C,
 		entity_id: PrimaryId,
 		tag_ids: Vec<PrimaryId>,
-	) -> Result<u64> {
+	) -> Result<u64>
+	where
+		C: ConnectionTrait,
+	{
 		let res = Entity::delete_many()
 			.filter(Column::EntityId.eq(entity_id))
 			.filter(Column::TagId.is_not_in(tag_ids))
-			.exec(db.get())
+			.exec(c)
 			.await?;
 
 		Ok(res.rows_affected)
 	}
 
-	pub async fn delete_all_by_entity_ids(db: &Db, entity_ids: Vec<PrimaryId>) -> Result<u64> {
-		let res =
-			Entity::delete_many().filter(Column::EntityId.is_in(entity_ids)).exec(db.get()).await?;
-
+	pub async fn delete_all_by_entity_ids<C>(c: &C, entity_ids: Vec<PrimaryId>) -> Result<u64>
+	where
+		C: ConnectionTrait,
+	{
+		let res = Entity::delete_many().filter(Column::EntityId.is_in(entity_ids)).exec(c).await?;
 		Ok(res.rows_affected)
 	}
 
-	pub async fn delete_all_by_tag_ids(db: &Db, tag_ids: Vec<PrimaryId>) -> Result<u64> {
-		let res = Entity::delete_many().filter(Column::TagId.is_in(tag_ids)).exec(db.get()).await?;
-
+	pub async fn delete_all_by_tag_ids<C>(c: &C, tag_ids: Vec<PrimaryId>) -> Result<u64>
+	where
+		C: ConnectionTrait,
+	{
+		let res = Entity::delete_many().filter(Column::TagId.is_in(tag_ids)).exec(c).await?;
 		Ok(res.rows_affected)
 	}
 }

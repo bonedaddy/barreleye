@@ -27,13 +27,13 @@ pub async fn handler(
 	Json(payload): Json<Payload>,
 ) -> ServerResult<Json<Network>> {
 	// check for duplicate name
-	if Network::get_by_name(&app.db, &payload.name).await?.is_some() {
+	if Network::get_by_name(app.db(), &payload.name).await?.is_some() {
 		return Err(ServerError::Duplicate { field: "name".to_string(), value: payload.name });
 	}
 
 	// check for duplicate chain id
 	if Network::get_by_env_blockchain_and_chain_id(
-		&app.db,
+		app.db(),
 		payload.env,
 		payload.blockchain,
 		payload.chain_id as i64,
@@ -60,7 +60,7 @@ pub async fn handler(
 
 	// create new
 	let network_id = Network::create(
-		&app.db,
+		app.db(),
 		Network::new_model(
 			&payload.name,
 			payload.env,
@@ -74,12 +74,12 @@ pub async fn handler(
 	.await?;
 
 	// update config
-	Config::set::<u8>(&app.db, ConfigKey::NetworksUpdated, 1).await?;
+	Config::set::<_, u8>(app.db(), ConfigKey::NetworksUpdated, 1).await?;
 
 	// update app's networks
 	let mut networks = app.networks.write().await;
 	*networks = app.get_networks().await?;
 
 	// return newly created
-	Ok(Network::get(&app.db, network_id).await?.unwrap().into())
+	Ok(Network::get(app.db(), network_id).await?.unwrap().into())
 }

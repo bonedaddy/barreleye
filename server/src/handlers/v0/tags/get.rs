@@ -11,5 +11,5 @@ pub async fn handler(
 	State(app): State<Arc<App>>,
 	Path(tag_id): Path<String>,
 ) -> ServerResult<Json<Tag>> {
-	Tag::get_by_id(&app.db, &tag_id).await?.map(|a| a.into()).ok_or(ServerError::NotFound)
+	Tag::get_by_id(app.db(), &tag_id).await?.map(|a| a.into()).ok_or(ServerError::NotFound)
 }

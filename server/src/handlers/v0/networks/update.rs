@@ -32,7 +32,7 @@ pub async fn handler(
 	Path(network_id): Path<String>,
 	Json(payload): Json<Payload>,
 ) -> ServerResult<StatusCode> {
-	let network = Network::get_by_id(&app.db, &network_id).await?.ok_or(ServerError::NotFound)?;
+	let network = Network::get_by_id(app.db(), &network_id).await?.ok_or(ServerError::NotFound)?;
 
 	// check for duplicate name
 	if let Some(name) = payload.name.clone() {
@@ -46,7 +46,7 @@ pub async fn handler(
 	// check for duplicate chain id
 	if let Some(chain_id) = payload.chain_id {
 		if Network::get_by_env_blockchain_and_chain_id(
-			&app.db,
+			app.db(),
 			payload.env.unwrap_or(network.env),
 			payload.blockchain.unwrap_or(network.blockchain),
 			chain_id as i64,
@@ -75,10 +75,10 @@ pub async fn handler(
 
 	if update_data.is_changed() {
 		// update network
-		Network::update_by_id(&app.db, &network_id, update_data).await?;
+		Network::update_by_id(app.db(), &network_id, update_data).await?;
 
 		// update config
-		Config::set::<u8>(&app.db, ConfigKey::NetworksUpdated, 1).await?;
+		Config::set::<_, u8>(app.db(), ConfigKey::NetworksUpdated, 1).await?;
 
 		// update app's networks
 		let mut networks = app.networks.write().await;

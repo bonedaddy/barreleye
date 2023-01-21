@@ -1,13 +1,13 @@
 use derive_more::Display;
 use eyre::Result;
 use regex::Regex;
-use sea_orm::{entity::prelude::*, Condition, Set};
+use sea_orm::{entity::prelude::*, Condition, ConnectionTrait, Set};
 use sea_orm_migration::prelude::{Expr, OnConflict};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::collections::HashMap;
 
-use crate::{models::PrimaryId, utils, BlockHeight, Db};
+use crate::{models::PrimaryId, utils, BlockHeight};
 
 #[derive(Display, Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum ConfigKey {
@@ -121,8 +121,9 @@ impl RelationTrait for Relation {
 impl ActiveModelBehavior for ActiveModel {}
 
 impl Model {
-	pub async fn set<T>(db: &Db, key: ConfigKey, value: T) -> Result<()>
+	pub async fn set<C, T>(c: &C, key: ConfigKey, value: T) -> Result<()>
 	where
+		C: ConnectionTrait,
 		T: Serialize,
 	{
 		Entity::insert(ActiveModel {
@@ -136,19 +137,20 @@ impl Model {
 				.update_columns([Column::Value, Column::UpdatedAt])
 				.to_owned(),
 		)
-		.exec(db.get())
+		.exec(c)
 		.await?;
 
 		Ok(())
 	}
 
-	pub async fn set_where<T>(
-		db: &Db,
+	pub async fn set_where<C, T>(
+		c: &C,
 		key: ConfigKey,
 		value: T,
 		where_value: Value<T>,
 	) -> Result<bool>
 	where
+		C: ConnectionTrait,
 		T: Serialize + for<'a> Deserialize<'a>,
 	{
 		let update_result = Entity::update_many()
@@ -157,14 +159,15 @@ impl Model {
 			.filter(Column::Key.eq(key.to_string()))
 			.filter(Column::Value.eq(json!(where_value.value).to_string()))
 			.filter(Column::UpdatedAt.eq(where_value.updated_at))
-			.exec(db.get())
+			.exec(c)
 			.await?;
 
 		Ok(update_result.rows_affected == 1)
 	}
 
-	pub async fn set_many<T>(db: &Db, values: HashMap<ConfigKey, T>) -> Result<()>
+	pub async fn set_many<C, T>(c: &C, values: HashMap<ConfigKey, T>) -> Result<()>
 	where
+		C: ConnectionTrait,
 		T: Serialize,
 	{
 		let insert_data = values
@@ -183,32 +186,32 @@ impl Model {
 					.update_columns([Column::Value, Column::UpdatedAt])
 					.to_owned(),
 			)
-			.exec(db.get())
+			.exec(c)
 			.await?;
 
 		Ok(())
 	}
 
-	pub async fn get<T>(db: &Db, key: ConfigKey) -> Result<Option<Value<T>>>
+	pub async fn get<C, T>(c: &C, key: ConfigKey) -> Result<Option<Value<T>>>
 	where
+		C: ConnectionTrait,
 		T: for<'a> Deserialize<'a>,
 	{
-		Ok(Entity::find().filter(Column::Key.eq(key.to_string())).one(db.get()).await?.map(|m| {
-			Value {
-				value: serde_json::from_str(&m.value).unwrap(),
-				updated_at: m.updated_at,
-				created_at: m.created_at,
-			}
+		Ok(Entity::find().filter(Column::Key.eq(key.to_string())).one(c).await?.map(|m| Value {
+			value: serde_json::from_str(&m.value).unwrap(),
+			updated_at: m.updated_at,
+			created_at: m.created_at,
 		}))
 	}
 
-	pub async fn get_many<T>(db: &Db, keys: Vec<ConfigKey>) -> Result<HashMap<ConfigKey, Value<T>>>
+	pub async fn get_many<C, T>(c: &C, keys: Vec<ConfigKey>) -> Result<HashMap<ConfigKey, Value<T>>>
 	where
+		C: ConnectionTrait,
 		T: for<'a> Deserialize<'a>,
 	{
 		Ok(Entity::find()
 			.filter(Column::Key.is_in(keys.iter().map(|k| k.to_string())))
-			.all(db.get())
+			.all(c)
 			.await?
 			.into_iter()
 			.map(|m| {
@@ -224,16 +227,17 @@ impl Model {
 			.collect())
 	}
 
-	pub async fn get_many_by_keyword<T>(
-		db: &Db,
+	pub async fn get_many_by_keyword<C, T>(
+		c: &C,
 		keyword: &str,
 	) -> Result<HashMap<ConfigKey, Value<T>>>
 	where
+		C: ConnectionTrait,
 		T: for<'a> Deserialize<'a>,
 	{
 		Ok(Entity::find()
 			.filter(Self::get_keyword_conditions(vec![keyword.to_string()]))
-			.all(db.get())
+			.all(c)
 			.await?
 			.into_iter()
 			.map(|m| {
@@ -249,30 +253,37 @@ impl Model {
 			.collect())
 	}
 
-	pub async fn exist_by_keywords(db: &Db, keywords: Vec<String>) -> Result<bool> {
-		Ok(!Entity::find()
-			.filter(Self::get_keyword_conditions(keywords))
-			.all(db.get())
-			.await?
-			.is_empty())
+	pub async fn exist_by_keywords<C>(c: &C, keywords: Vec<String>) -> Result<bool>
+	where
+		C: ConnectionTrait,
+	{
+		Ok(!Entity::find().filter(Self::get_keyword_conditions(keywords)).all(c).await?.is_empty())
 	}
 
-	pub async fn delete(db: &Db, key: ConfigKey) -> Result<()> {
-		Entity::delete_many().filter(Column::Key.eq(key.to_string())).exec(db.get()).await?;
+	pub async fn delete<C>(c: &C, key: ConfigKey) -> Result<()>
+	where
+		C: ConnectionTrait,
+	{
+		Entity::delete_many().filter(Column::Key.eq(key.to_string())).exec(c).await?;
 		Ok(())
 	}
 
-	pub async fn delete_many(db: &Db, keys: Vec<ConfigKey>) -> Result<()> {
+	pub async fn delete_many<C>(c: &C, keys: Vec<ConfigKey>) -> Result<()>
+	where
+		C: ConnectionTrait,
+	{
 		Entity::delete_many()
 			.filter(Column::Key.is_in(keys.into_iter().map(|k| k.to_string())))
-			.exec(db.get())
+			.exec(c)
 			.await?;
 		Ok(())
 	}
 
-	pub async fn delete_all_by_keywords(db: &Db, keywords: Vec<String>) -> Result<()> {
-		Entity::delete_many().filter(Self::get_keyword_conditions(keywords)).exec(db.get()).await?;
-
+	pub async fn delete_all_by_keywords<C>(c: &C, keywords: Vec<String>) -> Result<()>
+	where
+		C: ConnectionTrait,
+	{
+		Entity::delete_many().filter(Self::get_keyword_conditions(keywords)).exec(c).await?;
 		Ok(())
 	}
 

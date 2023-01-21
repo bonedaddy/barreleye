@@ -21,14 +21,14 @@ pub async fn handler(
 	Path(api_key_id): Path<String>,
 	Json(payload): Json<Payload>,
 ) -> ServerResult<StatusCode> {
-	match ApiKey::get_by_id(&app.db, &api_key_id).await? {
+	match ApiKey::get_by_id(app.db(), &api_key_id).await? {
 		Some(_) => {
 			let update_data = ApiKeyActiveModel {
 				is_active: optional_set(payload.is_active),
 				..Default::default()
 			};
 			if update_data.is_changed() {
-				ApiKey::update_by_id(&app.db, &api_key_id, update_data).await?;
+				ApiKey::update_by_id(app.db(), &api_key_id, update_data).await?;
 			}
 
 			Ok(StatusCode::NO_CONTENT)

@@ -11,7 +11,7 @@ pub async fn handler(
 	State(app): State<Arc<App>>,
 	Path(address_id): Path<String>,
 ) -> ServerResult<Json<Address>> {
-	Address::get_existing_by_id(&app.db, &address_id)
+	Address::get_existing_by_id(app.db(), &address_id)
 		.await?
 		.map(|a| a.into())
 		.ok_or(ServerError::NotFound)

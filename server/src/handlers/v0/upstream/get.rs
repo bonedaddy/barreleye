@@ -101,7 +101,7 @@ pub async fn handler(
 		let mut address_map = HashMap::new();
 		let mut entities = HashMap::new();
 
-		let addresses = Address::get_all_by_addresses(&app.db, addresses, Some(false)).await?;
+		let addresses = Address::get_all_by_addresses(app.db(), addresses, Some(false)).await?;
 
 		if !addresses.is_empty() {
 			address_map = addresses
@@ -115,7 +115,7 @@ pub async fn handler(
 			entity_ids.sort_unstable();
 			entity_ids.dedup();
 
-			for entity in Entity::get_all_by_entity_ids(&app.db, entity_ids).await?.into_iter() {
+			for entity in Entity::get_all_by_entity_ids(app.db(), entity_ids).await?.into_iter() {
 				entities.insert(entity.entity_id, entity);
 			}
 		}
