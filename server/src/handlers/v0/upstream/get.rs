@@ -10,12 +10,16 @@ use std::{
 };
 use uuid::Uuid;
 
-use crate::{App, ServerResult};
-use barreleye_common::models::{Address, Amount, Entity, Link, Network, PrimaryId, Transfer};
+use crate::{
+	utils::{get_addresses_from_params, get_networks},
+	App, ServerResult,
+};
+use barreleye_common::models::{Address, Entity, Link, Network, PrimaryId, Transfer};
 
 #[derive(Deserialize)]
 pub struct Payload {
-	address: String,
+	address: Option<String>,
+	entity: Option<String>,
 	detailed: Option<bool>,
 }
 
@@ -39,7 +43,7 @@ pub struct ResponseUpstream {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Response {
-	address: String,
+	addresses: Vec<String>,
 	upstream: Vec<ResponseUpstream>,
 	networks: Vec<Network>,
 	entities: Vec<Entity>,
@@ -49,12 +53,13 @@ pub async fn handler(
 	State(app): State<Arc<App>>,
 	Query(payload): Query<Payload>,
 ) -> ServerResult<Json<Response>> {
-	let address = app.format_address(&payload.address).await?;
+	// get addresses
+	let addresses = get_addresses_from_params(app.clone(), payload.address, payload.entity).await?;
 
 	// find links
 	let links = match payload.detailed {
-		Some(true) => Link::get_all_by_address(&app.warehouse, &address).await?,
-		_ => Link::get_all_disinct_by_address(&app.warehouse, &address).await?,
+		Some(true) => Link::get_all_by_addresses(&app.warehouse, addresses.clone()).await?,
+		_ => Link::get_all_disinct_by_addresses(&app.warehouse, addresses.clone()).await?,
 	};
 
 	// get transfers (@TODO ideally this step would be combined with link fetching)
@@ -76,21 +81,6 @@ pub async fn handler(
 			.into_iter()
 			.map(|t| (t.uuid, t))
 			.collect::<HashMap<Uuid, Transfer>>())
-	}
-
-	// get networks
-	async fn get_networks(app: Arc<App>, address: &str) -> Result<Vec<Network>> {
-		let mut ret = vec![];
-
-		let n = app.networks.read().await;
-		let network_ids = Amount::get_all_network_ids_by_address(&app.warehouse, address).await?;
-		if !network_ids.is_empty() {
-			for (_, chain) in n.iter().filter(|(network_id, _)| network_ids.contains(network_id)) {
-				ret.push(chain.get_network());
-			}
-		}
-
-		Ok(ret)
 	}
 
 	// get entities data
@@ -123,15 +113,18 @@ pub async fn handler(
 		Ok((address_map, entities))
 	}
 
-	let mut addresses = links.iter().map(|l| l.from_address.clone()).collect::<Vec<String>>();
-
-	addresses.sort_unstable();
-	addresses.dedup();
-
 	let (transfers, networks, entities_data) = tokio::join!(
 		get_transfers(app.clone(), links.clone()),
-		get_networks(app.clone(), &address),
-		get_entities_data(app.clone(), addresses),
+		get_networks(app.clone(), addresses.clone()),
+		get_entities_data(app.clone(), {
+			let mut from_addresses =
+				links.iter().map(|l| l.from_address.clone()).collect::<Vec<String>>();
+
+			from_addresses.sort_unstable();
+			from_addresses.dedup();
+
+			from_addresses
+		}),
 	);
 
 	let transfers = transfers?;
@@ -169,6 +162,6 @@ pub async fn handler(
 		}
 	}
 
-	Ok(Response { address, upstream, networks, entities: entities_map.into_values().collect() }
+	Ok(Response { addresses, upstream, networks, entities: entities_map.into_values().collect() }
 		.into())
 }

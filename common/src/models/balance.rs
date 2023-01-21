@@ -21,9 +21,12 @@ pub struct Model {
 pub use Model as Balance;
 
 impl Model {
-	pub async fn get_all_by_address(warehouse: &Warehouse, address: &str) -> Result<Vec<Model>> {
+	pub async fn get_all_by_addresses(
+		warehouse: &Warehouse,
+		addresses: Vec<String>,
+	) -> Result<Vec<Model>> {
 		// @TODO until I256 is implemented, doing this hacky "group by" statement
-		// ideally: "SELECT ?fields FROM {TABLE} WHERE address = ?"
+		// ideally: "SELECT ?fields FROM {TABLE} WHERE address IN ?"
 
 		Ok(warehouse
 			.get()
@@ -37,13 +40,13 @@ impl Model {
 	                        asset_address,
 	                        SUM(balance) as balance
 	                    FROM {TABLE}
-	                    WHERE address = ?
+	                    WHERE address IN ?
 	                    GROUP BY (network_id, address, asset_address)
 					)
 					WHERE balance >= 0
                 "#
 			))
-			.bind(address)
+			.bind(addresses)
 			.fetch_all::<Model>()
 			.await?)
 	}

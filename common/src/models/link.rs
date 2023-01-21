@@ -58,24 +58,27 @@ impl Model {
 		Ok(insert.end().await?)
 	}
 
-	pub async fn get_all_by_address(warehouse: &Warehouse, address: &str) -> Result<Vec<Self>> {
+	pub async fn get_all_by_addresses(
+		warehouse: &Warehouse,
+		addresses: Vec<String>,
+	) -> Result<Vec<Self>> {
 		Ok(warehouse
 			.get()
 			.query(&format!(
 				r#"
 					SELECT *
 					FROM {TABLE}
-					WHERE to_address = ?
+					WHERE to_address IN ?
                 "#
 			))
-			.bind(address.to_string())
+			.bind(addresses)
 			.fetch_all::<Model>()
 			.await?)
 	}
 
-	pub async fn get_all_disinct_by_address(
+	pub async fn get_all_disinct_by_addresses(
 		warehouse: &Warehouse,
-		address: &str,
+		addresses: Vec<String>,
 	) -> Result<Vec<Self>> {
 		Ok(warehouse
 			.get()
@@ -83,11 +86,11 @@ impl Model {
 				r#"
 					SELECT DISTINCT ON (network_id, from_address) *
 					FROM {TABLE}
-					WHERE to_address = ?
+					WHERE to_address IN ?
 					ORDER BY LENGTH(transfer_uuids) ASC
                 "#
 			))
-			.bind(address.to_string())
+			.bind(addresses)
 			.fetch_all::<Model>()
 			.await?)
 	}

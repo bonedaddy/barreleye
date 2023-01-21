@@ -61,9 +61,9 @@ impl Model {
 		Ok(insert.end().await?)
 	}
 
-	pub async fn get_all_network_ids_by_address(
+	pub async fn get_all_network_ids_by_addresses(
 		warehouse: &Warehouse,
-		address: &str,
+		addresses: Vec<String>,
 	) -> Result<Vec<PrimaryId>> {
 		#[derive(PartialEq, Eq, Hash, Debug, Clone, Row, Serialize, Deserialize)]
 		struct Data {
@@ -76,10 +76,10 @@ impl Model {
 				r#"
 					SELECT DISTINCT network_id
 					FROM {TABLE}
-					WHERE address = ?
+					WHERE address IN ?
                 "#
 			))
-			.bind(address)
+			.bind(addresses)
 			.fetch_all::<Data>()
 			.await?
 			.into_iter()

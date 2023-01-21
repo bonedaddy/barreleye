@@ -22,6 +22,9 @@ pub enum ServerError {
 	#[display(fmt = "invalid value(s) @ parameter `{field}`: {values}")]
 	InvalidValues { field: String, values: String },
 
+	#[display(fmt = "missing input params")]
+	MissingInputParams,
+
 	#[display(fmt = "could not connect to `{name}`")]
 	InvalidService { name: String },
 
@@ -50,6 +53,7 @@ impl IntoResponse for ServerError {
 			ServerError::Validation { .. } |
 			ServerError::InvalidParam { .. } |
 			ServerError::InvalidValues { .. } |
+			ServerError::MissingInputParams |
 			ServerError::InvalidService { .. } |
 			ServerError::Duplicate { .. } |
 			ServerError::Duplicates { .. } |

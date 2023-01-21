@@ -133,6 +133,22 @@ impl Model {
 		Ok(q.all(c).await?)
 	}
 
+	pub async fn get_all_by_entity_ids<C>(
+		c: &C,
+		entity_ids: Vec<PrimaryId>,
+		is_deleted: Option<bool>,
+	) -> Result<Vec<Self>>
+	where
+		C: ConnectionTrait,
+	{
+		let mut q = Entity::find().filter(Column::EntityId.is_in(entity_ids));
+		if is_deleted.is_some() {
+			q = q.filter(Column::IsDeleted.eq(is_deleted.unwrap()))
+		}
+
+		Ok(q.all(c).await?)
+	}
+
 	pub async fn get_all_by_network_ids<C>(
 		c: &C,
 		network_ids: Vec<PrimaryId>,

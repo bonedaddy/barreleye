@@ -6,12 +6,16 @@ use eyre::Result;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-use crate::{App, ServerResult};
-use barreleye_common::models::{Address, Amount, Balance, Entity, Network, PrimaryId};
+use crate::{
+	utils::{get_addresses_from_params, get_networks},
+	App, ServerResult,
+};
+use barreleye_common::models::{Address, Balance, Entity, Network, PrimaryId};
 
 #[derive(Deserialize)]
 pub struct Payload {
-	address: String,
+	address: Option<String>,
+	entity: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -25,7 +29,7 @@ pub struct ResponseAsset {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Response {
-	address: String,
+	addresses: Vec<String>,
 	assets: Vec<ResponseAsset>,
 	networks: Vec<Network>,
 	entities: Vec<Entity>,
@@ -35,14 +39,15 @@ pub async fn handler(
 	State(app): State<Arc<App>>,
 	Query(payload): Query<Payload>,
 ) -> ServerResult<Json<Response>> {
-	let address = app.format_address(&payload.address).await?;
+	// get addresses
+	let addresses = get_addresses_from_params(app.clone(), payload.address, payload.entity).await?;
 
 	// get assets
-	async fn get_assets(app: Arc<App>, address: &str) -> Result<Vec<ResponseAsset>> {
+	async fn get_assets(app: Arc<App>, addresses: Vec<String>) -> Result<Vec<ResponseAsset>> {
 		let mut ret = vec![];
 
 		let n = app.networks.read().await;
-		let all_balances = Balance::get_all_by_address(&app.warehouse, address).await?;
+		let all_balances = Balance::get_all_by_addresses(&app.warehouse, addresses).await?;
 		if !all_balances.is_empty() {
 			for balance_data in all_balances.into_iter() {
 				if balance_data.balance.is_zero() {
@@ -67,27 +72,11 @@ pub async fn handler(
 		Ok(ret)
 	}
 
-	// get networks
-	async fn get_networks(app: Arc<App>, address: &str) -> Result<Vec<Network>> {
-		let mut ret = vec![];
-
-		let n = app.networks.read().await;
-		let network_ids = Amount::get_all_network_ids_by_address(&app.warehouse, address).await?;
-		if !network_ids.is_empty() {
-			for (_, chain) in n.iter().filter(|(network_id, _)| network_ids.contains(network_id)) {
-				ret.push(chain.get_network());
-			}
-		}
-
-		Ok(ret)
-	}
-
 	// get entities
-	async fn get_entities(app: Arc<App>, address: &str) -> Result<Vec<Entity>> {
+	async fn get_entities(app: Arc<App>, addresses: Vec<String>) -> Result<Vec<Entity>> {
 		let mut ret = vec![];
 
-		let addresses =
-			Address::get_all_by_addresses(app.db(), vec![address.to_string()], Some(false)).await?;
+		let addresses = Address::get_all_by_addresses(app.db(), addresses, Some(false)).await?;
 		if !addresses.is_empty() {
 			let mut entity_ids =
 				addresses.into_iter().map(|a| a.entity_id).collect::<Vec<PrimaryId>>();
@@ -104,16 +93,10 @@ pub async fn handler(
 	}
 
 	let (assets, networks, entities) = tokio::join!(
-		get_assets(app.clone(), &address),
-		get_networks(app.clone(), &address),
-		get_entities(app.clone(), &address),
+		get_assets(app.clone(), addresses.clone()),
+		get_networks(app.clone(), addresses.clone()),
+		get_entities(app.clone(), addresses.clone()),
 	);
 
-	Ok(Response {
-		address: address.clone(),
-		assets: assets?,
-		networks: networks?,
-		entities: entities?,
-	}
-	.into())
+	Ok(Response { addresses, assets: assets?, networks: networks?, entities: entities? }.into())
 }
