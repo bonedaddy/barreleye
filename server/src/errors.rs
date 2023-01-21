@@ -22,6 +22,9 @@ pub enum ServerError {
 	#[display(fmt = "invalid value(s) @ parameter `{field}`: {values}")]
 	InvalidValues { field: String, values: String },
 
+	#[display(fmt = "exceeded limit @ parameter `{field}`: {limit}")]
+	ExceededLimit { field: String, limit: usize },
+
 	#[display(fmt = "missing input params")]
 	MissingInputParams,
 
@@ -50,18 +53,10 @@ pub enum ServerError {
 impl IntoResponse for ServerError {
 	fn into_response(self) -> Response {
 		let http_code = match self {
-			ServerError::Validation { .. } |
-			ServerError::InvalidParam { .. } |
-			ServerError::InvalidValues { .. } |
-			ServerError::MissingInputParams |
-			ServerError::InvalidService { .. } |
-			ServerError::Duplicate { .. } |
-			ServerError::Duplicates { .. } |
-			ServerError::BadRequest { .. } |
-			ServerError::Conflict { .. } => StatusCode::BAD_REQUEST,
 			ServerError::NotFound => StatusCode::NOT_FOUND,
 			ServerError::Unauthorized => StatusCode::UNAUTHORIZED,
 			ServerError::Internal { .. } => StatusCode::INTERNAL_SERVER_ERROR,
+			_ => StatusCode::BAD_REQUEST,
 		};
 
 		let body = Json(json!({

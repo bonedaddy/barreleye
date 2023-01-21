@@ -30,6 +30,20 @@ pub struct Model {
 	pub created_at: DateTime,
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SanitizedEntity {
+	pub id: String,
+	pub name: Option<String>,
+	pub description: String,
+}
+
+impl From<Model> for SanitizedEntity {
+	fn from(m: Model) -> SanitizedEntity {
+		SanitizedEntity { id: m.id, name: m.name, description: m.description }
+	}
+}
+
 pub use ActiveModel as LabeledEntityActiveModel;
 pub use Model as LabeledEntity;
 

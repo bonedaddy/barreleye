@@ -34,6 +34,21 @@ pub struct Model {
 	pub created_at: DateTime,
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SanitizedNetwork {
+	pub id: String,
+	pub name: String,
+	pub env: Env,
+	pub chain_id: i64,
+}
+
+impl From<Model> for SanitizedNetwork {
+	fn from(m: Model) -> SanitizedNetwork {
+		SanitizedNetwork { id: m.id, name: m.name, env: m.env, chain_id: m.chain_id }
+	}
+}
+
 pub use ActiveModel as NetworkActiveModel;
 pub use Model as Network;
 

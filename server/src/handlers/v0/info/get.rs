@@ -10,12 +10,14 @@ use crate::{
 	utils::{get_addresses_from_params, get_networks},
 	App, ServerResult,
 };
-use barreleye_common::models::{Address, Balance, Entity, Network, PrimaryId};
+use barreleye_common::models::{
+	Address, Balance, Entity, PrimaryId, SanitizedEntity, SanitizedNetwork,
+};
 
 #[derive(Deserialize)]
 pub struct Payload {
-	address: Option<String>,
-	entity: Option<String>,
+	address: Vec<String>,
+	entity: Vec<String>,
 }
 
 #[derive(Serialize)]
@@ -31,8 +33,8 @@ pub struct ResponseAsset {
 pub struct Response {
 	addresses: Vec<String>,
 	assets: Vec<ResponseAsset>,
-	networks: Vec<Network>,
-	entities: Vec<Entity>,
+	networks: Vec<SanitizedNetwork>,
+	entities: Vec<SanitizedEntity>,
 }
 
 pub async fn handler(
@@ -98,5 +100,11 @@ pub async fn handler(
 		get_entities(app.clone(), addresses.clone()),
 	);
 
-	Ok(Response { addresses, assets: assets?, networks: networks?, entities: entities? }.into())
+	Ok(Response {
+		addresses,
+		assets: assets?,
+		networks: networks?.into_iter().map(|n| n.into()).collect(),
+		entities: entities?.into_iter().map(|e| e.into()).collect(),
+	}
+	.into())
 }

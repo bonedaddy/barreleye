@@ -12,33 +12,43 @@ use barreleye_common::{
 
 pub async fn get_addresses_from_params(
 	app: Arc<App>,
-	address: Option<String>,
-	entity: Option<String>,
+	addresses: Vec<String>,
+	entities: Vec<String>,
 ) -> ServerResult<Vec<String>> {
 	let mut ret = HashSet::new();
 
-	if let Some(address) = address {
+	let addresses = HashSet::<String>::from_iter(addresses.iter().cloned());
+	let entities = HashSet::<String>::from_iter(entities.iter().cloned());
+	let max_limit = 100;
+
+	// validation
+	if addresses.len() > max_limit {
+		return Err(ServerError::ExceededLimit { field: "address".to_string(), limit: max_limit });
+	}
+	if entities.len() > max_limit {
+		return Err(ServerError::ExceededLimit { field: "entity".to_string(), limit: max_limit });
+	}
+
+	// add addresses
+	for address in addresses.into_iter() {
 		if !address.is_empty() {
 			let formatted_address = app.format_address(&address).await?;
 			ret.insert(formatted_address);
 		}
 	}
 
-	if let Some(entity_id) = entity {
-		match Entity::get_by_id(app.db(), &entity_id).await? {
-			Some(entity) => {
-				let addresses =
-					Address::get_all_by_entity_ids(app.db(), vec![entity.entity_id], Some(false))
-						.await?;
-				for address in addresses {
-					ret.insert(address.address);
-				}
-			}
-			_ => {
-				return Err(ServerError::InvalidParam {
-					field: "entity".to_string(),
-					value: entity_id,
-				})
+	// add addresses from entities
+	if !entities.is_empty() {
+		let entity_ids = Entity::get_all_by_ids(app.db(), entities.into_iter().collect())
+			.await?
+			.into_iter()
+			.map(|e| e.entity_id)
+			.collect::<Vec<PrimaryId>>();
+
+		if !entity_ids.is_empty() {
+			for address in Address::get_all_by_entity_ids(app.db(), entity_ids, Some(false)).await?
+			{
+				ret.insert(address.address);
 			}
 		}
 	}

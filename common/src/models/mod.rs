@@ -13,10 +13,12 @@ pub use address::{Address, AddressActiveModel};
 pub use amount::Amount;
 pub use api_key::{ApiKey, ApiKeyActiveModel};
 pub use balance::Balance;
-pub use entity::{LabeledEntity as Entity, LabeledEntityActiveModel as EntityActiveModel};
+pub use entity::{
+	LabeledEntity as Entity, LabeledEntityActiveModel as EntityActiveModel, SanitizedEntity,
+};
 pub use entity_tags::EntityTags;
 pub use link::{Link, LinkUuid};
-pub use network::{Network, NetworkActiveModel};
+pub use network::{Network, NetworkActiveModel, SanitizedNetwork};
 pub use relation::{Reason as RelationReason, Relation};
 pub use tag::{Tag, TagActiveModel};
 pub use transfer::Transfer;
