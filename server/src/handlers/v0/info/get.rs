@@ -16,8 +16,10 @@ use barreleye_common::models::{
 
 #[derive(Deserialize)]
 pub struct Payload {
-	address: Vec<String>,
-	entity: Vec<String>,
+	#[serde(default, rename = "address")]
+	addresses: Vec<String>,
+	#[serde(default, rename = "entity")]
+	entities: Vec<String>,
 }
 
 #[derive(Serialize)]
@@ -42,7 +44,8 @@ pub async fn handler(
 	Query(payload): Query<Payload>,
 ) -> ServerResult<Json<Response>> {
 	// get addresses
-	let addresses = get_addresses_from_params(app.clone(), payload.address, payload.entity).await?;
+	let addresses =
+		get_addresses_from_params(app.clone(), payload.addresses, payload.entities).await?;
 
 	// get assets
 	async fn get_assets(app: Arc<App>, addresses: Vec<String>) -> Result<Vec<ResponseAsset>> {

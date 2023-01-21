@@ -10,7 +10,7 @@ use barreleye_common::models::{BasicModel, Entity, EntityTags, Tag};
 pub struct Payload {
 	name: Option<String>,
 	description: String,
-	tags: Vec<String>,
+	tags: Option<Vec<String>>,
 }
 
 pub async fn handler(
@@ -18,15 +18,23 @@ pub async fn handler(
 	Json(payload): Json<Payload>,
 ) -> ServerResult<Json<Entity>> {
 	// get a list of tag primary ids, while checking for invalid payload ids
-	let tag_ids = extract_primary_ids(
-		"tags",
-		payload.tags.clone(),
-		Tag::get_all_by_ids(app.db(), payload.tags)
-			.await?
-			.into_iter()
-			.map(|t| (t.id, t.tag_id))
-			.collect(),
-	)?;
+	let tag_ids = {
+		let mut ret = vec![];
+
+		if let Some(tags) = payload.tags {
+			ret = extract_primary_ids(
+				"tags",
+				tags.clone(),
+				Tag::get_all_by_ids(app.db(), tags)
+					.await?
+					.into_iter()
+					.map(|t| (t.id, t.tag_id))
+					.collect(),
+			)?;
+		}
+
+		ret
+	};
 
 	// check for duplicate name
 	if let Some(name) = payload.name.clone() {
