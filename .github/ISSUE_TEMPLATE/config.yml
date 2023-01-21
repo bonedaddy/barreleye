@@ -1,0 +1,7 @@
+contact_links:
+  - name: 🙏 Q&A (GitHub Discussions)
+    url: https://github.com/barreleye/barreleye/discussions/categories/q-a
+    about: Q&A all around Barreleye usage
+  - name: 💬 Barreleye Discord
+    url: https://discord.gg/VX8PdWSwNZ
+    about: Community chat for Barreleye
