@@ -1,7 +1,5 @@
-use axum::{
-	extract::{Query, State},
-	Json,
-};
+use axum::{extract::State, Json};
+use axum_extra::extract::Query;
 use eyre::Result;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
