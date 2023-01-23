@@ -3,7 +3,7 @@ use serde::Deserialize;
 use std::sync::Arc;
 
 use crate::{errors::ServerError, utils::extract_primary_ids, App, ServerResult};
-use barreleye_common::models::{BasicModel, Entity, EntityTags, Tag};
+use barreleye_common::models::{BasicModel, Entity, EntityTag, Tag};
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -49,9 +49,9 @@ pub async fn handler(
 
 	// upsert entity/tag mappings
 	if !tag_ids.is_empty() {
-		EntityTags::create_many(
+		EntityTag::create_many(
 			app.db(),
-			tag_ids.into_iter().map(|tag_id| EntityTags::new_model(entity_id, tag_id)).collect(),
+			tag_ids.into_iter().map(|tag_id| EntityTag::new_model(entity_id, tag_id)).collect(),
 		)
 		.await?;
 	}

@@ -28,6 +28,13 @@ pub struct Model {
 	#[serde(skip_serializing)]
 	pub updated_at: Option<DateTime>,
 	pub created_at: DateTime,
+
+	#[sea_orm(ignore)]
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub tags: Option<Vec<String>>,
+	#[sea_orm(ignore)]
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub addresses: Option<Vec<String>>,
 }
 
 #[derive(Serialize)]

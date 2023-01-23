@@ -65,4 +65,11 @@ impl Model {
 			.one(c)
 			.await?)
 	}
+
+	pub async fn get_all_by_tag_ids<C>(c: &C, tag_ids: Vec<PrimaryId>) -> Result<Vec<Self>>
+	where
+		C: ConnectionTrait,
+	{
+		Ok(Entity::find().filter(Column::TagId.is_in(tag_ids)).all(c).await?)
+	}
 }

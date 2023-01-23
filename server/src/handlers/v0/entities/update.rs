@@ -9,7 +9,7 @@ use std::sync::Arc;
 
 use crate::{errors::ServerError, utils::extract_primary_ids, App, ServerResult};
 use barreleye_common::models::{
-	optional_set, BasicModel, Entity, EntityActiveModel, EntityTags, SoftDeleteModel, Tag,
+	optional_set, BasicModel, Entity, EntityActiveModel, EntityTag, SoftDeleteModel, Tag,
 };
 
 #[derive(Deserialize)]
@@ -57,13 +57,13 @@ pub async fn handler(
 
 		// upsert entity/tag mappings
 		if !tag_ids.is_empty() {
-			EntityTags::delete_not_included_tags(app.db(), entity.entity_id, tag_ids.clone())
+			EntityTag::delete_not_included_tags(app.db(), entity.entity_id, tag_ids.clone())
 				.await?;
-			EntityTags::create_many(
+			EntityTag::create_many(
 				app.db(),
 				tag_ids
 					.iter()
-					.map(|tag_id| EntityTags::new_model(entity.entity_id, *tag_id))
+					.map(|tag_id| EntityTag::new_model(entity.entity_id, *tag_id))
 					.collect(),
 			)
 			.await?;

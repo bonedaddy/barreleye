@@ -1,4 +1,5 @@
 use axum::{extract::State, Json};
+use axum_extra::extract::Query;
 use serde::Deserialize;
 use std::sync::Arc;
 
@@ -14,12 +15,7 @@ pub struct Payload {
 
 pub async fn handler(
 	State(app): State<Arc<App>>,
-	Json(payload): Json<Option<Payload>>,
+	Query(payload): Query<Payload>,
 ) -> ServerResult<Json<Vec<Tag>>> {
-	let (offset, limit) = match payload {
-		Some(v) => (v.offset, v.limit),
-		_ => (None, None),
-	};
-
-	Ok(Tag::get_all_where(app.db(), vec![], offset, limit).await?.into())
+	Ok(Tag::get_all_where(app.db(), vec![], payload.offset, payload.limit).await?.into())
 }

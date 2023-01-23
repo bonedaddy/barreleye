@@ -13,6 +13,7 @@ use barreleye_common::models::{
 };
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Payload {
 	#[serde(default, rename = "address")]
 	addresses: Vec<String>,

@@ -357,6 +357,16 @@ pub enum Blockchain {
 	Evm = 2,
 }
 
+#[derive(Clone, Eq, PartialEq, Debug, Serialize, Deserialize)]
+pub enum Aux {
+	#[serde(rename = "tags")]
+	Tags,
+	#[serde(rename = "addresses")]
+	Addresses,
+	#[serde(rename = "networks")]
+	Networks,
+}
+
 pub fn quit(app_error: AppError) {
 	println!("{} {}Shutting down…\n\n› {}", style("[err]").bold().dim(), EMOJI_QUIT, app_error,);
 

@@ -21,8 +21,8 @@ pub struct Model {
 	pub created_at: DateTime,
 }
 
-pub use ActiveModel as EntityTagsActiveModel;
-pub use Model as EntityTags;
+pub use ActiveModel as EntityTagActiveModel;
+pub use Model as EntityTag;
 
 #[derive(Copy, Clone, Debug, EnumIter)]
 pub enum Relation {
@@ -67,6 +67,13 @@ impl Model {
 			.await?;
 
 		Ok(insert_result.last_insert_id)
+	}
+
+	pub async fn get_all_by_entity_ids<C>(c: &C, entity_ids: Vec<PrimaryId>) -> Result<Vec<Self>>
+	where
+		C: ConnectionTrait,
+	{
+		Ok(Entity::find().filter(Column::EntityId.is_in(entity_ids)).all(c).await?)
 	}
 
 	pub async fn delete_not_included_tags<C>(

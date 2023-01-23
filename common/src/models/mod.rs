@@ -16,7 +16,7 @@ pub use balance::Balance;
 pub use entity::{
 	LabeledEntity as Entity, LabeledEntityActiveModel as EntityActiveModel, SanitizedEntity,
 };
-pub use entity_tags::EntityTags;
+pub use entity_tag::EntityTag;
 pub use link::{Link, LinkUuid};
 pub use network::{Network, NetworkActiveModel, SanitizedNetwork};
 pub use relation::{Reason as RelationReason, Relation};
@@ -29,7 +29,7 @@ pub mod api_key;
 pub mod balance;
 pub mod config;
 pub mod entity;
-pub mod entity_tags;
+pub mod entity_tag;
 pub mod link;
 pub mod network;
 pub mod relation;
