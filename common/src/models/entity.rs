@@ -2,8 +2,9 @@ use eyre::Result;
 use sea_orm::{
 	entity::prelude::*,
 	sea_query::{func::Func, Expr},
-	Condition, ConnectionTrait, Set,
+	Condition, ConnectionTrait, FromQueryResult, QuerySelect, Set,
 };
+use sea_orm_migration::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -37,6 +38,34 @@ pub struct Model {
 	pub addresses: Option<Vec<String>>,
 }
 
+#[derive(Clone, FromQueryResult)]
+pub struct JoinedModel {
+	pub entity_id: PrimaryId,
+	pub id: String,
+	pub name: Option<String>,
+	pub description: String,
+	pub is_deleted: bool,
+	pub updated_at: Option<DateTime>,
+	pub created_at: DateTime,
+	pub tag_id: PrimaryId,
+}
+
+impl From<JoinedModel> for Model {
+	fn from(m: JoinedModel) -> Model {
+		Model {
+			entity_id: m.entity_id,
+			id: m.id,
+			name: m.name,
+			description: m.description,
+			is_deleted: m.is_deleted,
+			updated_at: m.updated_at,
+			created_at: m.created_at,
+			tags: None,
+			addresses: None,
+		}
+	}
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SanitizedEntity {
@@ -52,6 +81,7 @@ impl From<Model> for SanitizedEntity {
 }
 
 pub use ActiveModel as LabeledEntityActiveModel;
+pub use JoinedModel as JoinedEntity;
 pub use Model as LabeledEntity;
 
 #[derive(Copy, Clone, Debug, EnumIter)]
@@ -107,17 +137,45 @@ impl Model {
 		Ok(q.one(c).await?)
 	}
 
-	pub async fn get_all_by_entity_ids<C>(c: &C, entity_ids: Vec<PrimaryId>) -> Result<Vec<Self>>
+	pub async fn get_all_by_entity_ids<C>(
+		c: &C,
+		mut entity_ids: Vec<PrimaryId>,
+	) -> Result<Vec<Self>>
 	where
 		C: ConnectionTrait,
 	{
+		entity_ids.sort_unstable();
+		entity_ids.dedup();
+
 		Ok(Entity::find().filter(Column::EntityId.is_in(entity_ids)).all(c).await?)
 	}
 
-	pub async fn prune_all_by_entity_ids<C>(c: &C, entity_ids: Vec<PrimaryId>) -> Result<u64>
+	pub async fn get_all_by_tag_ids<C>(
+		c: &C,
+		mut tag_ids: Vec<PrimaryId>,
+	) -> Result<Vec<JoinedModel>>
 	where
 		C: ConnectionTrait,
 	{
+		tag_ids.sort_unstable();
+		tag_ids.dedup();
+
+		Ok(Entity::find()
+			.column_as(entity_tag::Column::TagId, "tag_id")
+			.join(JoinType::LeftJoin, Relation::EntityTag.def())
+			.filter(entity_tag::Column::TagId.is_in(tag_ids))
+			.into_model::<JoinedModel>()
+			.all(c)
+			.await?)
+	}
+
+	pub async fn prune_all_by_entity_ids<C>(c: &C, mut entity_ids: Vec<PrimaryId>) -> Result<u64>
+	where
+		C: ConnectionTrait,
+	{
+		entity_ids.sort_unstable();
+		entity_ids.dedup();
+
 		let res = Entity::delete_many()
 			.filter(Column::IsDeleted.eq(true))
 			.filter(Column::EntityId.is_in(entity_ids))

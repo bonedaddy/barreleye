@@ -122,12 +122,15 @@ impl Model {
 
 	pub async fn get_all_by_addresses<C>(
 		c: &C,
-		addresses: Vec<String>,
+		mut addresses: Vec<String>,
 		is_deleted: Option<bool>,
 	) -> Result<Vec<Self>>
 	where
 		C: ConnectionTrait,
 	{
+		addresses.sort_unstable();
+		addresses.dedup();
+
 		let mut q = Entity::find().filter(Column::Address.is_in(addresses));
 		if is_deleted.is_some() {
 			q = q.filter(Column::IsDeleted.eq(is_deleted.unwrap()))
@@ -138,12 +141,15 @@ impl Model {
 
 	pub async fn get_all_by_entity_ids<C>(
 		c: &C,
-		entity_ids: Vec<PrimaryId>,
+		mut entity_ids: Vec<PrimaryId>,
 		is_deleted: Option<bool>,
 	) -> Result<Vec<Self>>
 	where
 		C: ConnectionTrait,
 	{
+		entity_ids.sort_unstable();
+		entity_ids.dedup();
+
 		let mut q = Entity::find().filter(Column::EntityId.is_in(entity_ids));
 		if is_deleted.is_some() {
 			q = q.filter(Column::IsDeleted.eq(is_deleted.unwrap()))
@@ -154,12 +160,15 @@ impl Model {
 
 	pub async fn get_all_by_network_ids<C>(
 		c: &C,
-		network_ids: Vec<PrimaryId>,
+		mut network_ids: Vec<PrimaryId>,
 		is_deleted: Option<bool>,
 	) -> Result<Vec<Self>>
 	where
 		C: ConnectionTrait,
 	{
+		network_ids.sort_unstable();
+		network_ids.dedup();
+
 		let mut q = Entity::find().filter(Column::NetworkId.is_in(network_ids));
 		if is_deleted.is_some() {
 			q = q.filter(Column::IsDeleted.eq(is_deleted.unwrap()))
@@ -171,12 +180,15 @@ impl Model {
 	pub async fn get_all_by_network_id_and_addresses<C>(
 		c: &C,
 		network_id: PrimaryId,
-		addresses: Vec<String>,
+		mut addresses: Vec<String>,
 		is_deleted: Option<bool>,
 	) -> Result<Vec<Self>>
 	where
 		C: ConnectionTrait,
 	{
+		addresses.sort_unstable();
+		addresses.dedup();
+
 		let mut q = Entity::find()
 			.filter(Column::NetworkId.eq(network_id))
 			.filter(Column::Address.is_in(addresses));

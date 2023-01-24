@@ -6,7 +6,7 @@ use eyre::Result;
 use std::{collections::HashMap, sync::Arc};
 
 use barreleye_common::{
-	models::{Address, JoinedTag, Network, PrimaryId, Tag},
+	models::{Address, Network, PrimaryId, Tag},
 	App,
 };
 
@@ -28,19 +28,19 @@ pub fn get_routes() -> Router<Arc<App>> {
 pub async fn get_tags_data(
 	app: Arc<App>,
 	entity_ids: Vec<PrimaryId>,
-) -> Result<(Vec<JoinedTag>, HashMap<PrimaryId, Vec<String>>)> {
-	let tags = Tag::get_all_by_entity_ids(app.db(), entity_ids).await?;
+) -> Result<(Vec<Tag>, HashMap<PrimaryId, Vec<String>>)> {
+	let joined_tags = Tag::get_all_by_entity_ids(app.db(), entity_ids).await?;
 	let mut map = HashMap::<PrimaryId, Vec<String>>::new();
 
-	for tag in tags.iter() {
-		if let Some(ids) = map.get_mut(&tag.entity_id) {
-			ids.push(tag.id.clone());
+	for joined_tag in joined_tags.iter() {
+		if let Some(ids) = map.get_mut(&joined_tag.entity_id) {
+			ids.push(joined_tag.id.clone());
 		} else {
-			map.insert(tag.entity_id, vec![tag.id.clone()]);
+			map.insert(joined_tag.entity_id, vec![joined_tag.id.clone()]);
 		}
 	}
 
-	Ok((tags, map))
+	Ok((joined_tags.into_iter().map(|jt| jt.into()).collect::<Vec<Tag>>(), map))
 }
 
 pub async fn get_addresses_data(
@@ -49,10 +49,7 @@ pub async fn get_addresses_data(
 ) -> Result<(Vec<Address>, HashMap<PrimaryId, Vec<String>>, Vec<Network>)> {
 	let addresses = Address::get_all_by_entity_ids(app.db(), entity_ids, Some(false)).await?;
 
-	let mut network_ids = addresses.iter().map(|a| a.network_id).collect::<Vec<PrimaryId>>();
-	network_ids.sort_unstable();
-	network_ids.dedup();
-
+	let network_ids = addresses.iter().map(|a| a.network_id).collect::<Vec<PrimaryId>>();
 	let networks_map = Network::get_all_by_network_ids(app.db(), network_ids)
 		.await?
 		.into_iter()

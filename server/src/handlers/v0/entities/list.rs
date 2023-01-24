@@ -8,11 +8,14 @@ use std::{collections::HashMap, sync::Arc};
 
 use crate::{
 	handlers::v0::entities::{get_addresses_data, get_tags_data},
-	App, ServerResult,
+	ServerResult,
 };
-use barreleye_common::models::{
-	entity::Column::IsDeleted as EntityIsDeleted, Address, BasicModel, Entity, JoinedTag, Network,
-	PrimaryId,
+use barreleye_common::{
+	models::{
+		entity::Column::IsDeleted as EntityIsDeleted, Address, BasicModel, Entity, Network,
+		PrimaryId, Tag,
+	},
+	App,
 };
 
 #[derive(Deserialize)]
@@ -26,7 +29,7 @@ pub struct Payload {
 #[serde(rename_all = "camelCase")]
 pub struct Response {
 	entities: Vec<Entity>,
-	tags: Vec<JoinedTag>,
+	tags: Vec<Tag>,
 	addresses: Vec<Address>,
 	networks: Vec<Network>,
 }

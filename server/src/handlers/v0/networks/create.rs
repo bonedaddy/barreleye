@@ -3,11 +3,11 @@ use serde::Deserialize;
 use serde_json::json;
 use std::sync::Arc;
 
-use crate::{errors::ServerError, App, ServerResult};
+use crate::{errors::ServerError, ServerResult};
 use barreleye_common::{
 	chain::{Bitcoin, ChainTrait, Evm},
 	models::{BasicModel, Config, ConfigKey, Network},
-	Blockchain, Env,
+	App, Blockchain, Env,
 };
 
 #[derive(Deserialize)]

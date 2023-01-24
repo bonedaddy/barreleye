@@ -24,20 +24,33 @@ pub struct Model {
 	#[serde(skip_serializing)]
 	pub updated_at: Option<DateTime>,
 	pub created_at: DateTime,
+
+	#[sea_orm(ignore)]
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub entities: Option<Vec<String>>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, FromQueryResult)]
-#[serde(rename_all = "camelCase")]
+#[derive(Clone, FromQueryResult)]
 pub struct JoinedModel {
-	#[serde(skip_serializing, skip_deserializing)]
 	pub tag_id: PrimaryId,
 	pub id: String,
 	pub name: String,
-	#[serde(skip_serializing)]
 	pub updated_at: Option<DateTime>,
 	pub created_at: DateTime,
-	#[serde(skip_serializing, skip_deserializing)]
 	pub entity_id: PrimaryId,
+}
+
+impl From<JoinedModel> for Model {
+	fn from(m: JoinedModel) -> Model {
+		Model {
+			tag_id: m.tag_id,
+			id: m.id,
+			name: m.name,
+			updated_at: m.updated_at,
+			created_at: m.created_at,
+			entities: None,
+		}
+	}
 }
 
 pub use ActiveModel as TagActiveModel;
@@ -88,20 +101,26 @@ impl Model {
 			.await?)
 	}
 
-	pub async fn get_all_by_tag_ids<C>(c: &C, tag_ids: Vec<PrimaryId>) -> Result<Vec<Self>>
+	pub async fn get_all_by_tag_ids<C>(c: &C, mut tag_ids: Vec<PrimaryId>) -> Result<Vec<Self>>
 	where
 		C: ConnectionTrait,
 	{
+		tag_ids.sort_unstable();
+		tag_ids.dedup();
+
 		Ok(Entity::find().filter(Column::TagId.is_in(tag_ids)).all(c).await?)
 	}
 
 	pub async fn get_all_by_entity_ids<C>(
 		c: &C,
-		entity_ids: Vec<PrimaryId>,
+		mut entity_ids: Vec<PrimaryId>,
 	) -> Result<Vec<JoinedModel>>
 	where
 		C: ConnectionTrait,
 	{
+		entity_ids.sort_unstable();
+		entity_ids.dedup();
+
 		Ok(Entity::find()
 			.column_as(entity_tag::Column::EntityId, "entity_id")
 			.join(JoinType::LeftJoin, Relation::EntityTag.def())

@@ -7,9 +7,12 @@ use sea_orm::ActiveModelTrait;
 use serde::Deserialize;
 use std::sync::Arc;
 
-use crate::{errors::ServerError, utils::extract_primary_ids, App, ServerResult};
-use barreleye_common::models::{
-	optional_set, BasicModel, Entity, EntityActiveModel, EntityTag, SoftDeleteModel, Tag,
+use crate::{errors::ServerError, utils::extract_primary_ids, ServerResult};
+use barreleye_common::{
+	models::{
+		optional_set, BasicModel, Entity, EntityActiveModel, EntityTag, SoftDeleteModel, Tag,
+	},
+	App,
 };
 
 #[derive(Deserialize)]

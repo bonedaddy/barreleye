@@ -23,10 +23,13 @@ pub use Model as Balance;
 impl Model {
 	pub async fn get_all_by_addresses(
 		warehouse: &Warehouse,
-		addresses: Vec<String>,
+		mut addresses: Vec<String>,
 	) -> Result<Vec<Model>> {
 		// @TODO until I256 is implemented, doing this hacky "group by" statement
 		// ideally: "SELECT ?fields FROM {TABLE} WHERE address IN ?"
+
+		addresses.sort_unstable();
+		addresses.dedup();
 
 		Ok(warehouse
 			.get()

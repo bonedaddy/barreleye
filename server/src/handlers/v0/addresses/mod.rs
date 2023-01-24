@@ -4,7 +4,7 @@ use axum::{
 };
 use std::sync::Arc;
 
-use crate::App;
+use barreleye_common::App;
 
 mod create;
 mod delete;

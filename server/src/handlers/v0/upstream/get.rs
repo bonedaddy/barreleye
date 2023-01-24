@@ -10,10 +10,11 @@ use uuid::Uuid;
 
 use crate::{
 	utils::{get_addresses_from_params, get_networks},
-	App, ServerResult,
+	ServerResult,
 };
-use barreleye_common::models::{
-	Address, Entity, Link, PrimaryId, SanitizedEntity, SanitizedNetwork, Transfer,
+use barreleye_common::{
+	models::{Address, Entity, Link, PrimaryId, SanitizedEntity, SanitizedNetwork, Transfer},
+	App,
 };
 
 #[derive(Deserialize)]
@@ -102,11 +103,7 @@ pub async fn handler(
 				.map(|a| ((a.network_id, a.address.clone()), a.entity_id))
 				.collect::<HashMap<(PrimaryId, String), PrimaryId>>();
 
-			let mut entity_ids =
-				addresses.into_iter().map(|a| a.entity_id).collect::<Vec<PrimaryId>>();
-
-			entity_ids.sort_unstable();
-			entity_ids.dedup();
+			let entity_ids = addresses.into_iter().map(|a| a.entity_id).collect::<Vec<PrimaryId>>();
 
 			for entity in Entity::get_all_by_entity_ids(app.db(), entity_ids).await?.into_iter() {
 				entities.insert(entity.entity_id, entity);

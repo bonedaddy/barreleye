@@ -1,10 +1,13 @@
 use axum::{extract::State, Json};
 use axum_extra::extract::Query;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-use crate::{App, ServerResult};
-use barreleye_common::models::{ApiKey, BasicModel};
+use crate::ServerResult;
+use barreleye_common::{
+	models::{ApiKey, BasicModel},
+	App,
+};
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -13,14 +16,21 @@ pub struct Payload {
 	limit: Option<u64>,
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Response {
+	keys: Vec<ApiKey>,
+}
+
 pub async fn handler(
 	State(app): State<Arc<App>>,
 	Query(payload): Query<Payload>,
-) -> ServerResult<Json<Vec<ApiKey>>> {
-	Ok(ApiKey::get_all_where(app.db(), vec![], payload.offset, payload.limit)
+) -> ServerResult<Json<Response>> {
+	let keys = ApiKey::get_all_where(app.db(), vec![], payload.offset, payload.limit)
 		.await?
 		.iter()
 		.map(|k| k.format())
-		.collect::<Vec<ApiKey>>()
-		.into())
+		.collect::<Vec<ApiKey>>();
+
+	Ok(Response { keys }.into())
 }

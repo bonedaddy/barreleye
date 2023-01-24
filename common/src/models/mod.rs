@@ -14,7 +14,8 @@ pub use amount::Amount;
 pub use api_key::{ApiKey, ApiKeyActiveModel};
 pub use balance::Balance;
 pub use entity::{
-	LabeledEntity as Entity, LabeledEntityActiveModel as EntityActiveModel, SanitizedEntity,
+	JoinedEntity, LabeledEntity as Entity, LabeledEntityActiveModel as EntityActiveModel,
+	SanitizedEntity,
 };
 pub use entity_tag::EntityTag;
 pub use link::{Link, LinkUuid};
@@ -114,11 +115,14 @@ pub trait BasicModel {
 
 	async fn get_all_by_ids<C>(
 		c: &C,
-		ids: Vec<String>,
+		mut ids: Vec<String>,
 	) -> Result<Vec<<<Self::ActiveModel as ActiveModelTrait>::Entity as EntityTrait>::Model>>
 	where
 		C: ConnectionTrait,
 	{
+		ids.sort_unstable();
+		ids.dedup();
+
 		Ok(<Self::ActiveModel as ActiveModelTrait>::Entity::find()
 			.filter(Expr::col(Alias::new("id")).is_in(ids))
 			.all(c)
@@ -202,10 +206,13 @@ pub trait BasicModel {
 		Ok(res.rows_affected == 1)
 	}
 
-	async fn delete_by_ids<C>(c: &C, ids: Vec<String>) -> Result<u64>
+	async fn delete_by_ids<C>(c: &C, mut ids: Vec<String>) -> Result<u64>
 	where
 		C: ConnectionTrait,
 	{
+		ids.sort_unstable();
+		ids.dedup();
+
 		let res = <Self::ActiveModel as ActiveModelTrait>::Entity::delete_many()
 			.filter(Expr::col(Alias::new("id")).is_in(ids))
 			.exec(c)
@@ -257,10 +264,13 @@ pub trait SoftDeleteModel {
 		Ok(res.rows_affected)
 	}
 
-	async fn prune_all_by_ids<C>(c: &C, ids: Vec<String>) -> Result<u64>
+	async fn prune_all_by_ids<C>(c: &C, mut ids: Vec<String>) -> Result<u64>
 	where
 		C: ConnectionTrait,
 	{
+		ids.sort_unstable();
+		ids.dedup();
+
 		let res = <Self::ActiveModel as ActiveModelTrait>::Entity::delete_many()
 			.filter(Expr::col(Alias::new("is_deleted")).eq(true))
 			.filter(Expr::col(Alias::new("id")).is_in(ids))

@@ -6,10 +6,11 @@ use std::sync::Arc;
 
 use crate::{
 	utils::{get_addresses_from_params, get_networks},
-	App, ServerResult,
+	ServerResult,
 };
-use barreleye_common::models::{
-	Address, Balance, Entity, PrimaryId, SanitizedEntity, SanitizedNetwork,
+use barreleye_common::{
+	models::{Address, Balance, Entity, PrimaryId, SanitizedEntity, SanitizedNetwork},
+	App,
 };
 
 #[derive(Deserialize)]
@@ -81,11 +82,7 @@ pub async fn handler(
 
 		let addresses = Address::get_all_by_addresses(app.db(), addresses, Some(false)).await?;
 		if !addresses.is_empty() {
-			let mut entity_ids =
-				addresses.into_iter().map(|a| a.entity_id).collect::<Vec<PrimaryId>>();
-
-			entity_ids.sort_unstable();
-			entity_ids.dedup();
+			let entity_ids = addresses.into_iter().map(|a| a.entity_id).collect::<Vec<PrimaryId>>();
 
 			for entity in Entity::get_all_by_entity_ids(app.db(), entity_ids).await?.into_iter() {
 				ret.push(entity);

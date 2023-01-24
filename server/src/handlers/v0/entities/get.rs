@@ -8,15 +8,18 @@ use std::sync::Arc;
 use crate::{
 	errors::ServerError,
 	handlers::v0::entities::{get_addresses_data, get_tags_data},
-	App, ServerResult,
+	ServerResult,
 };
-use barreleye_common::models::{Address, Entity, JoinedTag, Network, SoftDeleteModel};
+use barreleye_common::{
+	models::{Address, Entity, Network, SoftDeleteModel, Tag},
+	App,
+};
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Response {
 	entity: Entity,
-	tags: Vec<JoinedTag>,
+	tags: Vec<Tag>,
 	addresses: Vec<Address>,
 	networks: Vec<Network>,
 }

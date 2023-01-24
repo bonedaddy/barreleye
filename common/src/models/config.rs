@@ -9,7 +9,7 @@ use std::collections::HashMap;
 
 use crate::{models::PrimaryId, utils, BlockHeight};
 
-#[derive(Display, Debug, Copy, Clone, PartialEq, Eq, Hash)]
+#[derive(Ord, PartialOrd, Display, Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum ConfigKey {
 	#[display(fmt = "primary")]
 	Primary,
@@ -204,11 +204,17 @@ impl Model {
 		}))
 	}
 
-	pub async fn get_many<C, T>(c: &C, keys: Vec<ConfigKey>) -> Result<HashMap<ConfigKey, Value<T>>>
+	pub async fn get_many<C, T>(
+		c: &C,
+		mut keys: Vec<ConfigKey>,
+	) -> Result<HashMap<ConfigKey, Value<T>>>
 	where
 		C: ConnectionTrait,
 		T: for<'a> Deserialize<'a>,
 	{
+		keys.sort_unstable();
+		keys.dedup();
+
 		Ok(Entity::find()
 			.filter(Column::Key.is_in(keys.iter().map(|k| k.to_string())))
 			.all(c)
@@ -268,10 +274,13 @@ impl Model {
 		Ok(())
 	}
 
-	pub async fn delete_many<C>(c: &C, keys: Vec<ConfigKey>) -> Result<()>
+	pub async fn delete_many<C>(c: &C, mut keys: Vec<ConfigKey>) -> Result<()>
 	where
 		C: ConnectionTrait,
 	{
+		keys.sort_unstable();
+		keys.dedup();
+
 		Entity::delete_many()
 			.filter(Column::Key.is_in(keys.into_iter().map(|k| k.to_string())))
 			.exec(c)

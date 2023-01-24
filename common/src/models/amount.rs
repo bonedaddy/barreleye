@@ -63,12 +63,15 @@ impl Model {
 
 	pub async fn get_all_network_ids_by_addresses(
 		warehouse: &Warehouse,
-		addresses: Vec<String>,
+		mut addresses: Vec<String>,
 	) -> Result<Vec<PrimaryId>> {
 		#[derive(PartialEq, Eq, Hash, Debug, Clone, Row, Serialize, Deserialize)]
 		struct Data {
 			network_id: u64,
 		}
+
+		addresses.sort_unstable();
+		addresses.dedup();
 
 		Ok(warehouse
 			.get()

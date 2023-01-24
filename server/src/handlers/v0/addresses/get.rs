@@ -5,8 +5,11 @@ use axum::{
 use serde::Serialize;
 use std::sync::Arc;
 
-use crate::{errors::ServerError, App, ServerResult};
-use barreleye_common::models::{Address, Network, SoftDeleteModel};
+use crate::{errors::ServerError, ServerResult};
+use barreleye_common::{
+	models::{Address, Network, SoftDeleteModel},
+	App,
+};
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]

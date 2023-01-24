@@ -1,7 +1,7 @@
 use axum::Router;
 use std::sync::Arc;
 
-use crate::App;
+use barreleye_common::App;
 
 mod v0;
 

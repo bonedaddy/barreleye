@@ -122,7 +122,13 @@ impl Model {
 			.await?)
 	}
 
-	pub async fn get_all_by_uuids(warehouse: &Warehouse, uuids: Vec<Uuid>) -> Result<Vec<Self>> {
+	pub async fn get_all_by_uuids(
+		warehouse: &Warehouse,
+		mut uuids: Vec<Uuid>,
+	) -> Result<Vec<Self>> {
+		uuids.sort_unstable();
+		uuids.dedup();
+
 		Ok(warehouse
 			.get()
 			.query(&format!(

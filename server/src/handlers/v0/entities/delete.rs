@@ -4,9 +4,12 @@ use axum::{
 };
 use std::sync::Arc;
 
-use crate::{errors::ServerError, App, ServerResult};
-use barreleye_common::models::{
-	set, Address, AddressActiveModel, BasicModel, Entity, EntityActiveModel, SoftDeleteModel,
+use crate::{errors::ServerError, ServerResult};
+use barreleye_common::{
+	models::{
+		set, Address, AddressActiveModel, BasicModel, Entity, EntityActiveModel, SoftDeleteModel,
+	},
+	App,
 };
 
 pub async fn handler(

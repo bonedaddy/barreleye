@@ -7,8 +7,11 @@ use sea_orm::ActiveModelTrait;
 use serde::Deserialize;
 use std::sync::Arc;
 
-use crate::{errors::ServerError, App, ServerResult};
-use barreleye_common::models::{optional_set, ApiKey, ApiKeyActiveModel, BasicModel};
+use crate::{errors::ServerError, ServerResult};
+use barreleye_common::{
+	models::{optional_set, ApiKey, ApiKeyActiveModel, BasicModel},
+	App,
+};
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]

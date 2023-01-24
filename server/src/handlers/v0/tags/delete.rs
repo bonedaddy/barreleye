@@ -4,8 +4,11 @@ use axum::{
 };
 use std::sync::Arc;
 
-use crate::{errors::ServerError, App, ServerResult};
-use barreleye_common::models::{BasicModel, Tag};
+use crate::{errors::ServerError, ServerResult};
+use barreleye_common::{
+	models::{BasicModel, Tag},
+	App,
+};
 
 pub async fn handler(
 	State(app): State<Arc<App>>,

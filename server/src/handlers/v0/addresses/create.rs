@@ -2,8 +2,11 @@ use axum::{extract::State, Json};
 use serde::Deserialize;
 use std::{collections::HashMap, sync::Arc};
 
-use crate::{errors::ServerError, App, ServerResult};
-use barreleye_common::models::{Address, BasicModel, Entity, Network, SoftDeleteModel};
+use crate::{errors::ServerError, ServerResult};
+use barreleye_common::{
+	models::{Address, BasicModel, Entity, Network, SoftDeleteModel},
+	App,
+};
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]

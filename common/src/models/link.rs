@@ -60,8 +60,11 @@ impl Model {
 
 	pub async fn get_all_by_addresses(
 		warehouse: &Warehouse,
-		addresses: Vec<String>,
+		mut addresses: Vec<String>,
 	) -> Result<Vec<Self>> {
+		addresses.sort_unstable();
+		addresses.dedup();
+
 		Ok(warehouse
 			.get()
 			.query(&format!(
@@ -78,8 +81,11 @@ impl Model {
 
 	pub async fn get_all_disinct_by_addresses(
 		warehouse: &Warehouse,
-		addresses: Vec<String>,
+		mut addresses: Vec<String>,
 	) -> Result<Vec<Self>> {
+		addresses.sort_unstable();
+		addresses.dedup();
+
 		Ok(warehouse
 			.get()
 			.query(&format!(

@@ -1,7 +1,7 @@
 use axum::{routing::get, Router};
 use std::sync::Arc;
 
-use crate::App;
+use barreleye_common::App;
 
 mod get;
 

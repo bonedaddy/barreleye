@@ -4,9 +4,12 @@ use sea_orm::ColumnTrait;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-use crate::{App, ServerResult};
-use barreleye_common::models::{
-	address::Column::IsDeleted as AddressIsDeleted, Address, BasicModel, Network, PrimaryId,
+use crate::ServerResult;
+use barreleye_common::{
+	models::{
+		address::Column::IsDeleted as AddressIsDeleted, Address, BasicModel, Network, PrimaryId,
+	},
+	App,
 };
 
 #[derive(Deserialize)]
@@ -35,10 +38,7 @@ pub async fn handler(
 	)
 	.await?;
 
-	let mut network_ids = addresses.iter().map(|a| a.network_id).collect::<Vec<PrimaryId>>();
-	network_ids.sort_unstable();
-	network_ids.dedup();
-
+	let network_ids = addresses.iter().map(|a| a.network_id).collect::<Vec<PrimaryId>>();
 	let networks = Network::get_all_by_network_ids(app.db(), network_ids).await?;
 
 	Ok(Response { addresses, networks }.into())

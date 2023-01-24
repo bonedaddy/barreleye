@@ -2,8 +2,11 @@ use axum::{extract::State, Json};
 use serde::Serialize;
 use std::sync::Arc;
 
-use crate::{App, ServerResult};
-use barreleye_common::models::{BasicModel, Config, ConfigKey, Network};
+use crate::ServerResult;
+use barreleye_common::{
+	models::{BasicModel, Config, ConfigKey, Network},
+	App,
+};
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
