@@ -50,7 +50,6 @@ pub async fn get_addresses_data(
 	let addresses = Address::get_all_by_entity_ids(app.db(), entity_ids, Some(false)).await?;
 
 	let mut network_ids = addresses.iter().map(|a| a.network_id).collect::<Vec<PrimaryId>>();
-
 	network_ids.sort_unstable();
 	network_ids.dedup();
 
