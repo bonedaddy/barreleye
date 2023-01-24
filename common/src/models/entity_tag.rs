@@ -24,24 +24,16 @@ pub struct Model {
 pub use ActiveModel as EntityTagActiveModel;
 pub use Model as EntityTag;
 
-#[derive(Copy, Clone, Debug, EnumIter)]
+#[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
+	#[sea_orm(
+		belongs_to = "entity::Entity",
+		from = "Column::EntityId",
+		to = "entity::Column::EntityId"
+	)]
 	Entity,
+	#[sea_orm(belongs_to = "tag::Entity", from = "Column::TagId", to = "tag::Column::TagId")]
 	Tag,
-}
-
-impl RelationTrait for Relation {
-	fn def(&self) -> RelationDef {
-		match self {
-			Self::Entity => Entity::belongs_to(entity::Entity)
-				.from(Column::EntityId)
-				.to(entity::Column::EntityId)
-				.into(),
-			Self::Tag => {
-				Entity::belongs_to(tag::Entity).from(Column::TagId).to(tag::Column::TagId).into()
-			}
-		}
-	}
 }
 
 impl ActiveModelBehavior for ActiveModel {}

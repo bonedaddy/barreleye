@@ -79,20 +79,14 @@ pub use ActiveModel as TagActiveModel;
 pub use JoinedModel as JoinedTag;
 pub use Model as Tag;
 
-#[derive(Copy, Clone, Debug, EnumIter)]
+#[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
+	#[sea_orm(
+		belongs_to = "entity_tag::Entity",
+		from = "Column::TagId",
+		to = "entity_tag::Column::TagId"
+	)]
 	EntityTag,
-}
-
-impl RelationTrait for Relation {
-	fn def(&self) -> RelationDef {
-		match self {
-			Self::EntityTag => Entity::belongs_to(entity_tag::Entity)
-				.from(Column::TagId)
-				.to(entity_tag::Column::TagId)
-				.into(),
-		}
-	}
 }
 
 impl ActiveModelBehavior for ActiveModel {}

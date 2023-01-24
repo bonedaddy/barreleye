@@ -109,14 +109,8 @@ pub struct Value<T: for<'a> Deserialize<'a>> {
 pub use ActiveModel as ConfigActiveModel;
 pub use Model as Config;
 
-#[derive(Copy, Clone, Debug, EnumIter)]
+#[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {}
-
-impl RelationTrait for Relation {
-	fn def(&self) -> RelationDef {
-		panic!("No RelationDef")
-	}
-}
 
 impl ActiveModelBehavior for ActiveModel {}
 

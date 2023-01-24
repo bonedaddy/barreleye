@@ -63,14 +63,8 @@ impl From<Model> for SanitizedNetwork {
 pub use ActiveModel as NetworkActiveModel;
 pub use Model as Network;
 
-#[derive(Copy, Clone, Debug, EnumIter)]
+#[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {}
-
-impl RelationTrait for Relation {
-	fn def(&self) -> RelationDef {
-		panic!("No RelationDef")
-	}
-}
 
 impl ActiveModelBehavior for ActiveModel {}
 

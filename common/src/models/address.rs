@@ -49,20 +49,14 @@ impl From<Vec<Model>> for PrimaryIds {
 pub use ActiveModel as AddressActiveModel;
 pub use Model as Address;
 
-#[derive(Copy, Clone, Debug, EnumIter)]
+#[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
+	#[sea_orm(
+		belongs_to = "entity::Entity",
+		from = "Column::EntityId",
+		to = "entity::Column::EntityId"
+	)]
 	Entity,
-}
-
-impl RelationTrait for Relation {
-	fn def(&self) -> RelationDef {
-		match self {
-			Self::Entity => Entity::belongs_to(entity::Entity)
-				.from(Column::EntityId)
-				.to(entity::Column::EntityId)
-				.into(),
-		}
-	}
 }
 
 impl ActiveModelBehavior for ActiveModel {}
