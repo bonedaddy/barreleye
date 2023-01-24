@@ -46,7 +46,6 @@ pub struct ResponseUpstream {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Response {
-	addresses: Vec<String>,
 	upstream: Vec<ResponseUpstream>,
 	networks: Vec<SanitizedNetwork>,
 	entities: Vec<SanitizedEntity>,
@@ -166,7 +165,6 @@ pub async fn handler(
 	}
 
 	Ok(Response {
-		addresses,
 		upstream,
 		networks: networks?.into_iter().map(|n| n.into()).collect(),
 		entities: entities_map.into_values().map(|e| e.into()).collect(),

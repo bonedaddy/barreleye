@@ -32,7 +32,6 @@ pub struct ResponseAsset {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Response {
-	addresses: Vec<String>,
 	assets: Vec<ResponseAsset>,
 	networks: Vec<SanitizedNetwork>,
 	entities: Vec<SanitizedEntity>,
@@ -103,7 +102,6 @@ pub async fn handler(
 	);
 
 	Ok(Response {
-		addresses,
 		assets: assets?,
 		networks: networks?.into_iter().map(|n| n.into()).collect(),
 		entities: entities?.into_iter().map(|e| e.into()).collect(),
