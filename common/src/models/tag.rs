@@ -75,6 +75,19 @@ impl From<JoinedModel> for Model {
 	}
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SanitizedTag {
+	pub id: String,
+	pub name: String,
+}
+
+impl From<Model> for SanitizedTag {
+	fn from(m: Model) -> SanitizedTag {
+		SanitizedTag { id: m.id, name: m.name }
+	}
+}
+
 pub use ActiveModel as TagActiveModel;
 pub use JoinedModel as JoinedTag;
 pub use Model as Tag;

@@ -22,7 +22,7 @@ pub use entity_tag::EntityTag;
 pub use link::{Link, LinkUuid};
 pub use network::{Network, NetworkActiveModel, SanitizedNetwork};
 pub use relation::{Reason as RelationReason, Relation};
-pub use tag::{JoinedTag, Tag, TagActiveModel};
+pub use tag::{JoinedTag, SanitizedTag, Tag, TagActiveModel};
 pub use transfer::Transfer;
 
 pub mod address;

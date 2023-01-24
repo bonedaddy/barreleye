@@ -2,14 +2,16 @@ use axum::{extract::State, Json};
 use axum_extra::extract::Query;
 use eyre::Result;
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use crate::{
 	utils::{get_addresses_from_params, get_networks},
 	ServerResult,
 };
 use barreleye_common::{
-	models::{Address, Balance, Entity, PrimaryId, SanitizedEntity, SanitizedNetwork},
+	models::{
+		Address, Balance, Entity, PrimaryId, SanitizedEntity, SanitizedNetwork, SanitizedTag, Tag,
+	},
 	App,
 };
 
@@ -36,6 +38,7 @@ pub struct Response {
 	assets: Vec<ResponseAsset>,
 	networks: Vec<SanitizedNetwork>,
 	entities: Vec<SanitizedEntity>,
+	tags: Vec<SanitizedTag>,
 }
 
 pub async fn handler(
@@ -77,33 +80,55 @@ pub async fn handler(
 	}
 
 	// get entities
-	async fn get_entities(app: Arc<App>, addresses: Vec<String>) -> Result<Vec<Entity>> {
-		let mut ret = vec![];
+	async fn get_entities_data(
+		app: Arc<App>,
+		addresses: Vec<String>,
+	) -> Result<(Vec<Entity>, Vec<Tag>)> {
+		let mut entities = vec![];
+		let mut tags = vec![];
 
 		let addresses = Address::get_all_by_addresses(app.db(), addresses, Some(false)).await?;
 		if !addresses.is_empty() {
 			let entity_ids = addresses.into_iter().map(|a| a.entity_id).collect::<Vec<PrimaryId>>();
+			entities = Entity::get_all_by_entity_ids(app.db(), entity_ids.into()).await?;
 
-			for entity in
-				Entity::get_all_by_entity_ids(app.db(), entity_ids.into()).await?.into_iter()
-			{
-				ret.push(entity);
+			if !entities.is_empty() {
+				let joined_tags =
+					Tag::get_all_by_entity_ids(app.db(), entities.clone().into()).await?;
+
+				let mut map = HashMap::<PrimaryId, Vec<String>>::new();
+				for joined_tag in joined_tags.iter() {
+					if let Some(ids) = map.get_mut(&joined_tag.entity_id) {
+						ids.push(joined_tag.id.clone());
+					} else {
+						map.insert(joined_tag.entity_id, vec![joined_tag.id.clone()]);
+					}
+				}
+
+				for entity in entities.iter_mut() {
+					entity.tags = map.get(&entity.entity_id).cloned().or(Some(vec![]));
+				}
+
+				tags = joined_tags.into_iter().map(|jt| jt.into()).collect();
 			}
 		}
 
-		Ok(ret)
+		Ok((entities, tags))
 	}
 
-	let (assets, networks, entities) = tokio::join!(
+	let (assets, networks, entities_data) = tokio::join!(
 		get_assets(app.clone(), addresses.clone()),
 		get_networks(app.clone(), addresses.clone()),
-		get_entities(app.clone(), addresses.clone()),
+		get_entities_data(app.clone(), addresses.clone()),
 	);
+
+	let (entities, tags) = entities_data?;
 
 	Ok(Response {
 		assets: assets?,
 		networks: networks?.into_iter().map(|n| n.into()).collect(),
-		entities: entities?.into_iter().map(|e| e.into()).collect(),
+		entities: entities.into_iter().map(|e| e.into()).collect(),
+		tags: tags.into_iter().map(|t| t.into()).collect(),
 	}
 	.into())
 }

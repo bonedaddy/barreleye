@@ -94,11 +94,12 @@ pub struct SanitizedEntity {
 	pub id: String,
 	pub name: Option<String>,
 	pub description: String,
+	pub tags: Option<Vec<String>>,
 }
 
 impl From<Model> for SanitizedEntity {
 	fn from(m: Model) -> SanitizedEntity {
-		SanitizedEntity { id: m.id, name: m.name, description: m.description }
+		SanitizedEntity { id: m.id, name: m.name, description: m.description, tags: m.tags }
 	}
 }
 

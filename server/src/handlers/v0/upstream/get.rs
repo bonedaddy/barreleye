@@ -13,7 +13,10 @@ use crate::{
 	ServerResult,
 };
 use barreleye_common::{
-	models::{Address, Entity, Link, PrimaryId, SanitizedEntity, SanitizedNetwork, Transfer},
+	models::{
+		Address, Entity, Link, PrimaryId, SanitizedEntity, SanitizedNetwork, SanitizedTag, Tag,
+		Transfer,
+	},
 	App,
 };
 
@@ -50,6 +53,7 @@ pub struct Response {
 	upstream: Vec<ResponseUpstream>,
 	networks: Vec<SanitizedNetwork>,
 	entities: Vec<SanitizedEntity>,
+	tags: Vec<SanitizedTag>,
 }
 
 pub async fn handler(
@@ -91,9 +95,10 @@ pub async fn handler(
 	async fn get_entities_data(
 		app: Arc<App>,
 		addresses: Vec<String>,
-	) -> Result<(HashMap<(PrimaryId, String), PrimaryId>, HashMap<PrimaryId, Entity>)> {
+	) -> Result<(HashMap<(PrimaryId, String), PrimaryId>, HashMap<PrimaryId, Entity>, Vec<Tag>)> {
 		let mut address_map = HashMap::new();
 		let mut entities = HashMap::new();
+		let mut tags = vec![];
 
 		let addresses = Address::get_all_by_addresses(app.db(), addresses, Some(false)).await?;
 
@@ -109,9 +114,32 @@ pub async fn handler(
 			{
 				entities.insert(entity.entity_id, entity);
 			}
+
+			if !entities.is_empty() {
+				let joined_tags = Tag::get_all_by_entity_ids(
+					app.db(),
+					entities.clone().into_keys().collect::<Vec<PrimaryId>>().into(),
+				)
+				.await?;
+
+				let mut map = HashMap::<PrimaryId, Vec<String>>::new();
+				for joined_tag in joined_tags.iter() {
+					if let Some(ids) = map.get_mut(&joined_tag.entity_id) {
+						ids.push(joined_tag.id.clone());
+					} else {
+						map.insert(joined_tag.entity_id, vec![joined_tag.id.clone()]);
+					}
+				}
+
+				for (entity_id, entity) in entities.iter_mut() {
+					entity.tags = map.get(entity_id).cloned().or(Some(vec![]));
+				}
+
+				tags = joined_tags.into_iter().map(|jt| jt.into()).collect();
+			}
 		}
 
-		Ok((address_map, entities))
+		Ok((address_map, entities, tags))
 	}
 
 	let (transfers, networks, entities_data) = tokio::join!(
@@ -129,7 +157,7 @@ pub async fn handler(
 	);
 
 	let transfers = transfers?;
-	let (address_map, entities_map) = entities_data?;
+	let (address_map, entities_map, tags) = entities_data?;
 
 	// assemble upstream
 	let mut upstream = vec![];
@@ -166,6 +194,7 @@ pub async fn handler(
 		upstream,
 		networks: networks?.into_iter().map(|n| n.into()).collect(),
 		entities: entities_map.into_values().map(|e| e.into()).collect(),
+		tags: tags.into_iter().map(|t| t.into()).collect(),
 	}
 	.into())
 }
