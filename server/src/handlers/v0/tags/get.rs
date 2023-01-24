@@ -26,7 +26,7 @@ pub async fn handler(
 ) -> ServerResult<Json<Response>> {
 	if let Some(mut tag) = Tag::get_by_id(app.db(), &tag_id).await? {
 		let (tags_map, entities, addresses, networks) =
-			get_data_by_tag_ids(app.clone(), vec![tag.tag_id]).await?;
+			get_data_by_tag_ids(app.clone(), tag.tag_id.into()).await?;
 
 		tag.entities = tags_map.get(&tag.tag_id).cloned().or(Some(vec![]));
 		Ok(Response { tag, entities, addresses, networks }.into())

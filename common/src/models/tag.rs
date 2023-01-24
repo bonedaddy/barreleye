@@ -7,7 +7,7 @@ use sea_orm_migration::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-	models::{entity_tag, BasicModel, PrimaryId},
+	models::{entity_tag, BasicModel, PrimaryId, PrimaryIds},
 	utils, IdPrefix,
 };
 
@@ -30,6 +30,17 @@ pub struct Model {
 	pub entities: Option<Vec<String>>,
 }
 
+impl From<Vec<Model>> for PrimaryIds {
+	fn from(m: Vec<Model>) -> PrimaryIds {
+		let mut ids: Vec<PrimaryId> = m.iter().map(|m| m.tag_id).collect();
+
+		ids.sort_unstable();
+		ids.dedup();
+
+		PrimaryIds(ids)
+	}
+}
+
 #[derive(Clone, FromQueryResult)]
 pub struct JoinedModel {
 	pub tag_id: PrimaryId,
@@ -38,6 +49,17 @@ pub struct JoinedModel {
 	pub updated_at: Option<DateTime>,
 	pub created_at: DateTime,
 	pub entity_id: PrimaryId,
+}
+
+impl From<Vec<JoinedModel>> for PrimaryIds {
+	fn from(m: Vec<JoinedModel>) -> PrimaryIds {
+		let mut ids: Vec<PrimaryId> = m.iter().map(|m| m.tag_id).collect();
+
+		ids.sort_unstable();
+		ids.dedup();
+
+		PrimaryIds(ids)
+	}
 }
 
 impl From<JoinedModel> for Model {
@@ -101,26 +123,17 @@ impl Model {
 			.await?)
 	}
 
-	pub async fn get_all_by_tag_ids<C>(c: &C, mut tag_ids: Vec<PrimaryId>) -> Result<Vec<Self>>
+	pub async fn get_all_by_tag_ids<C>(c: &C, tag_ids: PrimaryIds) -> Result<Vec<Self>>
 	where
 		C: ConnectionTrait,
 	{
-		tag_ids.sort_unstable();
-		tag_ids.dedup();
-
 		Ok(Entity::find().filter(Column::TagId.is_in(tag_ids)).all(c).await?)
 	}
 
-	pub async fn get_all_by_entity_ids<C>(
-		c: &C,
-		mut entity_ids: Vec<PrimaryId>,
-	) -> Result<Vec<JoinedModel>>
+	pub async fn get_all_by_entity_ids<C>(c: &C, entity_ids: PrimaryIds) -> Result<Vec<JoinedModel>>
 	where
 		C: ConnectionTrait,
 	{
-		entity_ids.sort_unstable();
-		entity_ids.dedup();
-
 		Ok(Entity::find()
 			.column_as(entity_tag::Column::EntityId, "entity_id")
 			.join(JoinType::LeftJoin, Relation::EntityTag.def())

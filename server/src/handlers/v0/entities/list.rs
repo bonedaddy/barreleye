@@ -4,7 +4,7 @@ use axum::{
 };
 use sea_orm::ColumnTrait;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 
 use crate::{
 	handlers::v0::entities::{get_addresses_data, get_tags_data},
@@ -12,8 +12,7 @@ use crate::{
 };
 use barreleye_common::{
 	models::{
-		entity::Column::IsDeleted as EntityIsDeleted, Address, BasicModel, Entity, Network,
-		PrimaryId, Tag,
+		entity::Column::IsDeleted as EntityIsDeleted, Address, BasicModel, Entity, Network, Tag,
 	},
 	App,
 };
@@ -44,26 +43,20 @@ pub async fn handler(
 		payload.offset,
 		payload.limit,
 	)
-	.await?
-	.into_iter()
-	.map(|e| (e.entity_id, e))
-	.collect::<HashMap<PrimaryId, Entity>>();
+	.await?;
 
-	let entity_ids = entities.clone().into_keys().collect::<Vec<PrimaryId>>();
 	let (tags_data, addresses_data) = tokio::join!(
-		get_tags_data(app.clone(), entity_ids.clone()),
-		get_addresses_data(app.clone(), entity_ids),
+		get_tags_data(app.clone(), entities.clone().into()),
+		get_addresses_data(app.clone(), entities.clone().into()),
 	);
 
 	let (tags, tags_map) = tags_data?;
-	for (entity_id, entity) in entities.iter_mut() {
-		entity.tags = tags_map.get(entity_id).cloned().or(Some(vec![]));
-	}
-
 	let (addresses, addresses_map, networks) = addresses_data?;
-	for (entity_id, entity) in entities.iter_mut() {
-		entity.addresses = addresses_map.get(entity_id).cloned().or(Some(vec![]));
+
+	for entity in entities.iter_mut() {
+		entity.tags = tags_map.get(&entity.entity_id).cloned().or(Some(vec![]));
+		entity.addresses = addresses_map.get(&entity.entity_id).cloned().or(Some(vec![]));
 	}
 
-	Ok(Response { entities: entities.into_values().collect(), tags, addresses, networks }.into())
+	Ok(Response { entities, tags, addresses, networks }.into())
 }

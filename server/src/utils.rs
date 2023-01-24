@@ -6,7 +6,7 @@ use std::{
 
 use crate::{errors::ServerError, ServerResult};
 use barreleye_common::{
-	models::{Address, Amount, BasicModel, Entity, Network, PrimaryId},
+	models::{Address, Amount, BasicModel, Entity, Network, PrimaryId, PrimaryIds},
 	App,
 };
 
@@ -39,11 +39,8 @@ pub async fn get_addresses_from_params(
 
 	// add addresses from entities
 	if !entities.is_empty() {
-		let entity_ids = Entity::get_all_by_ids(app.db(), entities.into_iter().collect())
-			.await?
-			.into_iter()
-			.map(|e| e.entity_id)
-			.collect::<Vec<PrimaryId>>();
+		let entity_ids: PrimaryIds =
+			Entity::get_all_by_ids(app.db(), entities.into_iter().collect()).await?.into();
 
 		if !entity_ids.is_empty() {
 			for address in Address::get_all_by_entity_ids(app.db(), entity_ids, Some(false)).await?

@@ -6,6 +6,7 @@ use sea_orm::{
 	sea_query::{types::*, Expr, SimpleExpr},
 	ActiveValue, QuerySelect,
 };
+use std::ops::{Deref, DerefMut};
 
 pub use self::config::{Config, ConfigKey};
 use crate::utils;
@@ -37,8 +38,43 @@ pub mod relation;
 pub mod tag;
 pub mod transfer;
 
-// @TODO `https://github.com/SeaQL/sea-orm/issues/1068`
 pub type PrimaryId = i64;
+pub struct PrimaryIds(Vec<PrimaryId>);
+
+impl From<Vec<PrimaryId>> for PrimaryIds {
+	fn from(v: Vec<PrimaryId>) -> PrimaryIds {
+		PrimaryIds(v)
+	}
+}
+
+impl From<PrimaryId> for PrimaryIds {
+	fn from(p: PrimaryId) -> PrimaryIds {
+		PrimaryIds(vec![p])
+	}
+}
+
+impl IntoIterator for PrimaryIds {
+	type Item = PrimaryId;
+	type IntoIter = <Vec<PrimaryId> as IntoIterator>::IntoIter;
+
+	fn into_iter(self) -> Self::IntoIter {
+		self.0.into_iter()
+	}
+}
+
+impl Deref for PrimaryIds {
+	type Target = [PrimaryId];
+
+	fn deref(&self) -> &Self::Target {
+		&self.0[..]
+	}
+}
+
+impl DerefMut for PrimaryIds {
+	fn deref_mut(&mut self) -> &mut Self::Target {
+		&mut self.0[..]
+	}
+}
 
 pub fn set<T>(v: T) -> ActiveValue<T>
 where

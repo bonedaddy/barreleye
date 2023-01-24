@@ -8,7 +8,7 @@ use sea_orm_migration::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-	models::{entity, BasicModel, PrimaryId, SoftDeleteModel},
+	models::{entity, BasicModel, PrimaryId, PrimaryIds, SoftDeleteModel},
 	utils, IdPrefix,
 };
 
@@ -33,6 +33,17 @@ pub struct Model {
 	#[serde(skip_serializing)]
 	pub updated_at: Option<DateTime>,
 	pub created_at: DateTime,
+}
+
+impl From<Vec<Model>> for PrimaryIds {
+	fn from(m: Vec<Model>) -> PrimaryIds {
+		let mut ids: Vec<PrimaryId> = m.iter().map(|m| m.address_id).collect();
+
+		ids.sort_unstable();
+		ids.dedup();
+
+		PrimaryIds(ids)
+	}
 }
 
 pub use ActiveModel as AddressActiveModel;
@@ -141,15 +152,12 @@ impl Model {
 
 	pub async fn get_all_by_entity_ids<C>(
 		c: &C,
-		mut entity_ids: Vec<PrimaryId>,
+		entity_ids: PrimaryIds,
 		is_deleted: Option<bool>,
 	) -> Result<Vec<Self>>
 	where
 		C: ConnectionTrait,
 	{
-		entity_ids.sort_unstable();
-		entity_ids.dedup();
-
 		let mut q = Entity::find().filter(Column::EntityId.is_in(entity_ids));
 		if is_deleted.is_some() {
 			q = q.filter(Column::IsDeleted.eq(is_deleted.unwrap()))
@@ -160,15 +168,12 @@ impl Model {
 
 	pub async fn get_all_by_network_ids<C>(
 		c: &C,
-		mut network_ids: Vec<PrimaryId>,
+		network_ids: PrimaryIds,
 		is_deleted: Option<bool>,
 	) -> Result<Vec<Self>>
 	where
 		C: ConnectionTrait,
 	{
-		network_ids.sort_unstable();
-		network_ids.dedup();
-
 		let mut q = Entity::find().filter(Column::NetworkId.is_in(network_ids));
 		if is_deleted.is_some() {
 			q = q.filter(Column::IsDeleted.eq(is_deleted.unwrap()))

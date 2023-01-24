@@ -6,7 +6,7 @@ use eyre::Result;
 use std::{collections::HashMap, sync::Arc};
 
 use barreleye_common::{
-	models::{Address, Network, PrimaryId, Tag},
+	models::{Address, Network, PrimaryId, PrimaryIds, Tag},
 	App,
 };
 
@@ -27,7 +27,7 @@ pub fn get_routes() -> Router<Arc<App>> {
 
 pub async fn get_tags_data(
 	app: Arc<App>,
-	entity_ids: Vec<PrimaryId>,
+	entity_ids: PrimaryIds,
 ) -> Result<(Vec<Tag>, HashMap<PrimaryId, Vec<String>>)> {
 	let joined_tags = Tag::get_all_by_entity_ids(app.db(), entity_ids).await?;
 	let mut map = HashMap::<PrimaryId, Vec<String>>::new();
@@ -45,12 +45,12 @@ pub async fn get_tags_data(
 
 pub async fn get_addresses_data(
 	app: Arc<App>,
-	entity_ids: Vec<PrimaryId>,
+	entity_ids: PrimaryIds,
 ) -> Result<(Vec<Address>, HashMap<PrimaryId, Vec<String>>, Vec<Network>)> {
 	let addresses = Address::get_all_by_entity_ids(app.db(), entity_ids, Some(false)).await?;
 
 	let network_ids = addresses.iter().map(|a| a.network_id).collect::<Vec<PrimaryId>>();
-	let networks_map = Network::get_all_by_network_ids(app.db(), network_ids)
+	let networks_map = Network::get_all_by_network_ids(app.db(), network_ids.into())
 		.await?
 		.into_iter()
 		.map(|n| (n.network_id, n))

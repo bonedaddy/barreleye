@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 
 use crate::{
-	models::{BasicModel, PrimaryId},
+	models::{BasicModel, PrimaryId, PrimaryIds},
 	utils, Blockchain, Env, IdPrefix,
 };
 
@@ -32,6 +32,17 @@ pub struct Model {
 	#[serde(skip_serializing)]
 	pub updated_at: Option<DateTime>,
 	pub created_at: DateTime,
+}
+
+impl From<Vec<Model>> for PrimaryIds {
+	fn from(m: Vec<Model>) -> PrimaryIds {
+		let mut ids: Vec<PrimaryId> = m.iter().map(|m| m.network_id).collect();
+
+		ids.sort_unstable();
+		ids.dedup();
+
+		PrimaryIds(ids)
+	}
 }
 
 #[derive(Serialize)]
@@ -98,16 +109,10 @@ impl Model {
 		Ok(Entity::find().filter(Column::Env.eq(env)).all(c).await?)
 	}
 
-	pub async fn get_all_by_network_ids<C>(
-		c: &C,
-		mut network_ids: Vec<PrimaryId>,
-	) -> Result<Vec<Self>>
+	pub async fn get_all_by_network_ids<C>(c: &C, network_ids: PrimaryIds) -> Result<Vec<Self>>
 	where
 		C: ConnectionTrait,
 	{
-		network_ids.sort_unstable();
-		network_ids.dedup();
-
 		Ok(Entity::find().filter(Column::NetworkId.is_in(network_ids)).all(c).await?)
 	}
 

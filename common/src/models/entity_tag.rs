@@ -6,7 +6,7 @@ use sea_orm::{
 use sea_orm_migration::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use crate::models::{entity, tag, BasicModel, PrimaryId};
+use crate::models::{entity, tag, BasicModel, PrimaryId, PrimaryIds};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, DeriveEntityModel)]
 #[sea_orm(table_name = "entity_tags")]
@@ -72,14 +72,11 @@ impl Model {
 	pub async fn delete_not_included_tags<C>(
 		c: &C,
 		entity_id: PrimaryId,
-		mut tag_ids: Vec<PrimaryId>,
+		tag_ids: PrimaryIds,
 	) -> Result<u64>
 	where
 		C: ConnectionTrait,
 	{
-		tag_ids.sort_unstable();
-		tag_ids.dedup();
-
 		let res = Entity::delete_many()
 			.filter(Column::EntityId.eq(entity_id))
 			.filter(Column::TagId.is_not_in(tag_ids))
@@ -89,24 +86,18 @@ impl Model {
 		Ok(res.rows_affected)
 	}
 
-	pub async fn delete_all_by_entity_ids<C>(c: &C, mut entity_ids: Vec<PrimaryId>) -> Result<u64>
+	pub async fn delete_all_by_entity_ids<C>(c: &C, entity_ids: PrimaryIds) -> Result<u64>
 	where
 		C: ConnectionTrait,
 	{
-		entity_ids.sort_unstable();
-		entity_ids.dedup();
-
 		let res = Entity::delete_many().filter(Column::EntityId.is_in(entity_ids)).exec(c).await?;
 		Ok(res.rows_affected)
 	}
 
-	pub async fn delete_all_by_tag_ids<C>(c: &C, mut tag_ids: Vec<PrimaryId>) -> Result<u64>
+	pub async fn delete_all_by_tag_ids<C>(c: &C, tag_ids: PrimaryIds) -> Result<u64>
 	where
 		C: ConnectionTrait,
 	{
-		tag_ids.sort_unstable();
-		tag_ids.dedup();
-
 		let res = Entity::delete_many().filter(Column::TagId.is_in(tag_ids)).exec(c).await?;
 		Ok(res.rows_affected)
 	}

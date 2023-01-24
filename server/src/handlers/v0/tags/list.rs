@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use crate::{handlers::v0::tags::get_data_by_tag_ids, ServerResult};
 use barreleye_common::{
-	models::{Address, BasicModel, Entity, Network, PrimaryId, Tag},
+	models::{Address, BasicModel, Entity, Network, Tag},
 	App,
 };
 
@@ -30,10 +30,9 @@ pub async fn handler(
 	Query(payload): Query<Payload>,
 ) -> ServerResult<Json<Response>> {
 	let mut tags = Tag::get_all_where(app.db(), vec![], payload.offset, payload.limit).await?;
-	let tag_ids = tags.iter().map(|t| t.tag_id).collect::<Vec<PrimaryId>>();
 
 	let (tags_map, entities, addresses, networks) =
-		get_data_by_tag_ids(app.clone(), tag_ids).await?;
+		get_data_by_tag_ids(app.clone(), tags.clone().into()).await?;
 
 	for tag in tags.iter_mut() {
 		tag.entities = tags_map.get(&tag.tag_id).cloned().or(Some(vec![]));

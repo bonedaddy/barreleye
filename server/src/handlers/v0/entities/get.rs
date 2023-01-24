@@ -29,16 +29,15 @@ pub async fn handler(
 	Path(entity_id): Path<String>,
 ) -> ServerResult<Json<Response>> {
 	if let Some(mut entity) = Entity::get_existing_by_id(app.db(), &entity_id).await? {
-		let entity_ids = vec![entity.entity_id];
 		let (tags_data, addresses_data) = tokio::join!(
-			get_tags_data(app.clone(), entity_ids.clone()),
-			get_addresses_data(app.clone(), entity_ids),
+			get_tags_data(app.clone(), entity.entity_id.into()),
+			get_addresses_data(app.clone(), entity.entity_id.into()),
 		);
 
 		let (tags, tags_map) = tags_data?;
-		entity.tags = tags_map.get(&entity.entity_id).cloned().or(Some(vec![]));
-
 		let (addresses, addresses_map, networks) = addresses_data?;
+
+		entity.tags = tags_map.get(&entity.entity_id).cloned().or(Some(vec![]));
 		entity.addresses = addresses_map.get(&entity.entity_id).cloned().or(Some(vec![]));
 
 		Ok(Response { entity, tags, addresses, networks }.into())

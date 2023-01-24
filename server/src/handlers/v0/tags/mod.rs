@@ -6,7 +6,7 @@ use eyre::Result;
 use std::{collections::HashMap, sync::Arc};
 
 use barreleye_common::{
-	models::{Address, Entity, Network, PrimaryId},
+	models::{Address, Entity, Network, PrimaryId, PrimaryIds},
 	App,
 };
 
@@ -27,15 +27,16 @@ pub fn get_routes() -> Router<Arc<App>> {
 
 pub async fn get_data_by_tag_ids(
 	app: Arc<App>,
-	tag_ids: Vec<PrimaryId>,
+	tag_ids: PrimaryIds,
 ) -> Result<(HashMap<PrimaryId, Vec<String>>, Vec<Entity>, Vec<Address>, Vec<Network>)> {
 	let joined_entities = Entity::get_all_by_tag_ids(app.db(), tag_ids).await?;
 
-	let entity_ids = joined_entities.iter().map(|je| je.entity_id).collect::<Vec<PrimaryId>>();
-	let addresses = Address::get_all_by_entity_ids(app.db(), entity_ids, Some(false)).await?;
+	let addresses =
+		Address::get_all_by_entity_ids(app.db(), joined_entities.clone().into(), Some(false))
+			.await?;
 
 	let network_ids = addresses.iter().map(|a| a.network_id).collect::<Vec<PrimaryId>>();
-	let networks = Network::get_all_by_network_ids(app.db(), network_ids).await?;
+	let networks = Network::get_all_by_network_ids(app.db(), network_ids.into()).await?;
 
 	let mut tags_map = HashMap::<PrimaryId, Vec<String>>::new();
 	for joined_entity in joined_entities.iter() {
@@ -46,11 +47,6 @@ pub async fn get_data_by_tag_ids(
 		}
 	}
 
-	let mut entities = joined_entities
-		.into_iter()
-		.map(|je| (je.entity_id, je.into()))
-		.collect::<HashMap<PrimaryId, Entity>>();
-
 	let mut entities_map = HashMap::<PrimaryId, Vec<String>>::new();
 	for address in addresses.iter() {
 		if let Some(ids) = entities_map.get_mut(&address.entity_id) {
@@ -59,9 +55,15 @@ pub async fn get_data_by_tag_ids(
 			entities_map.insert(address.entity_id, vec![address.id.clone()]);
 		}
 	}
-	for (entity_id, entity) in entities.iter_mut() {
-		entity.addresses = entities_map.get(entity_id).cloned().or(Some(vec![]));
-	}
 
-	Ok((tags_map, entities.into_values().collect(), addresses, networks))
+	let entities = joined_entities
+		.into_iter()
+		.map(|je| {
+			let mut entity: Entity = je.into();
+			entity.addresses = entities_map.get(&entity.entity_id).cloned().or(Some(vec![]));
+			entity
+		})
+		.collect();
+
+	Ok((tags_map, entities, addresses, networks))
 }

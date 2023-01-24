@@ -39,7 +39,7 @@ pub async fn handler(
 	.await?;
 
 	let network_ids = addresses.iter().map(|a| a.network_id).collect::<Vec<PrimaryId>>();
-	let networks = Network::get_all_by_network_ids(app.db(), network_ids).await?;
+	let networks = Network::get_all_by_network_ids(app.db(), network_ids.into()).await?;
 
 	Ok(Response { addresses, networks }.into())
 }

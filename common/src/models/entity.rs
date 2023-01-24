@@ -8,7 +8,7 @@ use sea_orm_migration::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-	models::{entity_tag, BasicModel, PrimaryId, SoftDeleteModel},
+	models::{entity_tag, BasicModel, PrimaryId, PrimaryIds, SoftDeleteModel},
 	utils, IdPrefix,
 };
 
@@ -38,6 +38,17 @@ pub struct Model {
 	pub addresses: Option<Vec<String>>,
 }
 
+impl From<Vec<Model>> for PrimaryIds {
+	fn from(m: Vec<Model>) -> PrimaryIds {
+		let mut ids: Vec<PrimaryId> = m.iter().map(|m| m.entity_id).collect();
+
+		ids.sort_unstable();
+		ids.dedup();
+
+		PrimaryIds(ids)
+	}
+}
+
 #[derive(Clone, FromQueryResult)]
 pub struct JoinedModel {
 	pub entity_id: PrimaryId,
@@ -63,6 +74,17 @@ impl From<JoinedModel> for Model {
 			tags: None,
 			addresses: None,
 		}
+	}
+}
+
+impl From<Vec<JoinedModel>> for PrimaryIds {
+	fn from(m: Vec<JoinedModel>) -> PrimaryIds {
+		let mut ids: Vec<PrimaryId> = m.iter().map(|m| m.entity_id).collect();
+
+		ids.sort_unstable();
+		ids.dedup();
+
+		PrimaryIds(ids)
 	}
 }
 
@@ -137,29 +159,17 @@ impl Model {
 		Ok(q.one(c).await?)
 	}
 
-	pub async fn get_all_by_entity_ids<C>(
-		c: &C,
-		mut entity_ids: Vec<PrimaryId>,
-	) -> Result<Vec<Self>>
+	pub async fn get_all_by_entity_ids<C>(c: &C, entity_ids: PrimaryIds) -> Result<Vec<Self>>
 	where
 		C: ConnectionTrait,
 	{
-		entity_ids.sort_unstable();
-		entity_ids.dedup();
-
 		Ok(Entity::find().filter(Column::EntityId.is_in(entity_ids)).all(c).await?)
 	}
 
-	pub async fn get_all_by_tag_ids<C>(
-		c: &C,
-		mut tag_ids: Vec<PrimaryId>,
-	) -> Result<Vec<JoinedModel>>
+	pub async fn get_all_by_tag_ids<C>(c: &C, tag_ids: PrimaryIds) -> Result<Vec<JoinedModel>>
 	where
 		C: ConnectionTrait,
 	{
-		tag_ids.sort_unstable();
-		tag_ids.dedup();
-
 		Ok(Entity::find()
 			.column_as(entity_tag::Column::TagId, "tag_id")
 			.join(JoinType::LeftJoin, Relation::EntityTag.def())
@@ -169,13 +179,10 @@ impl Model {
 			.await?)
 	}
 
-	pub async fn prune_all_by_entity_ids<C>(c: &C, mut entity_ids: Vec<PrimaryId>) -> Result<u64>
+	pub async fn prune_all_by_entity_ids<C>(c: &C, entity_ids: PrimaryIds) -> Result<u64>
 	where
 		C: ConnectionTrait,
 	{
-		entity_ids.sort_unstable();
-		entity_ids.dedup();
-
 		let res = Entity::delete_many()
 			.filter(Column::IsDeleted.eq(true))
 			.filter(Column::EntityId.is_in(entity_ids))

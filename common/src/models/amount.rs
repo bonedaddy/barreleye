@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
 	chain::{u256, ModuleId, U256},
-	models::PrimaryId,
+	models::{PrimaryId, PrimaryIds},
 	warehouse::Warehouse,
 };
 
@@ -64,7 +64,7 @@ impl Model {
 	pub async fn get_all_network_ids_by_addresses(
 		warehouse: &Warehouse,
 		mut addresses: Vec<String>,
-	) -> Result<Vec<PrimaryId>> {
+	) -> Result<PrimaryIds> {
 		#[derive(PartialEq, Eq, Hash, Debug, Clone, Row, Serialize, Deserialize)]
 		struct Data {
 			network_id: u64,
@@ -87,6 +87,7 @@ impl Model {
 			.await?
 			.into_iter()
 			.map(|d| d.network_id as PrimaryId)
-			.collect::<Vec<PrimaryId>>())
+			.collect::<Vec<PrimaryId>>()
+			.into())
 	}
 }

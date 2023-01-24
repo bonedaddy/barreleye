@@ -124,7 +124,7 @@ impl Indexer {
 			// fetch all addresses
 			let addresses = Address::get_all_by_network_ids(
 				self.app.db(),
-				block_height_map.clone().into_keys().collect(),
+				block_height_map.clone().into_keys().collect::<Vec<PrimaryId>>().into(),
 				Some(false),
 			)
 			.await?;

@@ -60,7 +60,7 @@ pub async fn handler(
 
 		// upsert entity/tag mappings
 		if !tag_ids.is_empty() {
-			EntityTag::delete_not_included_tags(app.db(), entity.entity_id, tag_ids.clone())
+			EntityTag::delete_not_included_tags(app.db(), entity.entity_id, tag_ids.clone().into())
 				.await?;
 			EntityTag::create_many(
 				app.db(),
