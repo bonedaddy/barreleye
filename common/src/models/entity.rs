@@ -7,7 +7,7 @@ use sea_orm::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
-	models::{BasicModel, PrimaryId, SoftDeleteModel},
+	models::{entity_tag, BasicModel, PrimaryId, SoftDeleteModel},
 	utils, IdPrefix,
 };
 
@@ -55,11 +55,18 @@ pub use ActiveModel as LabeledEntityActiveModel;
 pub use Model as LabeledEntity;
 
 #[derive(Copy, Clone, Debug, EnumIter)]
-pub enum Relation {}
+pub enum Relation {
+	EntityTag,
+}
 
 impl RelationTrait for Relation {
 	fn def(&self) -> RelationDef {
-		panic!("No RelationDef")
+		match self {
+			Self::EntityTag => Entity::belongs_to(entity_tag::Entity)
+				.from(Column::EntityId)
+				.to(entity_tag::Column::EntityId)
+				.into(),
+		}
 	}
 }
 

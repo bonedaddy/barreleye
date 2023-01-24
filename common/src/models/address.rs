@@ -23,6 +23,7 @@ pub struct Model {
 	pub entity_id: PrimaryId,
 	#[serde(skip_serializing)]
 	pub network_id: PrimaryId,
+	pub network: String,
 	pub id: String,
 	pub address: String,
 	pub description: String,
@@ -32,10 +33,6 @@ pub struct Model {
 	#[serde(skip_serializing)]
 	pub updated_at: Option<DateTime>,
 	pub created_at: DateTime,
-
-	#[sea_orm(ignore)]
-	#[serde(skip_serializing_if = "Option::is_none")]
-	pub network: Option<String>,
 }
 
 pub use ActiveModel as AddressActiveModel;
@@ -93,12 +90,14 @@ impl Model {
 	pub fn new_model(
 		entity_id: PrimaryId,
 		network_id: PrimaryId,
+		network: &str,
 		address: &str,
 		description: &str,
 	) -> ActiveModel {
 		ActiveModel {
 			entity_id: Set(entity_id),
 			network_id: Set(network_id),
+			network: Set(network.to_string()),
 			id: Set(utils::new_unique_id(IdPrefix::Address)),
 			address: Set(address.to_string()),
 			description: Set(description.to_string()),

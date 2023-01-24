@@ -67,7 +67,13 @@ pub async fn handler(
 			.clone()
 			.iter()
 			.map(|(address, description)| {
-				Address::new_model(entity.entity_id, network.network_id, address, description)
+				Address::new_model(
+					entity.entity_id,
+					network.network_id,
+					&network.id,
+					address,
+					description,
+				)
 			})
 			.collect(),
 	)

@@ -21,6 +21,7 @@ impl MigrationTrait for Migration {
 					)
 					.col(ColumnDef::new(Addresses::EntityId).big_integer().not_null())
 					.col(ColumnDef::new(Addresses::NetworkId).big_integer().not_null())
+					.col(ColumnDef::new(Addresses::Network).string().not_null())
 					.col(ColumnDef::new(Addresses::Id).unique_key().string().not_null())
 					.col(ColumnDef::new(Addresses::Address).string().not_null())
 					.col(ColumnDef::new(Addresses::Description).string().not_null())
@@ -46,6 +47,14 @@ impl MigrationTrait for Migration {
 							.from(Addresses::Table, Addresses::NetworkId)
 							.to(Alias::new("networks"), Alias::new("network_id"))
 							.on_delete(ForeignKeyAction::Cascade)
+							.to_owned(),
+					)
+					.foreign_key(
+						&mut sea_query::ForeignKey::create()
+							.name("fk_addresses_network")
+							.from(Addresses::Table, Addresses::Network)
+							.to(Alias::new("networks"), Alias::new("id"))
+							.on_update(ForeignKeyAction::Cascade)
 							.to_owned(),
 					)
 					.to_owned(),
@@ -89,6 +98,7 @@ enum Addresses {
 	AddressId,
 	EntityId,
 	NetworkId,
+	Network,
 	Id,
 	Address,
 	Description,
