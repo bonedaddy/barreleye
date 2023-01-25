@@ -50,7 +50,7 @@ pub async fn get_addresses_data(
 	let addresses = Address::get_all_by_entity_ids(app.db(), entity_ids, Some(false)).await?;
 
 	let network_ids = addresses.iter().map(|a| a.network_id).collect::<Vec<PrimaryId>>();
-	let networks_map = Network::get_all_by_network_ids(app.db(), network_ids.into())
+	let networks_map = Network::get_all_by_network_ids(app.db(), network_ids.into(), Some(false))
 		.await?
 		.into_iter()
 		.map(|n| (n.network_id, n))

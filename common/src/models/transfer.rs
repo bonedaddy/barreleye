@@ -5,7 +5,7 @@ use uuid::Uuid;
 
 use crate::{
 	chain::{u256, ModuleId, U256},
-	models::PrimaryId,
+	models::{PrimaryId, PrimaryIds},
 	utils,
 	warehouse::Warehouse,
 	BlockHeight,
@@ -140,6 +140,23 @@ impl Model {
 			))
 			.bind(uuids)
 			.fetch_all::<Model>()
+			.await?)
+	}
+
+	pub async fn delete_all_by_network_id(
+		warehouse: &Warehouse,
+		network_ids: PrimaryIds,
+	) -> Result<()> {
+		Ok(warehouse
+			.get()
+			.query(&format!(
+				r#"
+					ALTER {TABLE}
+					DELETE WHERE network_id IN ?
+                "#
+			))
+			.bind(network_ids.into_iter().collect::<Vec<PrimaryId>>())
+			.execute()
 			.await?)
 	}
 }

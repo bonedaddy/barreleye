@@ -65,9 +65,11 @@ impl MigrationTrait for Migration {
 			.create_index(
 				Index::create()
 					.if_not_exists()
-					.name("ix_addresses_is_deleted")
+					.name("ux_addresses_network_id_address")
 					.table(Addresses::Table)
-					.col(Addresses::IsDeleted)
+					.unique()
+					.col(Addresses::NetworkId)
+					.col(Addresses::Address)
 					.to_owned(),
 			)
 			.await?;
@@ -76,11 +78,9 @@ impl MigrationTrait for Migration {
 			.create_index(
 				Index::create()
 					.if_not_exists()
-					.name("ux_addresses_network_id_address")
+					.name("ix_addresses_is_deleted")
 					.table(Addresses::Table)
-					.unique()
-					.col(Addresses::NetworkId)
-					.col(Addresses::Address)
+					.col(Addresses::IsDeleted)
 					.to_owned(),
 			)
 			.await

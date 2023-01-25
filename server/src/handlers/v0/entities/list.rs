@@ -11,9 +11,7 @@ use crate::{
 	ServerResult,
 };
 use barreleye_common::{
-	models::{
-		entity::Column::IsDeleted as EntityIsDeleted, Address, BasicModel, Entity, Network, Tag,
-	},
+	models::{Address, BasicModel, Entity, EntityColumn, Network, Tag},
 	App,
 };
 
@@ -39,7 +37,7 @@ pub async fn handler(
 ) -> ServerResult<Json<Response>> {
 	let mut entities = Entity::get_all_where(
 		app.db(),
-		vec![EntityIsDeleted.eq(false)],
+		vec![EntityColumn::IsDeleted.eq(false)],
 		payload.offset,
 		payload.limit,
 	)

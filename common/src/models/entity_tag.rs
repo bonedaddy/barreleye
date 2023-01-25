@@ -6,7 +6,7 @@ use sea_orm::{
 use sea_orm_migration::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use crate::models::{entity, tag, BasicModel, PrimaryId, PrimaryIds};
+use crate::models::{entity, tag, BasicModel, EntityColumn, PrimaryId, PrimaryIds, TagColumn};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, DeriveEntityModel)]
 #[sea_orm(table_name = "entity_tags")]
@@ -29,10 +29,10 @@ pub enum Relation {
 	#[sea_orm(
 		belongs_to = "entity::Entity",
 		from = "Column::EntityId",
-		to = "entity::Column::EntityId"
+		to = "EntityColumn::EntityId"
 	)]
 	Entity,
-	#[sea_orm(belongs_to = "tag::Entity", from = "Column::TagId", to = "tag::Column::TagId")]
+	#[sea_orm(belongs_to = "tag::Entity", from = "Column::TagId", to = "TagColumn::TagId")]
 	Tag,
 }
 

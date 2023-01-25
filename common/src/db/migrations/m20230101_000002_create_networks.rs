@@ -27,7 +27,7 @@ impl MigrationTrait for Migration {
 					.col(ColumnDef::new(Networks::BlockTimeMs).big_integer().not_null())
 					.col(ColumnDef::new(Networks::RpcEndpoints).json().not_null())
 					.col(ColumnDef::new(Networks::Rps).integer().not_null())
-					.col(ColumnDef::new(Networks::IsActive).boolean().not_null())
+					.col(ColumnDef::new(Networks::IsDeleted).boolean().not_null())
 					.col(ColumnDef::new(Networks::UpdatedAt).date_time().null())
 					.col(
 						ColumnDef::new(Networks::CreatedAt)
@@ -35,6 +35,17 @@ impl MigrationTrait for Migration {
 							.not_null()
 							.extra("DEFAULT CURRENT_TIMESTAMP".to_owned()),
 					)
+					.to_owned(),
+			)
+			.await?;
+
+		manager
+			.create_index(
+				Index::create()
+					.if_not_exists()
+					.name("ix_networks_is_deleted")
+					.table(Networks::Table)
+					.col(Networks::IsDeleted)
 					.to_owned(),
 			)
 			.await
@@ -58,7 +69,7 @@ enum Networks {
 	BlockTimeMs,
 	RpcEndpoints,
 	Rps,
-	IsActive,
+	IsDeleted,
 	UpdatedAt,
 	CreatedAt,
 }

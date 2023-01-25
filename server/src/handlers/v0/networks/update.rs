@@ -10,7 +10,9 @@ use std::sync::Arc;
 
 use crate::{errors::ServerError, ServerResult};
 use barreleye_common::{
-	models::{optional_set, BasicModel, Config, ConfigKey, Network, NetworkActiveModel},
+	models::{
+		optional_set, BasicModel, Config, ConfigKey, Network, NetworkActiveModel, SoftDeleteModel,
+	},
 	App, Blockchain, Env,
 };
 
@@ -24,7 +26,6 @@ pub struct Payload {
 	block_time_ms: Option<u64>,
 	rpc_endpoints: Option<Vec<String>>,
 	rps: Option<u32>,
-	is_active: Option<bool>,
 }
 
 pub async fn handler(
@@ -32,7 +33,8 @@ pub async fn handler(
 	Path(network_id): Path<String>,
 	Json(payload): Json<Payload>,
 ) -> ServerResult<StatusCode> {
-	let network = Network::get_by_id(app.db(), &network_id).await?.ok_or(ServerError::NotFound)?;
+	let network =
+		Network::get_existing_by_id(app.db(), &network_id).await?.ok_or(ServerError::NotFound)?;
 
 	// check for duplicate name
 	if let Some(name) = payload.name.clone() {
@@ -50,6 +52,7 @@ pub async fn handler(
 			payload.env.unwrap_or(network.env),
 			payload.blockchain.unwrap_or(network.blockchain),
 			chain_id as i64,
+			None,
 		)
 		.await?
 		.is_some()
@@ -69,7 +72,6 @@ pub async fn handler(
 		block_time_ms: optional_set(payload.block_time_ms.map(|v| v as i64)),
 		rpc_endpoints: optional_set(payload.rpc_endpoints.clone().map(|v| json!(v))),
 		rps: optional_set(payload.rps.map(|v| v as i32)),
-		is_active: optional_set(payload.is_active),
 		..Default::default()
 	};
 

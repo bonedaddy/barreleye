@@ -80,7 +80,9 @@ impl Indexer {
 
 			// get all networks that are not syncing in chunks
 			let mut networks = vec![];
-			for network in Network::get_all_by_env(self.app.db(), self.app.env).await?.into_iter() {
+			for network in
+				Network::get_all_by_env(self.app.db(), self.app.env, Some(false)).await?.into_iter()
+			{
 				let tail_is_syncing = Config::exist_by_keywords(
 					self.app.db(),
 					vec![format!("tail_sync_n{}", network.network_id)],
@@ -94,7 +96,7 @@ impl Indexer {
 					],
 				);
 
-				if network.is_active && tail_is_syncing.await? && !is_actively_syncing.await? {
+				if tail_is_syncing.await? && !is_actively_syncing.await? {
 					networks.push(network);
 				}
 			}

@@ -16,7 +16,10 @@ use uuid::Uuid;
 
 use barreleye_common::{
 	chain::{ModuleId, WarehouseData},
-	models::{Config, ConfigKey, PrimaryId},
+	models::{
+		Address, Amount, Balance, Config, ConfigKey, Link, Network, PrimaryId, PrimaryIds,
+		Relation, SoftDeleteModel, Transfer,
+	},
 	quit, utils, App, AppError, BlockHeight, Progress, ProgressReadyType, ProgressStep, Verbosity,
 	Warnings,
 };
@@ -68,7 +71,8 @@ impl Indexer {
 
 		let ret = tokio::select! {
 			_ = signal::ctrl_c() => Ok(()),
-			v = self.start_primary_check() => v,
+			v = self.primary_check() => v,
+			v = self.prune_networks() => v,
 			v = self.index_blocks(verbose) => v,
 			v = self.index_upstream(verbose) => v,
 		};
@@ -80,7 +84,7 @@ impl Indexer {
 		ret
 	}
 
-	async fn start_primary_check(&self) -> Result<()> {
+	async fn primary_check(&self) -> Result<()> {
 		let primary_promotion = self.app.settings.primary_promotion;
 		let db = self.app.db();
 		let uuid = self.app.uuid;
@@ -111,6 +115,72 @@ impl Indexer {
 			}
 
 			sleep(Duration::from_secs(self.app.settings.primary_ping)).await
+		}
+	}
+
+	async fn prune_networks(&self) -> Result<()> {
+		let mut networks_updated_at =
+			Config::get::<_, u8>(self.app.db(), ConfigKey::NetworksUpdated)
+				.await?
+				.map(|v| v.updated_at)
+				.unwrap_or_else(utils::now);
+
+		loop {
+			match Config::get::<_, u8>(self.app.db(), ConfigKey::NetworksUpdated).await? {
+				Some(value) if value.updated_at != networks_updated_at => {
+					networks_updated_at = value.updated_at;
+
+					let deleted_networks = Network::get_all_deleted(self.app.db()).await?;
+					let network_ids: PrimaryIds = deleted_networks.clone().into();
+
+					// delete all associated configs
+					Config::delete_all_by_keywords(
+						self.app.db(),
+						deleted_networks
+							.clone()
+							.iter()
+							.map(|n| format!("n{}", n.network_id))
+							.collect(),
+					)
+					.await?;
+
+					// delete all addresses
+					Address::prune_all_by_network_ids(self.app.db(), network_ids.clone()).await?;
+
+					// delete from warehouse
+					let (
+						transfers_deleted,
+						relations_deleted,
+						balances_deleted,
+						amounts_deleted,
+						links_deleted,
+					) = tokio::join!(
+						Transfer::delete_all_by_network_id(
+							&self.app.warehouse,
+							network_ids.clone()
+						),
+						Relation::delete_all_by_network_id(
+							&self.app.warehouse,
+							network_ids.clone()
+						),
+						Balance::delete_all_by_network_id(&self.app.warehouse, network_ids.clone()),
+						Amount::delete_all_by_network_id(&self.app.warehouse, network_ids.clone()),
+						Link::delete_all_by_network_id(&self.app.warehouse, network_ids.clone()),
+					);
+
+					transfers_deleted
+						.and(relations_deleted)
+						.and(balances_deleted)
+						.and(amounts_deleted)
+						.and(links_deleted)?;
+
+					// finally delete only the networks we grabbed earlier
+					Network::prune_all_by_network_ids(self.app.db(), network_ids).await?;
+				}
+				_ => {}
+			}
+
+			sleep(Duration::from_secs(5)).await;
 		}
 	}
 

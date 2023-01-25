@@ -27,7 +27,7 @@ pub async fn handler(
 	Json(payload): Json<Payload>,
 ) -> ServerResult<Json<Network>> {
 	// check for duplicate name
-	if Network::get_by_name(app.db(), &payload.name).await?.is_some() {
+	if Network::get_by_name(app.db(), &payload.name, None).await?.is_some() {
 		return Err(ServerError::Duplicate { field: "name".to_string(), value: payload.name });
 	}
 
@@ -37,6 +37,7 @@ pub async fn handler(
 		payload.env,
 		payload.blockchain,
 		payload.chain_id as i64,
+		None,
 	)
 	.await?
 	.is_some()

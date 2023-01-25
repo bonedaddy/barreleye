@@ -8,7 +8,7 @@ use sea_orm_migration::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-	models::{entity, BasicModel, PrimaryId, PrimaryIds, SoftDeleteModel},
+	models::{entity, BasicModel, EntityColumn, PrimaryId, PrimaryIds, SoftDeleteModel},
 	utils, IdPrefix,
 };
 
@@ -54,7 +54,7 @@ pub enum Relation {
 	#[sea_orm(
 		belongs_to = "entity::Entity",
 		from = "Column::EntityId",
-		to = "entity::Column::EntityId"
+		to = "EntityColumn::EntityId"
 	)]
 	Entity,
 }
@@ -79,9 +79,9 @@ impl SoftDeleteModel for Model {
 				Condition::any().add(
 					Column::EntityId.in_subquery(
 						Query::select()
-							.column(entity::Column::EntityId)
+							.column(EntityColumn::EntityId)
 							.from(entity::Entity)
-							.and_where(entity::Column::IsDeleted.eq(true))
+							.and_where(EntityColumn::IsDeleted.eq(true))
 							.to_owned(),
 					),
 				),
@@ -137,8 +137,9 @@ impl Model {
 		addresses.dedup();
 
 		let mut q = Entity::find().filter(Column::Address.is_in(addresses));
-		if is_deleted.is_some() {
-			q = q.filter(Column::IsDeleted.eq(is_deleted.unwrap()))
+
+		if let Some(is_deleted) = is_deleted {
+			q = q.filter(Column::IsDeleted.eq(is_deleted))
 		}
 
 		Ok(q.all(c).await?)
@@ -153,8 +154,9 @@ impl Model {
 		C: ConnectionTrait,
 	{
 		let mut q = Entity::find().filter(Column::EntityId.is_in(entity_ids));
-		if is_deleted.is_some() {
-			q = q.filter(Column::IsDeleted.eq(is_deleted.unwrap()))
+
+		if let Some(is_deleted) = is_deleted {
+			q = q.filter(Column::IsDeleted.eq(is_deleted))
 		}
 
 		Ok(q.all(c).await?)
@@ -169,8 +171,9 @@ impl Model {
 		C: ConnectionTrait,
 	{
 		let mut q = Entity::find().filter(Column::NetworkId.is_in(network_ids));
-		if is_deleted.is_some() {
-			q = q.filter(Column::IsDeleted.eq(is_deleted.unwrap()))
+
+		if let Some(is_deleted) = is_deleted {
+			q = q.filter(Column::IsDeleted.eq(is_deleted))
 		}
 
 		Ok(q.all(c).await?)
@@ -192,8 +195,8 @@ impl Model {
 			.filter(Column::NetworkId.eq(network_id))
 			.filter(Column::Address.is_in(addresses));
 
-		if is_deleted.is_some() {
-			q = q.filter(Column::IsDeleted.eq(is_deleted.unwrap()))
+		if let Some(is_deleted) = is_deleted {
+			q = q.filter(Column::IsDeleted.eq(is_deleted))
 		}
 
 		Ok(q.all(c).await?)
@@ -214,6 +217,36 @@ impl Model {
 			.exec(c)
 			.await?;
 
+		Ok(res.rows_affected)
+	}
+
+	pub async fn update_by_network_id<C>(
+		c: &C,
+		network_id: PrimaryId,
+		data: ActiveModel,
+	) -> Result<u64>
+	where
+		C: ConnectionTrait,
+	{
+		let res = Entity::update_many()
+			.col_expr(Alias::new("updated_at"), Expr::value(utils::now()))
+			.set(data)
+			.filter(Column::NetworkId.eq(network_id))
+			.exec(c)
+			.await?;
+
+		Ok(res.rows_affected)
+	}
+
+	pub async fn prune_all_by_network_ids<C>(c: &C, network_ids: PrimaryIds) -> Result<u64>
+	where
+		C: ConnectionTrait,
+	{
+		let res = Entity::delete_many()
+			.filter(Column::IsDeleted.eq(true))
+			.filter(Column::NetworkId.is_in(network_ids))
+			.exec(c)
+			.await?;
 		Ok(res.rows_affected)
 	}
 }

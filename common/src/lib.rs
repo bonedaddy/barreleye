@@ -114,13 +114,7 @@ impl App {
 	pub async fn get_networks(&self) -> Result<HashMap<PrimaryId, Arc<BoxedChain>>> {
 		let mut ret = HashMap::new();
 
-		let networks = Network::get_all_by_env(self.db(), self.env)
-			.await?
-			.into_iter()
-			.filter(|n| n.is_active)
-			.collect::<Vec<Network>>();
-
-		for n in networks.into_iter() {
+		for n in Network::get_all_by_env(self.db(), self.env, Some(false)).await?.into_iter() {
 			let network_id = n.network_id;
 			let c = self.cache.clone();
 
@@ -160,14 +154,8 @@ impl App {
 
 		let m = MultiProgress::new();
 
-		let networks = Network::get_all_by_env(self.db(), self.env)
-			.await?
-			.into_iter()
-			.filter(|n| n.is_active)
-			.collect::<Vec<Network>>();
-
 		let mut threads = vec![];
-		for n in networks.into_iter() {
+		for n in Network::get_all_by_env(self.db(), self.env, Some(false)).await?.into_iter() {
 			let pb = m.add(ProgressBar::new(1_000_000));
 			pb.set_style(spinner_style.clone());
 			pb.set_prefix(n.name.clone());

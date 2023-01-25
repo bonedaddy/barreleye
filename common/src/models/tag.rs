@@ -7,7 +7,7 @@ use sea_orm_migration::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-	models::{entity_tag, BasicModel, PrimaryId, PrimaryIds},
+	models::{entity_tag, BasicModel, EntityTagColumn, PrimaryId, PrimaryIds},
 	utils, IdPrefix,
 };
 
@@ -97,7 +97,7 @@ pub enum Relation {
 	#[sea_orm(
 		belongs_to = "entity_tag::Entity",
 		from = "Column::TagId",
-		to = "entity_tag::Column::TagId"
+		to = "EntityTagColumn::TagId"
 	)]
 	EntityTag,
 }
@@ -142,9 +142,9 @@ impl Model {
 		C: ConnectionTrait,
 	{
 		Ok(Entity::find()
-			.column_as(entity_tag::Column::EntityId, "entity_id")
+			.column_as(EntityTagColumn::EntityId, "entity_id")
 			.join(JoinType::LeftJoin, Relation::EntityTag.def())
-			.filter(entity_tag::Column::EntityId.is_in(entity_ids))
+			.filter(EntityTagColumn::EntityId.is_in(entity_ids))
 			.into_model::<JoinedModel>()
 			.all(c)
 			.await?)

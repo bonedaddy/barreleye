@@ -8,7 +8,7 @@ use sea_orm_migration::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-	models::{entity_tag, BasicModel, PrimaryId, PrimaryIds, SoftDeleteModel},
+	models::{entity_tag, BasicModel, EntityTagColumn, PrimaryId, PrimaryIds, SoftDeleteModel},
 	utils, IdPrefix,
 };
 
@@ -112,7 +112,7 @@ pub enum Relation {
 	#[sea_orm(
 		belongs_to = "entity_tag::Entity",
 		from = "Column::EntityId",
-		to = "entity_tag::Column::EntityId"
+		to = "EntityTagColumn::EntityId"
 	)]
 	EntityTag,
 }
@@ -147,31 +147,48 @@ impl Model {
 				.add(Func::lower(Expr::col(Column::Name)).equals(name.trim().to_lowercase())),
 		);
 
-		if is_deleted.is_some() {
-			q = q.filter(Column::IsDeleted.eq(is_deleted.unwrap()))
+		if let Some(is_deleted) = is_deleted {
+			q = q.filter(Column::IsDeleted.eq(is_deleted))
 		}
 
 		Ok(q.one(c).await?)
 	}
 
-	pub async fn get_all_by_entity_ids<C>(c: &C, entity_ids: PrimaryIds) -> Result<Vec<Self>>
+	pub async fn get_all_by_entity_ids<C>(
+		c: &C,
+		entity_ids: PrimaryIds,
+		is_deleted: Option<bool>,
+	) -> Result<Vec<Self>>
 	where
 		C: ConnectionTrait,
 	{
-		Ok(Entity::find().filter(Column::EntityId.is_in(entity_ids)).all(c).await?)
+		let mut q = Entity::find().filter(Column::EntityId.is_in(entity_ids));
+
+		if let Some(is_deleted) = is_deleted {
+			q = q.filter(Column::IsDeleted.eq(is_deleted))
+		}
+
+		Ok(q.all(c).await?)
 	}
 
-	pub async fn get_all_by_tag_ids<C>(c: &C, tag_ids: PrimaryIds) -> Result<Vec<JoinedModel>>
+	pub async fn get_all_by_tag_ids<C>(
+		c: &C,
+		tag_ids: PrimaryIds,
+		is_deleted: Option<bool>,
+	) -> Result<Vec<JoinedModel>>
 	where
 		C: ConnectionTrait,
 	{
-		Ok(Entity::find()
-			.column_as(entity_tag::Column::TagId, "tag_id")
+		let mut q = Entity::find()
+			.column_as(EntityTagColumn::TagId, "tag_id")
 			.join(JoinType::LeftJoin, Relation::EntityTag.def())
-			.filter(entity_tag::Column::TagId.is_in(tag_ids))
-			.into_model::<JoinedModel>()
-			.all(c)
-			.await?)
+			.filter(EntityTagColumn::TagId.is_in(tag_ids));
+
+		if let Some(is_deleted) = is_deleted {
+			q = q.filter(Column::IsDeleted.eq(is_deleted))
+		}
+
+		Ok(q.into_model::<JoinedModel>().all(c).await?)
 	}
 
 	pub async fn prune_all_by_entity_ids<C>(c: &C, entity_ids: PrimaryIds) -> Result<u64>

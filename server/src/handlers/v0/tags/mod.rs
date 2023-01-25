@@ -29,14 +29,15 @@ pub async fn get_data_by_tag_ids(
 	app: Arc<App>,
 	tag_ids: PrimaryIds,
 ) -> Result<(HashMap<PrimaryId, Vec<String>>, Vec<Entity>, Vec<Address>, Vec<Network>)> {
-	let joined_entities = Entity::get_all_by_tag_ids(app.db(), tag_ids).await?;
+	let joined_entities = Entity::get_all_by_tag_ids(app.db(), tag_ids, Some(false)).await?;
 
 	let addresses =
 		Address::get_all_by_entity_ids(app.db(), joined_entities.clone().into(), Some(false))
 			.await?;
 
 	let network_ids = addresses.iter().map(|a| a.network_id).collect::<Vec<PrimaryId>>();
-	let networks = Network::get_all_by_network_ids(app.db(), network_ids.into()).await?;
+	let networks =
+		Network::get_all_by_network_ids(app.db(), network_ids.into(), Some(false)).await?;
 
 	let mut tags_map = HashMap::<PrimaryId, Vec<String>>::new();
 	for joined_entity in joined_entities.iter() {

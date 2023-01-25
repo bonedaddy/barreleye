@@ -10,19 +10,19 @@ use std::ops::{Deref, DerefMut};
 
 pub use self::config::{Config, ConfigKey};
 use crate::utils;
-pub use address::{Address, AddressActiveModel};
+pub use address::{Address, AddressActiveModel, Column as AddressColumn};
 pub use amount::Amount;
-pub use api_key::{ApiKey, ApiKeyActiveModel};
+pub use api_key::{ApiKey, ApiKeyActiveModel, Column as ApiKeyColumn};
 pub use balance::Balance;
 pub use entity::{
-	JoinedEntity, LabeledEntity as Entity, LabeledEntityActiveModel as EntityActiveModel,
-	SanitizedEntity,
+	Column as EntityColumn, JoinedEntity, LabeledEntity as Entity,
+	LabeledEntityActiveModel as EntityActiveModel, SanitizedEntity,
 };
-pub use entity_tag::EntityTag;
+pub use entity_tag::{Column as EntityTagColumn, EntityTag};
 pub use link::{Link, LinkUuid};
-pub use network::{Network, NetworkActiveModel, SanitizedNetwork};
+pub use network::{Column as NetworkColumn, Network, NetworkActiveModel, SanitizedNetwork};
 pub use relation::{Reason as RelationReason, Relation};
-pub use tag::{JoinedTag, SanitizedTag, Tag, TagActiveModel};
+pub use tag::{Column as TagColumn, JoinedTag, SanitizedTag, Tag, TagActiveModel};
 pub use transfer::Transfer;
 
 pub mod address;
@@ -39,6 +39,8 @@ pub mod tag;
 pub mod transfer;
 
 pub type PrimaryId = i64;
+
+#[derive(Clone)]
 pub struct PrimaryIds(Vec<PrimaryId>);
 
 impl From<Vec<PrimaryId>> for PrimaryIds {

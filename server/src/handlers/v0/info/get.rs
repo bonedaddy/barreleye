@@ -90,7 +90,8 @@ pub async fn handler(
 		let addresses = Address::get_all_by_addresses(app.db(), addresses, Some(false)).await?;
 		if !addresses.is_empty() {
 			let entity_ids = addresses.into_iter().map(|a| a.entity_id).collect::<Vec<PrimaryId>>();
-			entities = Entity::get_all_by_entity_ids(app.db(), entity_ids.into()).await?;
+			entities =
+				Entity::get_all_by_entity_ids(app.db(), entity_ids.into(), Some(false)).await?;
 
 			if !entities.is_empty() {
 				let joined_tags =

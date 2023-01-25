@@ -6,9 +6,7 @@ use std::sync::Arc;
 
 use crate::ServerResult;
 use barreleye_common::{
-	models::{
-		address::Column::IsDeleted as AddressIsDeleted, Address, BasicModel, Network, PrimaryId,
-	},
+	models::{Address, AddressColumn, BasicModel, Network, PrimaryId},
 	App,
 };
 
@@ -32,14 +30,15 @@ pub async fn handler(
 ) -> ServerResult<Json<Response>> {
 	let addresses = Address::get_all_where(
 		app.db(),
-		vec![AddressIsDeleted.eq(false)],
+		vec![AddressColumn::IsDeleted.eq(false)],
 		payload.offset,
 		payload.limit,
 	)
 	.await?;
 
 	let network_ids = addresses.iter().map(|a| a.network_id).collect::<Vec<PrimaryId>>();
-	let networks = Network::get_all_by_network_ids(app.db(), network_ids.into()).await?;
+	let networks =
+		Network::get_all_by_network_ids(app.db(), network_ids.into(), Some(false)).await?;
 
 	Ok(Response { addresses, networks }.into())
 }

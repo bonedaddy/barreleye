@@ -109,8 +109,9 @@ pub async fn handler(
 				.collect::<HashMap<(PrimaryId, String), PrimaryId>>();
 
 			let entity_ids = addresses.into_iter().map(|a| a.entity_id).collect::<Vec<PrimaryId>>();
-			for entity in
-				Entity::get_all_by_entity_ids(app.db(), entity_ids.into()).await?.into_iter()
+			for entity in Entity::get_all_by_entity_ids(app.db(), entity_ids.into(), Some(false))
+				.await?
+				.into_iter()
 			{
 				entities.insert(entity.entity_id, entity);
 			}
