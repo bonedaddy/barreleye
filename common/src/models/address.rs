@@ -201,16 +201,4 @@ impl Model {
 
 		Ok(q.all(c).await?)
 	}
-
-	pub async fn prune_all_by_network_ids<C>(c: &C, network_ids: PrimaryIds) -> Result<u64>
-	where
-		C: ConnectionTrait,
-	{
-		let res = Entity::delete_many()
-			.filter(Column::IsDeleted.eq(true))
-			.filter(Column::NetworkId.is_in(network_ids))
-			.exec(c)
-			.await?;
-		Ok(res.rows_affected)
-	}
 }

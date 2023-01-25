@@ -190,16 +190,4 @@ impl Model {
 
 		Ok(q.into_model::<JoinedModel>().all(c).await?)
 	}
-
-	pub async fn prune_all_by_entity_ids<C>(c: &C, entity_ids: PrimaryIds) -> Result<u64>
-	where
-		C: ConnectionTrait,
-	{
-		let res = Entity::delete_many()
-			.filter(Column::IsDeleted.eq(true))
-			.filter(Column::EntityId.is_in(entity_ids))
-			.exec(c)
-			.await?;
-		Ok(res.rows_affected)
-	}
 }

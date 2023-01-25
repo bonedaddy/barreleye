@@ -313,16 +313,14 @@ pub trait SoftDeleteModel {
 		Ok(res.rows_affected)
 	}
 
-	async fn prune_all_by_ids<C>(c: &C, mut ids: Vec<String>) -> Result<u64>
+	async fn prune_all_where<C, F>(c: &C, filter: F) -> Result<u64>
 	where
 		C: ConnectionTrait,
+		F: IntoCondition + Send,
 	{
-		ids.sort_unstable();
-		ids.dedup();
-
 		let res = <Self::ActiveModel as ActiveModelTrait>::Entity::delete_many()
 			.filter(Expr::col(Alias::new("is_deleted")).eq(true))
-			.filter(Expr::col(Alias::new("id")).is_in(ids))
+			.filter(filter)
 			.exec(c)
 			.await?;
 

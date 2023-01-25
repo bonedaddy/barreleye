@@ -372,6 +372,7 @@ dependencies = [
  "num_cpus",
  "regex",
  "reqwest",
+ "sea-orm",
  "serde",
  "serde_json",
  "tokio",

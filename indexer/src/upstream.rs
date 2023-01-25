@@ -1,5 +1,6 @@
 use console::style;
 use eyre::{ErrReport, Result};
+use sea_orm::ColumnTrait;
 use std::{
 	cmp,
 	collections::{HashMap, HashSet},
@@ -9,12 +10,12 @@ use tokio::{
 	time::{sleep, Duration},
 };
 
-use crate::{IndexType, Indexer};
+use crate::{IndexType, Indexer, PrimaryIds};
 use barreleye_common::{
 	chain::WarehouseData,
 	models::{
-		Address, Config, ConfigKey, Entity, Link, LinkUuid, Network, PrimaryId, SoftDeleteModel,
-		Transfer,
+		Address, AddressColumn, Config, ConfigKey, Entity, Link, LinkUuid, Network, PrimaryId,
+		SoftDeleteModel, Transfer,
 	},
 	BlockHeight,
 };
@@ -315,9 +316,9 @@ impl Indexer {
 			.await?;
 
 			// delete all addresses
-			Address::prune_all_by_ids(
+			Address::prune_all_where(
 				self.app.db(),
-				addresses.iter().map(|a| a.id.clone()).collect(),
+				AddressColumn::AddressId.is_in(Into::<PrimaryIds>::into(addresses.clone())),
 			)
 			.await?;
 

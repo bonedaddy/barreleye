@@ -2,6 +2,7 @@ use console::style;
 use derive_more::Display;
 use eyre::Result;
 use num_format::{SystemLocale, ToFormattedString};
+use sea_orm::ColumnTrait;
 use serde_json::Value as JsonValue;
 use std::sync::Arc;
 use tokio::{
@@ -17,8 +18,8 @@ use uuid::Uuid;
 use barreleye_common::{
 	chain::{ModuleId, WarehouseData},
 	models::{
-		Address, Amount, Balance, Config, ConfigKey, Link, Network, PrimaryId, PrimaryIds,
-		Relation, SoftDeleteModel, Transfer,
+		Address, AddressColumn, Amount, Balance, Config, ConfigKey, Link, Network, NetworkColumn,
+		PrimaryId, PrimaryIds, Relation, SoftDeleteModel, Transfer,
 	},
 	quit, utils, App, AppError, BlockHeight, Progress, ProgressReadyType, ProgressStep, Verbosity,
 	Warnings,
@@ -145,7 +146,11 @@ impl Indexer {
 					.await?;
 
 					// delete all addresses
-					Address::prune_all_by_network_ids(self.app.db(), network_ids.clone()).await?;
+					Address::prune_all_where(
+						self.app.db(),
+						AddressColumn::NetworkId.is_in(network_ids.clone()),
+					)
+					.await?;
 
 					// delete from warehouse
 					let (
@@ -175,7 +180,11 @@ impl Indexer {
 						.and(links_deleted)?;
 
 					// finally delete only the networks we grabbed earlier
-					Network::prune_all_by_network_ids(self.app.db(), network_ids).await?;
+					Network::prune_all_where(
+						self.app.db(),
+						NetworkColumn::NetworkId.is_in(network_ids),
+					)
+					.await?;
 				}
 				_ => {}
 			}
