@@ -2,13 +2,14 @@ use axum::{
 	extract::{Path, State},
 	http::StatusCode,
 };
+use sea_orm::ColumnTrait;
 use std::sync::Arc;
 
 use crate::{errors::ServerError, ServerResult};
 use barreleye_common::{
 	models::{
 		set, Address, AddressActiveModel, BasicModel, Config, ConfigKey, Network,
-		NetworkActiveModel, SoftDeleteModel,
+		NetworkActiveModel, NetworkColumn, SoftDeleteModel,
 	},
 	App,
 };
@@ -19,9 +20,9 @@ pub async fn handler(
 ) -> ServerResult<StatusCode> {
 	if let Some(network) = Network::get_existing_by_id(app.db(), &network_id).await? {
 		// soft-delete all associated addresses
-		Address::update_by_network_id(
+		Address::update_all_where(
 			app.db(),
-			network.network_id,
+			NetworkColumn::NetworkId.eq(network.network_id),
 			AddressActiveModel { is_deleted: set(true), ..Default::default() },
 		)
 		.await?;

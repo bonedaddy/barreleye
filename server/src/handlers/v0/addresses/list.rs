@@ -28,9 +28,9 @@ pub async fn handler(
 	State(app): State<Arc<App>>,
 	Query(payload): Query<Payload>,
 ) -> ServerResult<Json<Response>> {
-	let addresses = Address::get_all_where(
+	let addresses = Address::get_all_paginated_where(
 		app.db(),
-		vec![AddressColumn::IsDeleted.eq(false)],
+		AddressColumn::IsDeleted.eq(false),
 		payload.offset,
 		payload.limit,
 	)

@@ -35,9 +35,9 @@ pub async fn handler(
 	State(app): State<Arc<App>>,
 	Query(payload): Query<Payload>,
 ) -> ServerResult<Json<Response>> {
-	let mut entities = Entity::get_all_where(
+	let mut entities = Entity::get_all_paginated_where(
 		app.db(),
-		vec![EntityColumn::IsDeleted.eq(false)],
+		EntityColumn::IsDeleted.eq(false),
 		payload.offset,
 		payload.limit,
 	)

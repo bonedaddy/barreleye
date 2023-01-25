@@ -1,4 +1,5 @@
 use eyre::Result;
+use sea_orm::ColumnTrait;
 use std::{
 	collections::{HashMap, HashSet},
 	sync::Arc,
@@ -6,7 +7,7 @@ use std::{
 
 use crate::{errors::ServerError, ServerResult};
 use barreleye_common::{
-	models::{Address, Amount, BasicModel, Entity, Network, PrimaryId, PrimaryIds},
+	models::{Address, Amount, BasicModel, Entity, EntityColumn, Network, PrimaryId, PrimaryIds},
 	App,
 };
 
@@ -39,8 +40,12 @@ pub async fn get_addresses_from_params(
 
 	// add addresses from entities
 	if !entities.is_empty() {
-		let entity_ids: PrimaryIds =
-			Entity::get_all_by_ids(app.db(), entities.into_iter().collect()).await?.into();
+		let entity_ids: PrimaryIds = Entity::get_all_where(
+			app.db(),
+			EntityColumn::Id.is_in(entities.into_iter().collect::<Vec<String>>()),
+		)
+		.await?
+		.into();
 
 		if !entity_ids.is_empty() {
 			for address in Address::get_all_by_entity_ids(app.db(), entity_ids, Some(false)).await?

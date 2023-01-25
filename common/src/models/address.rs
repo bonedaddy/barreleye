@@ -202,42 +202,6 @@ impl Model {
 		Ok(q.all(c).await?)
 	}
 
-	pub async fn update_by_entity_id<C>(
-		c: &C,
-		entity_id: PrimaryId,
-		data: ActiveModel,
-	) -> Result<u64>
-	where
-		C: ConnectionTrait,
-	{
-		let res = Entity::update_many()
-			.col_expr(Alias::new("updated_at"), Expr::value(utils::now()))
-			.set(data)
-			.filter(Column::EntityId.eq(entity_id))
-			.exec(c)
-			.await?;
-
-		Ok(res.rows_affected)
-	}
-
-	pub async fn update_by_network_id<C>(
-		c: &C,
-		network_id: PrimaryId,
-		data: ActiveModel,
-	) -> Result<u64>
-	where
-		C: ConnectionTrait,
-	{
-		let res = Entity::update_many()
-			.col_expr(Alias::new("updated_at"), Expr::value(utils::now()))
-			.set(data)
-			.filter(Column::NetworkId.eq(network_id))
-			.exec(c)
-			.await?;
-
-		Ok(res.rows_affected)
-	}
-
 	pub async fn prune_all_by_network_ids<C>(c: &C, network_ids: PrimaryIds) -> Result<u64>
 	where
 		C: ConnectionTrait,

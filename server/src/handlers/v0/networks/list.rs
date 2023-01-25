@@ -27,9 +27,9 @@ pub async fn handler(
 	State(app): State<Arc<App>>,
 	Query(payload): Query<Payload>,
 ) -> ServerResult<Json<Response>> {
-	let networks = Network::get_all_where(
+	let networks = Network::get_all_paginated_where(
 		app.db(),
-		vec![NetworkColumn::IsDeleted.eq(false)],
+		NetworkColumn::IsDeleted.eq(false),
 		payload.offset,
 		payload.limit,
 	)

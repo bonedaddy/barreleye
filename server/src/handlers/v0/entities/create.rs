@@ -1,10 +1,11 @@
 use axum::{extract::State, Json};
+use sea_orm::ColumnTrait;
 use serde::Deserialize;
 use std::sync::Arc;
 
 use crate::{errors::ServerError, utils::extract_primary_ids, ServerResult};
 use barreleye_common::{
-	models::{BasicModel, Entity, EntityTag, Tag},
+	models::{BasicModel, Entity, EntityTag, Tag, TagColumn},
 	App,
 };
 
@@ -28,7 +29,7 @@ pub async fn handler(
 			ret = extract_primary_ids(
 				"tags",
 				tags.clone(),
-				Tag::get_all_by_ids(app.db(), tags)
+				Tag::get_all_where(app.db(), TagColumn::Id.is_in(tags))
 					.await?
 					.into_iter()
 					.map(|t| (t.id, t.tag_id))

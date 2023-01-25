@@ -7,10 +7,12 @@ use std::sync::Arc;
 use crate::{errors::ServerError, ServerResult};
 use barreleye_common::{
 	models::{
-		set, Address, AddressActiveModel, BasicModel, Entity, EntityActiveModel, SoftDeleteModel,
+		set, Address, AddressActiveModel, AddressColumn, BasicModel, Entity, EntityActiveModel,
+		SoftDeleteModel,
 	},
 	App,
 };
+use sea_orm::ColumnTrait;
 
 pub async fn handler(
 	State(app): State<Arc<App>>,
@@ -18,9 +20,9 @@ pub async fn handler(
 ) -> ServerResult<StatusCode> {
 	if let Some(entity) = Entity::get_existing_by_id(app.db(), &entity_id).await? {
 		// soft-delete all associated addresses
-		Address::update_by_entity_id(
+		Address::update_all_where(
 			app.db(),
-			entity.entity_id,
+			AddressColumn::EntityId.eq(entity.entity_id),
 			AddressActiveModel { is_deleted: set(true), ..Default::default() },
 		)
 		.await?;

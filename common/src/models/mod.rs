@@ -3,9 +3,10 @@ use eyre::Result;
 use sea_orm::{
 	entity::prelude::*,
 	query::*,
-	sea_query::{types::*, Expr, SimpleExpr},
+	sea_query::{types::*, Expr},
 	ActiveValue, QuerySelect,
 };
+use sea_orm_migration::prelude::IntoCondition;
 use std::ops::{Deref, DerefMut};
 
 pub use self::config::{Config, ConfigKey};
@@ -151,51 +152,61 @@ pub trait BasicModel {
 			.await?)
 	}
 
-	async fn get_all_by_ids<C>(
-		c: &C,
-		mut ids: Vec<String>,
-	) -> Result<Vec<<<Self::ActiveModel as ActiveModelTrait>::Entity as EntityTrait>::Model>>
-	where
-		C: ConnectionTrait,
-	{
-		ids.sort_unstable();
-		ids.dedup();
-
-		Ok(<Self::ActiveModel as ActiveModelTrait>::Entity::find()
-			.filter(Expr::col(Alias::new("id")).is_in(ids))
-			.all(c)
-			.await?)
-	}
-
 	async fn get_all<C>(
 		c: &C,
 	) -> Result<Vec<<<Self::ActiveModel as ActiveModelTrait>::Entity as EntityTrait>::Model>>
 	where
 		C: ConnectionTrait,
 	{
-		Ok(Self::get_all_where(c, vec![], None, None).await?)
+		Ok(<Self::ActiveModel as ActiveModelTrait>::Entity::find().all(c).await?)
 	}
 
-	async fn get_all_where<C>(
+	async fn get_all_paginated<C>(
 		c: &C,
-		conditions: Vec<SimpleExpr>,
 		offset: Option<u64>,
 		limit: Option<u64>,
 	) -> Result<Vec<<<Self::ActiveModel as ActiveModelTrait>::Entity as EntityTrait>::Model>>
 	where
 		C: ConnectionTrait,
 	{
-		let mut filter = Condition::all();
-		for condition in conditions.into_iter() {
-			filter = filter.add(condition);
+		let mut q = <Self::ActiveModel as ActiveModelTrait>::Entity::find();
+
+		if let Some(v) = offset {
+			q = q.offset(v);
+		}
+		if let Some(v) = limit {
+			q = q.limit(v);
 		}
 
+		Ok(q.all(c).await?)
+	}
+
+	async fn get_all_where<C, F>(
+		c: &C,
+		filter: F,
+	) -> Result<Vec<<<Self::ActiveModel as ActiveModelTrait>::Entity as EntityTrait>::Model>>
+	where
+		C: ConnectionTrait,
+		F: IntoCondition + Send,
+	{
+		Ok(<Self::ActiveModel as ActiveModelTrait>::Entity::find().filter(filter).all(c).await?)
+	}
+
+	async fn get_all_paginated_where<C, F>(
+		c: &C,
+		filter: F,
+		offset: Option<u64>,
+		limit: Option<u64>,
+	) -> Result<Vec<<<Self::ActiveModel as ActiveModelTrait>::Entity as EntityTrait>::Model>>
+	where
+		C: ConnectionTrait,
+		F: IntoCondition + Send,
+	{
 		let mut q = <Self::ActiveModel as ActiveModelTrait>::Entity::find().filter(filter);
 
 		if let Some(v) = offset {
 			q = q.offset(v);
 		}
-
 		if let Some(v) = limit {
 			q = q.limit(v);
 		}
@@ -215,6 +226,21 @@ pub trait BasicModel {
 			.await?;
 
 		Ok(res.rows_affected == 1)
+	}
+
+	async fn update_all_where<C, F>(c: &C, filter: F, data: Self::ActiveModel) -> Result<u64>
+	where
+		C: ConnectionTrait,
+		F: IntoCondition + Send,
+	{
+		let res = <Self::ActiveModel as ActiveModelTrait>::Entity::update_many()
+			.col_expr(Alias::new("updated_at"), Expr::value(utils::now()))
+			.set(data)
+			.filter(filter)
+			.exec(c)
+			.await?;
+
+		Ok(res.rows_affected)
 	}
 
 	async fn delete<C>(
@@ -242,21 +268,6 @@ pub trait BasicModel {
 			.await?;
 
 		Ok(res.rows_affected == 1)
-	}
-
-	async fn delete_by_ids<C>(c: &C, mut ids: Vec<String>) -> Result<u64>
-	where
-		C: ConnectionTrait,
-	{
-		ids.sort_unstable();
-		ids.dedup();
-
-		let res = <Self::ActiveModel as ActiveModelTrait>::Entity::delete_many()
-			.filter(Expr::col(Alias::new("id")).is_in(ids))
-			.exec(c)
-			.await?;
-
-		Ok(res.rows_affected)
 	}
 }
 
