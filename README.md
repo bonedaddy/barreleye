@@ -51,11 +51,11 @@ Notes:
 
 Barreleye consists of two parts: the indexer and the server. The indexer connects to specified RPC nodes to process blocks, and the server handles management and analytics requests.
 
-**Note:** Indexing not only keeps up with continuous block creation, but also runs through historical blocks. This process makes significant amount of RPC calls.
+**Note:** Indexing continuously processes data from the genesis block. Make sure your RPC node can handle the amount of requests.
 
-To start just the indexer, without the server (only one indexer will be active at a time): `cargo run -- --only-indexer`
+To start just the indexer, without the server: `cargo run -- --only-indexer`. Note that only one indexer is active at a time.
 
-To run the server without indexing: `cargo run -- --only-http`
+To run only the HTTP server: `cargo run -- --only-http`
 
 To run them all together: `cargo run`
 
@@ -103,7 +103,14 @@ curl -X POST \
   http://localhost:22775/v0/networks
 ```
 
-⏳ Indexing will take a while.
+⏳ Indexing will take a while. To monitor progress:
+
+```bash
+curl -X GET \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <API_KEY>" \
+  http://localhost:22775/v0/stats
+```
 
 ## Analytics
 
