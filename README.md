@@ -19,15 +19,17 @@ Barreleye is an open-source, multi-chain blockchain analytics tool. It's goal is
 1. Where did these assets come from?
 1. What other wallets might be related?
 
-**Note:** This is an actively developed work-in-progress and not yet ready for production. Use at your own risk
+**Note:** This is an actively developed work-in-progress and not yet ready for production. Use at your own risk ⚠️
 
 ## Try
+
+Barreleye requires [Clickhouse](https://github.com/ClickHouse/ClickHouse) to run (default configs point to a locally running server):
 
 ### Via package manager
 
 ```bash
 cargo install barreleye
-barreleye --help
+barreleye --warehouse=http://localhost:8123/database_name
 ```
 
 ### From source
@@ -37,16 +39,13 @@ Requires Rust 1.65.0+:
 ```bash
 git clone https://github.com/barreleye/barreleye
 cd barreleye
-cargo run -- --help
+cargo run -- --warehouse=http://localhost:8123/database_name
 ```
 
 Notes:
 
-- A default config file will be generated on the first run. Optionally, rename `barreleye.sample.toml` to `barreleye.toml`
-
-- [Clickhouse](https://github.com/ClickHouse/ClickHouse) is a requirement for warehouse data storage (default configs point to a locally running server)
-
-- Out of the box Barreleye is configured to use [SQLite](https://www.sqlite.org/) ([MySQL](https://www.mysql.com/) and [PostgreSQL](https://www.postgresql.org/) are also supported)
+- Use `barreleye --help` to see all options
+- Default RDBMS is configured to use [SQLite](https://www.sqlite.org/) ([MySQL](https://www.mysql.com/) and [PostgreSQL](https://www.postgresql.org/) are also supported)
 
 ## Basics
 
@@ -54,9 +53,9 @@ Barreleye consists of two parts: the indexer and the server. The indexer connect
 
 **Note:** Indexing not only keeps up with continuous block creation, but also runs through historical blocks. This process makes significant amount of RPC calls.
 
-To start just the indexer, without the server (only one indexer will be active at a time): `cargo run -- --indexer`
+To start just the indexer, without the server (only one indexer will be active at a time): `cargo run -- --only-indexer`
 
-To run the server without indexing: `cargo run -- --server`
+To run the server without indexing: `cargo run -- --only-http`
 
 To run them all together: `cargo run`
 

@@ -22,7 +22,7 @@ use barreleye_common::{
 		PrimaryId, PrimaryIds, Relation, SoftDeleteModel, Transfer,
 	},
 	quit, utils, App, AppError, BlockHeight, Progress, ProgressReadyType, ProgressStep, Verbosity,
-	Warnings,
+	Warnings, INDEXER_HEARTBEAT,
 };
 
 mod blocks;
@@ -64,9 +64,9 @@ impl Indexer {
 	}
 
 	pub async fn start(&self, warnings: Warnings, progress: Progress) -> Result<()> {
-		let verbose = self.app.verbosity as u8 > Verbosity::Silent as u8;
+		let verbose = self.app.settings.verbosity > Verbosity::Silent;
 
-		if self.app.is_indexer && !self.app.is_server {
+		if self.app.settings.is_indexer && !self.app.settings.is_server {
 			progress.show(ProgressStep::Ready(ProgressReadyType::Indexer, warnings));
 		}
 
@@ -79,19 +79,19 @@ impl Indexer {
 		};
 
 		if ret.is_err() {
-			quit(AppError::IndexingFailed { error: ret.as_ref().unwrap_err().to_string() });
+			quit(AppError::Indexing { error: &ret.as_ref().unwrap_err().to_string() });
 		}
 
 		ret
 	}
 
 	async fn primary_check(&self) -> Result<()> {
-		let primary_promotion = self.app.settings.primary_promotion;
+		let indexer_promotion = self.app.settings.indexer_promotion;
 		let db = self.app.db();
 		let uuid = self.app.uuid;
 
 		loop {
-			let cool_down_period = utils::ago_in_seconds(primary_promotion / 2);
+			let cool_down_period = utils::ago_in_seconds(indexer_promotion / 2);
 
 			let last_primary = Config::get::<_, Uuid>(db, ConfigKey::Primary).await?;
 			match last_primary {
@@ -105,7 +105,7 @@ impl Indexer {
 						self.app.set_is_primary(true).await?;
 					}
 				}
-				Some(hit) if utils::ago_in_seconds(primary_promotion) > hit.updated_at => {
+				Some(hit) if utils::ago_in_seconds(indexer_promotion) > hit.updated_at => {
 					// attempt to upgrade to primary (set is_primary on the next iteration)
 					Config::set_where::<_, Uuid>(db, ConfigKey::Primary, uuid, hit).await?;
 				}
@@ -115,7 +115,7 @@ impl Indexer {
 				}
 			}
 
-			sleep(Duration::from_secs(self.app.settings.primary_ping)).await
+			sleep(Duration::from_secs(INDEXER_HEARTBEAT)).await
 		}
 	}
 

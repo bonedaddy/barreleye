@@ -1,31 +1,30 @@
 use derive_more::{Display, Error};
 
-#[derive(Debug, Display, Error)]
-pub enum AppError {
+#[derive(Debug, Clone, Display, Error)]
+pub enum AppError<'a> {
 	#[display(fmt = "Failed to install signal handler")]
 	SignalHandler,
 
+	#[display(fmt = "Invalid config @ `{config}`: {error}")]
+	Config { config: &'a str, error: &'a str },
+
 	#[display(fmt = "Could not start server @ `{url}`: {error}")]
-	ServerStartup { url: String, error: String },
+	ServerStartup { url: &'a str, error: &'a str },
 
-	#[display(fmt = "Could not find config file @ `{filename}`")]
-	MissingConfigFile { filename: String },
+	#[display(
+		fmt = "Barreleye requires Clickhouse to run. Provide the connection URL with \"--warehouse=<URL>\". Could not connect to warehouse @ `{url}`"
+	)]
+	WarehouseConnection { url: &'a str },
 
-	#[display(fmt = "Could not create a default config file")]
-	DefaultConfigFile,
-
-	#[display(fmt = "Invalid setting for `{key}`: `{value}`")]
-	InvalidSetting { key: String, value: String },
-
-	#[display(fmt = "Could not connect to {service} @ `{url}`")]
-	ServiceConnection { service: String, url: String },
+	#[display(fmt = "Could not connect to database @ `{url}`")]
+	DatabaseConnection { url: &'a str },
 
 	#[display(fmt = "Could not complete network setup:\n{error}")]
-	NetworkFailure { error: String },
-
-	#[display(fmt = "Primary promotion should be at least 3x primary ping")]
-	InvalidPrimaryConfigs,
+	Network { error: &'a str },
 
 	#[display(fmt = "Indexing failed: {error}")]
-	IndexingFailed { error: String },
+	Indexing { error: &'a str },
+
+	#[display(fmt = "Unexpected error: {error}")]
+	Unexpected { error: &'a str },
 }

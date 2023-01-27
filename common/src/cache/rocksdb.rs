@@ -1,16 +1,16 @@
 use async_trait::async_trait;
 use eyre::Result;
 use rocksdb::{DBCompactionStyle, DBWithThreadMode, LogLevel, MultiThreaded, Options};
-use std::sync::Arc;
+use std::path::Path;
 
-use crate::{cache::CacheTrait, utils, Settings};
+use crate::cache::CacheTrait;
 
 pub struct RocksDb {
 	db: DBWithThreadMode<MultiThreaded>,
 }
 
 impl RocksDb {
-	pub async fn new(settings: Arc<Settings>, is_read_only: bool) -> Result<Self> {
+	pub async fn new(path: &Path, is_read_only: bool) -> Result<Self> {
 		let mut opts = Options::default();
 
 		opts.create_if_missing(true);
@@ -29,7 +29,6 @@ impl RocksDb {
 		opts.set_disable_auto_compactions(false);
 		opts.set_log_level(LogLevel::Warn);
 
-		let path = utils::get_db_path(&settings.dsn.rocksdb);
 		let db = if is_read_only {
 			DBWithThreadMode::<MultiThreaded>::open_for_read_only(&opts, path, false)?
 		} else {
@@ -42,6 +41,13 @@ impl RocksDb {
 
 #[async_trait]
 impl CacheTrait for RocksDb {
+	fn is_path_valid(path: &Path) -> Result<bool> {
+		let mut opts = Options::default();
+		opts.create_if_missing(true);
+
+		Ok(DBWithThreadMode::<MultiThreaded>::open(&opts, path).is_ok())
+	}
+
 	async fn set(&self, key: &str, value: &[u8]) -> Result<()> {
 		Ok(self.db.put(key, value)?)
 	}

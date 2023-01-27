@@ -126,11 +126,9 @@ impl Server {
 			)
 			.with_state(self.app.clone());
 
-		let ipv4 = SocketAddr::new(settings.server.ip_v4.parse()?, settings.server.port);
-
 		let show_progress = |addr: &str| {
 			progress.show(ProgressStep::Ready(
-				if self.app.is_indexer && self.app.is_server {
+				if self.app.settings.is_indexer && self.app.settings.is_server {
 					ProgressReadyType::All(addr.to_string())
 				} else {
 					ProgressReadyType::Server(addr.to_string())
@@ -139,13 +137,14 @@ impl Server {
 			))
 		};
 
-		if settings.server.ip_v6.is_empty() {
-			show_progress(&style(ipv4).bold().to_string());
+		if let Some(ip_addr) = settings.ipv4.xor(settings.ipv6) {
+			let ip_addr = SocketAddr::new(ip_addr, settings.http_port);
+			show_progress(&style(ip_addr).bold().to_string());
 
-			match AxumServer::try_bind(&ipv4) {
+			match AxumServer::try_bind(&ip_addr) {
 				Err(e) => quit(AppError::ServerStartup {
-					url: ipv4.to_string(),
-					error: e.message().to_string(),
+					url: &ip_addr.to_string(),
+					error: &e.message().to_string(),
 				}),
 				Ok(server) => {
 					self.app.set_is_ready();
@@ -156,16 +155,17 @@ impl Server {
 				}
 			}
 		} else {
-			let ipv6 = SocketAddr::new(settings.server.ip_v6.parse()?, settings.server.port);
+			let ipv4 = SocketAddr::new(settings.ipv4.unwrap(), settings.http_port);
+			let ipv6 = SocketAddr::new(settings.ipv6.unwrap(), settings.http_port);
 
 			match (AddrIncoming::bind(&ipv4), AddrIncoming::bind(&ipv6)) {
 				(Err(e), _) => quit(AppError::ServerStartup {
-					url: ipv4.to_string(),
-					error: e.message().to_string(),
+					url: &ipv4.to_string(),
+					error: &e.message().to_string(),
 				}),
 				(_, Err(e)) => quit(AppError::ServerStartup {
-					url: ipv6.to_string(),
-					error: e.message().to_string(),
+					url: &ipv6.to_string(),
+					error: &e.message().to_string(),
 				}),
 				(Ok(a), Ok(b)) => {
 					show_progress(&format!("{} & {}", style(ipv4).bold(), style(ipv6).bold()));

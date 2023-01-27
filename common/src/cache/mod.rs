@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use derive_more::Display;
 use eyre::{Result, WrapErr};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use std::sync::Arc;
+use std::{path::Path, sync::Arc};
 
 use crate::{cache::rocksdb::RocksDb, Settings};
 
@@ -23,15 +23,18 @@ impl From<CacheKey> for String {
 	}
 }
 
-#[derive(Display, Debug, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Debug, Default, Serialize, Deserialize, Eq, PartialEq)]
 pub enum Driver {
-	#[display(fmt = "RocksDB")]
+	#[default]
 	#[serde(rename = "rocksdb")]
 	RocksDB,
 }
 
 #[async_trait]
 pub trait CacheTrait: Send + Sync {
+	fn is_path_valid(path: &Path) -> Result<bool>
+	where
+		Self: Sized;
 	async fn set(&self, cache_key: &str, value: &[u8]) -> Result<()>;
 	async fn get(&self, cache_key: &str) -> Result<Option<Vec<u8>>>;
 	async fn delete(&self, cache_key: &str) -> Result<()>;
@@ -46,21 +49,22 @@ impl Cache {
 	pub async fn new(settings: Arc<Settings>) -> Result<Self> {
 		Ok(Self {
 			settings: settings.clone(),
-			cache: match settings.cache.driver {
-				Driver::RocksDB => Box::new(
-					RocksDb::new(settings.clone(), true)
-						.await
-						.wrap_err(settings.dsn.rocksdb.clone())?,
-				),
-			},
+			cache: Box::new(
+				RocksDb::new(&settings.indexer_cache_dir, true)
+					.await
+					.wrap_err(settings.indexer_cache_dir.display().to_string())?,
+			),
 		})
 	}
 
-	pub async fn set_read_only(&mut self, is_read_only: bool) -> Result<()> {
-		self.cache = match self.settings.cache.driver {
-			Driver::RocksDB => Box::new(RocksDb::new(self.settings.clone(), is_read_only).await?),
-		};
+	pub fn is_path_valid(driver: Driver, path: &Path) -> Result<bool> {
+		match driver {
+			Driver::RocksDB => RocksDb::is_path_valid(path),
+		}
+	}
 
+	pub async fn set_read_only(&mut self, is_read_only: bool) -> Result<()> {
+		self.cache = Box::new(RocksDb::new(&self.settings.indexer_cache_dir, is_read_only).await?);
 		Ok(())
 	}
 

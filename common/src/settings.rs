@@ -1,203 +1,256 @@
-use config::{Config, Environment, File};
-use directories::BaseDirs;
+use clap::{Parser, ValueHint};
 use eyre::Result;
-use serde::Deserialize;
-use std::{env::var, fs, fs::OpenOptions, path::PathBuf};
+use std::{fs, net::IpAddr, path::PathBuf, str::FromStr};
 use url::Url;
 
 use crate::{
-	cache::Driver as CacheDriver, db::Driver as DatabaseDriver, errors::AppError, quit, utils,
-	warehouse::Driver as WarehouseDriver,
+	banner, cache::Driver as CacheDriver, db::Driver as DatabaseDriver, utils,
+	warehouse::Driver as WarehouseDriver, AppError, Cache, Env, Verbosity, Warnings,
+	INDEXER_HEARTBEAT,
 };
 
-pub static DEFAULT_SETTINGS_FILENAME: &str = "barreleye.toml";
-pub static DEFAULT_SETTINGS_CONTENT: &str = r#"
-primary_ping = 2 # in seconds
-primary_promotion = 20 # in seconds
-
-[server]
-ip_v4 = "0.0.0.0"
-ip_v6 = "::"
-port = 22775
-
-[cache]
-driver = "rocksdb"
-
-[db]
-driver = "sqlite" # or "postgres" or "mysql"
-min_connections = 5
-max_connections = 100
-connect_timeout = 8
-idle_timeout = 8
-max_lifetime = 8
-
-[warehouse]
-driver = "clickhouse"
-
-[dsn]
-rocksdb = "rocksdb://barreleye_cache"
-sqlite = "sqlite://barreleye_database?mode=rwc"
-postgres = "" # eg: "postgres://USERNAME[:PASSWORD]@localhost:5432/database"
-mysql = "" # eg: "mysql://USERNAME[:PASSWORD]@localhost:3306/database"
-clickhouse = "" # eg: "http://USERNAME[:PASSWORD]@localhost:8123/database"
-"#;
-
-#[derive(Debug, Deserialize)]
+#[derive(Parser, Debug)]
+#[command(
+	author = "Barreleye",
+	version,
+	about,
+	long_about = None
+)]
 pub struct Settings {
-	pub primary_ping: u64,
-	pub primary_promotion: u64,
-	pub server: Server,
-	pub cache: Cache,
-	pub db: Db,
-	pub warehouse: Warehouse,
-	pub dsn: Dsn,
-}
+	/// Network environments to connect to.
+	#[arg(help_heading = "Runtime options", short, long, default_value = "mainnet")]
+	pub env: Env,
 
-#[derive(Debug, Deserialize)]
-pub struct Server {
-	pub ip_v4: String,
-	pub ip_v6: String,
-	pub port: u16,
-}
+	/// Run only the indexer, without the server.
+	///
+	/// In a multi-indexer setup, only one node will run at a time.
+	/// The others will silently run in standby mode, ready to take over if the primary goes down.
+	#[arg(help_heading = "Runtime options", long, default_value_t = false)]
+	only_indexer: bool,
+	#[arg(skip)]
+	pub is_indexer: bool,
 
-#[derive(Debug, Deserialize)]
-pub struct Cache {
-	pub driver: CacheDriver,
-}
+	/// Run only the HTTP server, without the indexer.
+	#[arg(help_heading = "Runtime options", long, default_value_t = false)]
+	only_http: bool,
+	#[arg(skip)]
+	pub is_server: bool,
 
-#[derive(Debug, Deserialize)]
-pub struct Db {
-	pub driver: DatabaseDriver,
-	pub min_connections: u32,
-	pub max_connections: u32,
-	pub connect_timeout: u64,
-	pub idle_timeout: u64,
-	pub max_lifetime: u64,
-}
+	#[arg(help_heading = "Runtime options", long, default_value_t = false)]
+	verbose: bool,
+	#[arg(skip)]
+	pub verbosity: Verbosity,
 
-#[derive(Debug, Deserialize)]
-pub struct Warehouse {
-	pub driver: WarehouseDriver,
-}
+	/// Database to connect to. Supports PostgreSQL, MySQL and SQLite.
+	///
+	/// Postgres eg: postgres://username:password@localhost:5432/database_name
+	///
+	/// MySQL eg: mysql://username:password@localhost:3306/database_name
+	///
+	/// SQLite eg: sqlite://database_path?mode=rwc
+	#[arg(
+		help_heading = "Data options",
+		short,
+		long,
+		env = "BARRELEYE_DATABASE",
+		default_value_t = format!(
+			"sqlite://{}?mode=rwc",
+			utils::project_dir(Some("db")).display().to_string(),
+		),
+        value_hint = ValueHint::DirPath,
+		value_name = "URL"
+	)]
+	pub database: String,
+	#[arg(skip)]
+	pub database_driver: DatabaseDriver,
 
-#[derive(Debug, Deserialize)]
-pub struct Dsn {
-	pub rocksdb: String,
-	pub sqlite: String,
-	pub postgres: String,
-	pub mysql: String,
-	pub clickhouse: String,
+	#[arg(help_heading = "Data options", long, default_value_t = 5, value_name = "NUMBER")]
+	pub database_min_connections: u32,
+
+	#[arg(help_heading = "Data options", long, default_value_t = 100, value_name = "NUMBER")]
+	pub database_max_connections: u32,
+
+	#[arg(help_heading = "Data options", long, default_value_t = 8, value_name = "SECONDS")]
+	pub database_connect_timeout: u64,
+
+	#[arg(help_heading = "Data options", long, default_value_t = 8, value_name = "SECONDS")]
+	pub database_idle_timeout: u64,
+
+	#[arg(help_heading = "Data options", long, default_value_t = 8, value_name = "SECONDS")]
+	pub database_max_lifetime: u64,
+
+	/// Big data storage.
+	/// The only supported warehouse driver for now is Clickhouse.
+	/// By default will check first if it's running on localhost.
+	///
+	/// Clickhouse eg: http://username:password@localhost:8123/database_name
+	#[arg(
+		help_heading = "Data options",
+		short,
+		long,
+		env = "BARRELEYE_WAREHOUSE",
+		default_value = "http://localhost:8123/barreleye",
+		value_name = "URI"
+	)]
+	pub warehouse: String,
+	#[arg(skip)]
+	pub warehouse_driver: WarehouseDriver,
+
+	/// A healthy indexer produces frequent heartbeats. When they stop, this is how
+	/// long the other nodes will wait before attempting to take over as the next primary.
+	#[arg(help_heading = "Indexer options", long, default_value_t = 20, value_name = "SECONDS")]
+	pub indexer_promotion: u64,
+
+	/// Directory for cached data.
+	/// In a multi-node setup, this should be shared file storage.
+	#[arg(
+		help_heading = "Indexer options",
+		long,
+		env = "BARRELEYE_INDEXER_CACHE_DIR",
+		default_value_os_t = utils::project_dir(Some("cache")),
+        value_hint = ValueHint::DirPath,
+		value_name = "PATH"
+	)]
+	pub indexer_cache_dir: PathBuf,
+	#[arg(skip)]
+	pub cache_driver: CacheDriver,
+
+	#[arg(
+		help_heading = "Server options",
+		long,
+		default_value = "127.0.0.1",
+		value_name = "IP_V4_ADDRESS"
+	)]
+	http_ipv4: String,
+	#[arg(skip)]
+	pub ipv4: Option<IpAddr>,
+
+	#[arg(
+		help_heading = "Server options",
+		long,
+		default_value = "::1",
+		value_name = "IP_V6_ADDRESS"
+	)]
+	http_ipv6: String,
+	#[arg(skip)]
+	pub ipv6: Option<IpAddr>,
+
+	#[arg(help_heading = "Server options", long, default_value_t = 22775, value_name = "PORT")]
+	pub http_port: u16,
 }
 
 impl Settings {
-	pub fn new(config_path: Option<String>) -> Result<Self> {
-		// figure out the config path
-		let config_path = {
-			let mut ret = None;
+	pub fn new() -> Result<(Self, Warnings)> {
+		let mut settings = Self::parse();
+		let warnings = Warnings::new();
 
-			// try custom a config file (if provided)
-			if let Some(filename) = config_path {
-				let try_filename = PathBuf::from(filename.clone());
-				if try_filename.exists() {
-					ret = Some(try_filename);
-				} else {
-					quit(AppError::MissingConfigFile { filename });
-				}
-			} else {
-				// load a few places to check and/or create
-				let mut paths = vec![];
-				if let Ok(manifest_dir) = var("CARGO_MANIFEST_DIR") {
-					paths.push(PathBuf::from(manifest_dir).join(DEFAULT_SETTINGS_FILENAME))
-				}
-				paths.push(std::env::current_exe()?.join(DEFAULT_SETTINGS_FILENAME));
-				if let Some(base_dir) = BaseDirs::new() {
-					paths.push(
-						PathBuf::from(base_dir.config_dir())
-							.join("barreleye")
-							.join(DEFAULT_SETTINGS_FILENAME),
-					);
-				}
+		// set is_indexer and is_server
+		(settings.is_indexer, settings.is_server) =
+			match (settings.only_indexer, settings.only_http) {
+				(false, false) => (true, true),
+				(i, s) => (i, s),
+			};
 
-				// check if any of those paths exist
-				for path in paths.clone().into_iter() {
-					if path.exists() {
-						ret = Some(path);
-						break;
-					}
-				}
+		// setup verbosity (@TODO simple for now)
+		if settings.verbose {
+			settings.verbosity = Verbosity::Info
+		}
 
-				// if none found, try to create a default config
-				if ret.is_none() {
-					for path in paths.into_iter() {
-						if OpenOptions::new()
-							.write(true)
-							.create_new(true)
-							.open(path.clone())
-							.is_ok()
-						{
-							fs::write(path.clone(), DEFAULT_SETTINGS_CONTENT.trim())?;
+		// show banner
+		banner::show(settings.env, settings.is_indexer, settings.is_server)?;
 
-							ret = Some(path);
-							break;
-						}
-					}
-				}
+		// set driver for db
+		let test_scheme = settings.database.split(':').next().unwrap_or_default();
+		if let Ok(driver) = DatabaseDriver::from_str(test_scheme) {
+			settings.database_driver = driver;
+		} else {
+			return Err(AppError::Config { config: "database", error: "invalid URL scheme" }.into());
+		}
 
-				// if still nothing, we failed
-				if ret.is_none() {
-					quit(AppError::DefaultConfigFile);
+		// test db database name
+		match settings.database_driver {
+			DatabaseDriver::PostgreSQL | DatabaseDriver::MySQL
+				if !utils::has_pathname(&settings.database) =>
+			{
+				return Err(AppError::Config {
+					config: "database",
+					error: "missing database name in the URL",
 				}
+				.into());
 			}
+			_ => {}
+		}
 
-			ret.unwrap()
+		// test db url
+		if Url::parse(&settings.database).is_err() {
+			return Err(
+				AppError::Config { config: "database", error: "could not parse URL" }.into()
+			);
+		}
+
+		// test warehouse database name
+		match settings.warehouse_driver {
+			WarehouseDriver::Clickhouse if !utils::has_pathname(&settings.warehouse) => {
+				return Err(AppError::Config {
+					config: "warehouse",
+					error: "missing database name in the URL",
+				}
+				.into());
+			}
+			_ => {}
+		}
+
+		// test warehouse url
+		if Url::parse(&settings.warehouse).is_err() {
+			return Err(
+				AppError::Config { config: "warehouse", error: "could not parse URL" }.into()
+			);
+		}
+
+		// check if cache is cool with provided path
+		if fs::create_dir_all(&settings.indexer_cache_dir).is_err() ||
+			!Cache::is_path_valid(CacheDriver::RocksDB, &settings.indexer_cache_dir)?
+		{
+			return Err(AppError::Config {
+				config: "indexer_cache_dir",
+				error: "invalid cache directory",
+			}
+			.into());
+		}
+
+		// parse ipv4
+		let invalid_ipv4 =
+			AppError::Config { config: "http_ipv4", error: "Could not parse IP v4." };
+		settings.ipv4 = if !settings.http_ipv4.is_empty() {
+			Some(IpAddr::V4(settings.http_ipv4.parse().map_err(|_| invalid_ipv4.clone())?))
+		} else {
+			None
 		};
 
-		// builder settings
-		let s = Config::builder()
-			.add_source(File::from(config_path).required(false))
-			.add_source(Environment::with_prefix("BARRELEYE"));
-
-		// try to create a struct
-		let settings: Settings = s.build()?.try_deserialize()?;
-
-		// test: dsn for cache
-		if settings.cache.driver == CacheDriver::RocksDB &&
-			utils::get_db_path(&settings.dsn.rocksdb).is_empty()
-		{
-			quit(AppError::InvalidSetting {
-				key: "dsn.rocksdb".to_string(),
-				value: settings.dsn.rocksdb.clone(),
-			});
+		// both ipv4 and ipv6 cannot be empty
+		if settings.http_ipv4.is_empty() && settings.http_ipv6.is_empty() {
+			return Err(invalid_ipv4.into());
 		}
 
-		// test: dsn for warehouse
-		if settings.warehouse.driver == WarehouseDriver::Clickhouse &&
-			Url::parse(&settings.dsn.clickhouse).is_err()
-		{
-			quit(AppError::InvalidSetting {
-				key: "dsn.clickhouse".to_string(),
-				value: settings.dsn.clickhouse.clone(),
-			});
-		}
-
-		// test: dsn for db
-		let db_url = match settings.db.driver {
-			DatabaseDriver::SQLite => settings.dsn.sqlite.clone(),
-			DatabaseDriver::PostgreSQL => settings.dsn.postgres.clone(),
-			DatabaseDriver::MySQL => settings.dsn.mysql.clone(),
+		// parse ipv6
+		settings.ipv6 = if !settings.http_ipv6.is_empty() {
+			Some(IpAddr::V6(settings.http_ipv6.parse().map_err(|_| AppError::Config {
+				config: "http_ipv6",
+				error: "Could not parse IP v6.",
+			})?))
+		} else {
+			None
 		};
-		if Url::parse(&db_url).is_err() {
-			quit(AppError::InvalidSetting {
-				key: format!("dsn.{}", settings.db.driver),
-				value: db_url,
-			});
+
+		// check that promotion period is not too low
+		if settings.indexer_promotion < INDEXER_HEARTBEAT * 3 {
+			return Err(AppError::Config {
+				config: "indexer_promotion",
+				error: "Indexer promotion is too low. Increase it.",
+			}
+			.into());
 		}
 
-		// test: primary settings
-		if settings.primary_promotion < settings.primary_ping * 3 {
-			quit(AppError::InvalidPrimaryConfigs);
-		}
-
-		Ok(settings)
+		Ok((settings, warnings))
 	}
 }

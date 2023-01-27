@@ -44,11 +44,15 @@ pub mod settings;
 pub mod utils;
 pub mod warehouse;
 
+mod banner;
+
 static EMOJI_SETUP: Emoji<'_, '_> = Emoji("💾  ", "");
 static EMOJI_MIGRATIONS: Emoji<'_, '_> = Emoji("🚐  ", "");
 static EMOJI_NETWORKS: Emoji<'_, '_> = Emoji("📢  ", "");
 static EMOJI_READY: Emoji<'_, '_> = Emoji("🟢  ", "");
 static EMOJI_QUIT: Emoji<'_, '_> = Emoji("🛑  ", "");
+
+pub const INDEXER_HEARTBEAT: u64 = 2;
 
 pub type Warnings = Vec<String>;
 pub type BlockHeight = u64;
@@ -62,10 +66,6 @@ pub struct App {
 	pub cache: Arc<RwLock<Cache>>,
 	db: Arc<Db>,
 	pub warehouse: Arc<Warehouse>,
-	pub env: Env,
-	pub verbosity: Verbosity,
-	pub is_indexer: bool,
-	pub is_server: bool,
 	is_ready: Arc<AtomicBool>,
 	is_primary: Arc<AtomicBool>,
 	connected_at: Arc<RwLock<Option<NaiveDateTime>>>,
@@ -77,10 +77,6 @@ impl App {
 		cache: Arc<RwLock<Cache>>,
 		db: Arc<Db>,
 		warehouse: Arc<Warehouse>,
-		env: Env,
-		verbosity: Verbosity,
-		is_indexer: bool,
-		is_server: bool,
 	) -> Result<Self> {
 		let mut app = App {
 			uuid: utils::new_uuid(),
@@ -89,10 +85,6 @@ impl App {
 			cache,
 			db,
 			warehouse,
-			env,
-			verbosity,
-			is_indexer,
-			is_server,
 			is_ready: Arc::new(AtomicBool::new(false)),
 			is_primary: Arc::new(AtomicBool::new(false)),
 			connected_at: Arc::new(RwLock::new(None)),
@@ -114,7 +106,9 @@ impl App {
 	pub async fn get_networks(&self) -> Result<HashMap<PrimaryId, Arc<BoxedChain>>> {
 		let mut ret = HashMap::new();
 
-		for n in Network::get_all_by_env(self.db(), self.env, Some(false)).await?.into_iter() {
+		for n in
+			Network::get_all_by_env(self.db(), self.settings.env, Some(false)).await?.into_iter()
+		{
 			let network_id = n.network_id;
 			let c = self.cache.clone();
 
@@ -155,7 +149,9 @@ impl App {
 		let m = MultiProgress::new();
 
 		let mut threads = vec![];
-		for n in Network::get_all_by_env(self.db(), self.env, Some(false)).await?.into_iter() {
+		for n in
+			Network::get_all_by_env(self.db(), self.settings.env, Some(false)).await?.into_iter()
+		{
 			let pb = m.add(ProgressBar::new(1_000_000));
 			pb.set_style(spinner_style.clone());
 			pb.set_prefix(n.name.clone());
@@ -219,7 +215,7 @@ impl App {
 	}
 
 	pub async fn get_warnings(&self) -> Result<Warnings> {
-		let mut warnings = vec![];
+		let mut warnings = Warnings::new();
 
 		let networks = self.networks.read().await;
 		if networks.is_empty() {
@@ -229,7 +225,7 @@ impl App {
 				networks
 					.iter()
 					.filter_map(|(_, chain)| {
-						if self.is_indexer && chain.get_network().rps == 0 {
+						if self.settings.is_indexer && chain.get_network().rps == 0 {
 							Some(format!(
 								"{} rpc requests are not rate-limited",
 								chain.get_network().name
@@ -282,8 +278,9 @@ impl App {
 	}
 }
 
-#[derive(Display, Debug, Copy, Clone)]
+#[derive(Display, Default, Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub enum Verbosity {
+	#[default]
 	Silent = 0,
 	Warnings = 1,
 	Info = 2,
@@ -345,15 +342,12 @@ pub enum Blockchain {
 	Evm = 2,
 }
 
-pub fn quit(app_error: AppError) {
+pub fn quit(app_error: AppError) -> ! {
 	println!("{} {}Shutting down…\n\n› {}", style("[err]").bold().dim(), EMOJI_QUIT, app_error,);
 
 	process::exit(match app_error {
 		AppError::SignalHandler | AppError::ServerStartup { .. } => exitcode::OSERR,
-		AppError::MissingConfigFile { .. } |
-		AppError::DefaultConfigFile |
-		AppError::InvalidPrimaryConfigs |
-		AppError::InvalidSetting { .. } => exitcode::CONFIG,
+		AppError::Config { .. } => exitcode::CONFIG,
 		_ => exitcode::UNAVAILABLE,
-	});
+	})
 }

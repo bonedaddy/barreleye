@@ -1,14 +1,13 @@
 use clickhouse::Client as ClickhouseClient;
-use derive_more::Display;
 use eyre::{Result, WrapErr};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 use crate::{utils, Settings};
 
-#[derive(Display, Debug, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Debug, Default, Serialize, Deserialize, Eq, PartialEq)]
 pub enum Driver {
-	#[display(fmt = "Clickhouse")]
+	#[default]
 	#[serde(rename = "clickhouse")]
 	Clickhouse,
 }
@@ -25,7 +24,7 @@ pub struct Warehouse {
 
 impl Warehouse {
 	pub async fn new(settings: Arc<Settings>) -> Result<Self> {
-		let (url_without_database, db_name) = utils::without_pathname(&settings.dsn.clickhouse);
+		let (url_without_database, db_name) = utils::without_pathname(&settings.warehouse);
 
 		// create db if doesn't exist + check that connection is good
 		ClickhouseClient::default()

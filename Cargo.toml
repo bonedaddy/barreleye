@@ -1,6 +1,6 @@
 [package]
 name = "barreleye"
-description = "Open-source blockchain analytics tool."
+description = "Open-source blockchain KYC."
 repository = "https://github.com/barreleye/barreleye"
 documentation = "https://docs.rs/barreleye"
 homepage = "https://barreleye.com"
@@ -22,13 +22,8 @@ log = "0.4.17"
 color-eyre = "0.6.2"
 eyre = "0.6.8"
 chrono = { version = "0.4.23", default-features = false, features = ["clock", "std"] }
-console = "0.15.5"
-regex = "1.7.1"
-clap = { version = "4.1.4", features = ["cargo"] }
 fern = { version = "0.6.1", features = ["colored"] }
 tokio = { version = "1.24.2", features = ["full"] }
-uuid = { version = "1.2.2", features = ["v4", "fast-rng"] }
-reqwest = { version = "0.11.14", features = ["rustls-tls"] }
 
 barreleye-common = { path = "./common", version = "0.0.1" }
 barreleye-indexer = { path = "./indexer", version = "0.0.1" }

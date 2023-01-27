@@ -1,11 +1,26 @@
 use chrono::{offset::Utc, Duration, NaiveDateTime};
+use directories::ProjectDirs;
 use governor::Quota;
 use nanoid::nanoid;
-use std::{num::NonZeroU32, sync::Arc};
+use std::{num::NonZeroU32, path::PathBuf, sync::Arc};
 use url::Url;
 use uuid::Uuid;
 
 use crate::{GovernorRateLimiter, IdPrefix, RateLimiter};
+
+pub fn project_dir(folder: Option<&str>) -> PathBuf {
+	// @TODO will panic on systems with no home directory
+	ProjectDirs::from("com", "barreleye", "barreleye")
+		.map(|d| {
+			let mut ret = PathBuf::from(d.data_dir());
+			if let Some(folder) = folder {
+				ret = ret.join(folder);
+			}
+
+			ret
+		})
+		.unwrap()
+}
 
 pub fn get_rate_limiter(rps: u32) -> Option<Arc<RateLimiter>> {
 	NonZeroU32::new(rps)
@@ -76,6 +91,14 @@ pub fn get_db_path(url: &str) -> String {
 	}
 
 	"".to_string()
+}
+
+pub fn has_pathname(url: &str) -> bool {
+	if let Ok(parsed_url) = Url::parse(url) {
+		!parsed_url.path().to_string().is_empty()
+	} else {
+		false
+	}
 }
 
 #[cfg(test)]

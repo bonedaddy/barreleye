@@ -2,7 +2,7 @@ use console::style;
 use eyre::Result;
 use std::{env, str};
 
-use barreleye_common::Env;
+use crate::Env;
 
 static BANNER_ANSI: &[u8] = &[
 	32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 59, 95, 63, 42, 63, 59, 32, 32, 32, 32,
@@ -758,19 +758,15 @@ static BANNER_TRUECOLOR: &[u8] = &[
 	91, 51, 56, 59, 50, 59, 48, 59, 48, 59, 48, 109, 32, 27, 91, 48, 109,
 ];
 
-pub fn show(env: Env, is_indexer: bool, is_server: bool, skip_ascii: bool) -> Result<()> {
-	let banner = if skip_ascii {
-		"".to_string()
-	} else {
-		format!(
-			"\n{}\n\n",
-			if env::var("COLORTERM").is_ok() {
-				str::from_utf8(BANNER_TRUECOLOR)?
-			} else {
-				str::from_utf8(BANNER_ANSI)?
-			}
-		)
-	};
+pub fn show(env: Env, is_indexer: bool, is_server: bool) -> Result<()> {
+	let banner = format!(
+		"\n{}\n\n",
+		if env::var("COLORTERM").is_ok() {
+			str::from_utf8(BANNER_TRUECOLOR)?
+		} else {
+			str::from_utf8(BANNER_ANSI)?
+		}
+	);
 
 	let name = "Barreleye".to_string();
 	let tags = {
