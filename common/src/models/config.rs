@@ -13,19 +13,19 @@ use crate::{models::PrimaryId, utils, BlockHeight};
 pub enum ConfigKey {
 	#[display(fmt = "primary")]
 	Primary,
-	#[display(fmt = "indexer_tail_sync_n{}", "_0")]
+	#[display(fmt = "indexer_tail_sync_n{_0}")]
 	IndexerTailSync(PrimaryId),
-	#[display(fmt = "indexer_chunk_sync_n{}_b{}", "_0", "_1")]
+	#[display(fmt = "indexer_chunk_sync_n{_0}_b{_1}")]
 	IndexerChunkSync(PrimaryId, BlockHeight),
-	#[display(fmt = "indexer_module_sync_n{}_m{}", "_0", "_1")]
+	#[display(fmt = "indexer_module_sync_n{_0}_m{_1}")]
 	IndexerModuleSync(PrimaryId, u16),
-	#[display(fmt = "indexer_module_synced_n{}_m{}", "_0", "_1")]
+	#[display(fmt = "indexer_module_synced_n{_0}_m{_1}")]
 	IndexerModuleSynced(PrimaryId, u16),
-	#[display(fmt = "indexer_upstream_sync_n{}_a{}", "_0", "_1")]
+	#[display(fmt = "indexer_upstream_sync_n{_0}_a{_1}")]
 	IndexerUpstreamSync(PrimaryId, PrimaryId),
-	#[display(fmt = "indexer_n{}_progress", "_0")]
+	#[display(fmt = "indexer_n{_0}_progress")]
 	IndexerProgress(PrimaryId),
-	#[display(fmt = "block_height_n{}", "_0")]
+	#[display(fmt = "block_height_n{_0}")]
 	BlockHeight(PrimaryId),
 	#[display(fmt = "networks_updated")]
 	NetworksUpdated,
@@ -56,7 +56,7 @@ impl From<String> for ConfigKey {
 			"indexer_n{}_progress" if n.len() == 1 => Self::IndexerProgress(n[0]),
 			"block_height_n{}" if n.len() == 1 => Self::BlockHeight(n[0]),
 			"networks_updated" => Self::NetworksUpdated,
-			_ => panic!("no match in From<String> for ConfigKey: {:?}", s),
+			_ => panic!("no match in From<String> for ConfigKey: {s:?}"),
 		}
 	}
 }

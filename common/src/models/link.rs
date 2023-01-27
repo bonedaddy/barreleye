@@ -146,10 +146,7 @@ impl Model {
 						.collect::<Vec<String>>()
 						.join(",");
 
-					format!(
-						"(network_id = {} AND from_address IN ({}))",
-						network_id, escaped_addresses
-					)
+					format!("(network_id = {network_id} AND from_address IN ({escaped_addresses}))")
 				})
 				.collect::<Vec<String>>()
 				.join(" OR ");

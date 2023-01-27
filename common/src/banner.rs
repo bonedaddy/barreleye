@@ -789,7 +789,7 @@ pub fn show(env: Env, is_indexer: bool, is_server: bool) -> Result<()> {
 		if tags.is_empty() {
 			tags
 		} else {
-			format!(" [{}]", tags)
+			format!(" [{tags}]")
 		}
 	};
 

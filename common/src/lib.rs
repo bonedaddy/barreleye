@@ -202,7 +202,7 @@ impl App {
 			});
 
 		if !failures.is_empty() {
-			bail!(failures.iter().map(|e| format!("- {}", e)).join("\n"));
+			bail!(failures.iter().map(|e| format!("- {e}")).join("\n"));
 		}
 
 		let mut networks = self.networks.write().await;
