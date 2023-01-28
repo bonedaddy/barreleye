@@ -143,8 +143,8 @@ impl Server {
 
 			match AxumServer::try_bind(&ip_addr) {
 				Err(e) => quit(AppError::ServerStartup {
-					url: &ip_addr.to_string(),
-					error: &e.message().to_string(),
+					url: ip_addr.to_string(),
+					error: e.message().to_string(),
 				}),
 				Ok(server) => {
 					self.app.set_is_ready();
@@ -160,12 +160,12 @@ impl Server {
 
 			match (AddrIncoming::bind(&ipv4), AddrIncoming::bind(&ipv6)) {
 				(Err(e), _) => quit(AppError::ServerStartup {
-					url: &ipv4.to_string(),
-					error: &e.message().to_string(),
+					url: ipv4.to_string(),
+					error: e.message().to_string(),
 				}),
 				(_, Err(e)) => quit(AppError::ServerStartup {
-					url: &ipv6.to_string(),
-					error: &e.message().to_string(),
+					url: ipv6.to_string(),
+					error: e.message().to_string(),
 				}),
 				(Ok(a), Ok(b)) => {
 					show_progress(&format!("{} & {}", style(ipv4).bold(), style(ipv6).bold()));

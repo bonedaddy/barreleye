@@ -4,13 +4,19 @@ use eyre::Result;
 use num_format::{SystemLocale, ToFormattedString};
 use sea_orm::ColumnTrait;
 use serde_json::Value as JsonValue;
-use std::sync::Arc;
+use std::{
+	collections::{HashMap, HashSet},
+	sync::Arc,
+	time::SystemTime,
+};
 use tokio::{
 	signal,
 	sync::{
 		broadcast,
-		mpsc::{self, Sender},
+		mpsc::{Receiver, Sender},
+		watch,
 	},
+	task::JoinSet,
 	time::{sleep, Duration},
 };
 use uuid::Uuid;
@@ -18,10 +24,10 @@ use uuid::Uuid;
 use barreleye_common::{
 	chain::{ModuleId, WarehouseData},
 	models::{
-		Address, AddressColumn, Amount, Balance, Config, ConfigKey, Link, Network, NetworkColumn,
-		PrimaryId, PrimaryIds, Relation, SoftDeleteModel, Transfer,
+		Address, AddressColumn, Amount, Balance, Config, ConfigKey, Entity, Link, Network,
+		NetworkColumn, PrimaryId, PrimaryIds, Relation, SoftDeleteModel, Transfer,
 	},
-	quit, utils, App, AppError, BlockHeight, Progress, ProgressReadyType, ProgressStep, Verbosity,
+	utils, App, AppError, BlockHeight, Progress, ProgressReadyType, ProgressStep, Verbosity,
 	Warnings, INDEXER_HEARTBEAT,
 };
 
@@ -54,6 +60,7 @@ enum IndexType {
 	Upstream,
 }
 
+#[derive(Clone)]
 pub struct Indexer {
 	app: Arc<App>,
 }
@@ -64,25 +71,45 @@ impl Indexer {
 	}
 
 	pub async fn start(&self, warnings: Warnings, progress: Progress) -> Result<()> {
-		let verbose = self.app.settings.verbosity > Verbosity::Silent;
-
 		if self.app.settings.is_indexer && !self.app.settings.is_server {
 			progress.show(ProgressStep::Ready(ProgressReadyType::Indexer, warnings));
 		}
 
-		let ret = tokio::select! {
-			_ = signal::ctrl_c() => Ok(()),
-			v = self.primary_check() => v,
-			v = self.prune_networks() => v,
-			v = self.index_blocks(verbose) => v,
-			v = self.index_upstream(verbose) => v,
-		};
+		loop {
+			self.prune_data().await?;
 
-		if ret.is_err() {
-			quit(AppError::Indexing { error: &ret.as_ref().unwrap_err().to_string() });
+			let mut set = JoinSet::new();
+			let (tx, rx) = watch::channel(SystemTime::now());
+
+			set.spawn({
+				let s = self.clone();
+				let r = rx.clone();
+				async move { s.index_blocks(r).await }
+			});
+
+			set.spawn({
+				let s = self.clone();
+				let r = rx.clone();
+				async move { s.index_upstream(r).await }
+			});
+
+			let ret = tokio::select! {
+				_ = signal::ctrl_c() => Ok(()),
+				v = self.primary_check() => v,
+				v = self.networks_check(tx) => v,
+				v = async {
+					while let Some(res) = set.join_next().await {
+						let _ = res?;
+					}
+
+					Ok(())
+				} => v,
+			};
+
+			if let Err(err) = ret {
+				return Err(AppError::Indexing { error: err.to_string() }.into());
+			}
 		}
-
-		ret
 	}
 
 	async fn primary_check(&self) -> Result<()> {
@@ -119,7 +146,7 @@ impl Indexer {
 		}
 	}
 
-	async fn prune_networks(&self) -> Result<()> {
+	async fn networks_check(&self, tx: watch::Sender<SystemTime>) -> Result<()> {
 		let mut networks_updated_at =
 			Config::get::<_, u8>(self.app.db(), ConfigKey::NetworksUpdated)
 				.await?
@@ -130,75 +157,107 @@ impl Indexer {
 			match Config::get::<_, u8>(self.app.db(), ConfigKey::NetworksUpdated).await? {
 				Some(value) if value.updated_at != networks_updated_at => {
 					networks_updated_at = value.updated_at;
-
-					let deleted_networks = Network::get_all_deleted(self.app.db()).await?;
-					let network_ids: PrimaryIds = deleted_networks.clone().into();
-
-					// delete all associated configs
-					Config::delete_all_by_keywords(
-						self.app.db(),
-						deleted_networks
-							.clone()
-							.iter()
-							.map(|n| format!("n{}", n.network_id))
-							.collect(),
-					)
-					.await?;
-
-					// delete all addresses
-					Address::prune_all_where(
-						self.app.db(),
-						AddressColumn::NetworkId.is_in(network_ids.clone()),
-					)
-					.await?;
-
-					// delete from warehouse
-					let (
-						transfers_deleted,
-						relations_deleted,
-						balances_deleted,
-						amounts_deleted,
-						links_deleted,
-					) = tokio::join!(
-						Transfer::delete_all_by_network_id(
-							&self.app.warehouse,
-							network_ids.clone()
-						),
-						Relation::delete_all_by_network_id(
-							&self.app.warehouse,
-							network_ids.clone()
-						),
-						Balance::delete_all_by_network_id(&self.app.warehouse, network_ids.clone()),
-						Amount::delete_all_by_network_id(&self.app.warehouse, network_ids.clone()),
-						Link::delete_all_by_network_id(&self.app.warehouse, network_ids.clone()),
-					);
-
-					transfers_deleted
-						.and(relations_deleted)
-						.and(balances_deleted)
-						.and(amounts_deleted)
-						.and(links_deleted)?;
-
-					// finally delete only the networks we grabbed earlier
-					Network::prune_all_where(
-						self.app.db(),
-						NetworkColumn::NetworkId.is_in(network_ids),
-					)
-					.await?;
+					tx.send(SystemTime::now())?;
 				}
 				_ => {}
 			}
 
-			sleep(Duration::from_secs(5)).await;
+			sleep(Duration::from_secs(1)).await;
 		}
 	}
 
-	fn log(&self, index_type: IndexType, message: &str) {
-		println!(
-			"{} {}: {message}",
-			style("Indexer").cyan().bold(),
-			style(format!("({index_type})")).dim()
-		);
+	async fn prune_data(&self) -> Result<()> {
+		// prune all soft-deleted addresses
+		let addresses = Address::get_all_deleted(self.app.db()).await?;
+		if !addresses.is_empty() {
+			// delete all upstream configs
+			Config::delete_many(
+				self.app.db(),
+				addresses
+					.iter()
+					.map(|a| ConfigKey::IndexerUpstreamSync(a.network_id, a.address_id))
+					.collect(),
+			)
+			.await?;
+
+			// delete all addresses
+			Address::prune_all_where(
+				self.app.db(),
+				AddressColumn::AddressId.is_in(Into::<PrimaryIds>::into(addresses.clone())),
+			)
+			.await?;
+
+			// delete links from warehouse
+			let mut sources: HashMap<PrimaryId, HashSet<String>> = HashMap::new();
+			for address in addresses.into_iter() {
+				if let Some(set) = sources.get_mut(&address.network_id) {
+					set.insert(address.address);
+				} else {
+					sources.insert(address.network_id, HashSet::from([address.address]));
+				}
+			}
+			Link::delete_all_by_sources(&self.app.warehouse, sources).await?;
+		}
+
+		// prune all soft-deleted entities
+		Entity::prune_all(self.app.db()).await?;
+
+		// prune all soft-deleted networks
+		let deleted_networks = Network::get_all_deleted(self.app.db()).await?;
+		if !deleted_networks.is_empty() {
+			let network_ids: PrimaryIds = deleted_networks.clone().into();
+
+			// delete all associated configs
+			Config::delete_all_by_keywords(
+				self.app.db(),
+				deleted_networks.clone().iter().map(|n| format!("n{}", n.network_id)).collect(),
+			)
+			.await?;
+
+			// delete all addresses
+			Address::prune_all_where(
+				self.app.db(),
+				AddressColumn::NetworkId.is_in(network_ids.clone()),
+			)
+			.await?;
+
+			// delete from warehouse
+			let (
+				transfers_deleted,
+				relations_deleted,
+				balances_deleted,
+				amounts_deleted,
+				links_deleted,
+			) = tokio::join!(
+				Transfer::delete_all_by_network_id(&self.app.warehouse, network_ids.clone()),
+				Relation::delete_all_by_network_id(&self.app.warehouse, network_ids.clone()),
+				Balance::delete_all_by_network_id(&self.app.warehouse, network_ids.clone()),
+				Amount::delete_all_by_network_id(&self.app.warehouse, network_ids.clone()),
+				Link::delete_all_by_network_id(&self.app.warehouse, network_ids.clone()),
+			);
+
+			transfers_deleted
+				.and(relations_deleted)
+				.and(balances_deleted)
+				.and(amounts_deleted)
+				.and(links_deleted)?;
+
+			// finally delete only the networks we grabbed earlier
+			Network::prune_all_where(self.app.db(), NetworkColumn::NetworkId.is_in(network_ids))
+				.await?;
+		}
+
+		Ok(())
+	}
+
+	fn log(&self, index_type: IndexType, detailed: bool, message: &str) {
+		if self.app.settings.verbosity > Verbosity::Silent || !detailed {
+			println!(
+				"{} {}: {message}",
+				style("Indexer").cyan().bold(),
+				style(format!("({index_type})")).dim()
+			);
+		}
 	}
 
 	fn format_number(&self, n: usize) -> Result<String> {
@@ -210,7 +269,7 @@ impl Indexer {
 pub struct Pipe {
 	config_key: ConfigKey,
 	sender: Sender<(ConfigKey, JsonValue, WarehouseData)>,
-	receipt: mpsc::Receiver<()>,
+	receipt: Receiver<()>,
 	pub abort: broadcast::Receiver<()>,
 }
 
@@ -218,7 +277,7 @@ impl Pipe {
 	pub fn new(
 		config_key: ConfigKey,
 		sender: Sender<(ConfigKey, JsonValue, WarehouseData)>,
-		receipt: mpsc::Receiver<()>,
+		receipt: Receiver<()>,
 		abort: broadcast::Receiver<()>,
 	) -> Self {
 		Self { config_key, sender, receipt, abort }

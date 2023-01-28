@@ -15,10 +15,9 @@ async fn main() -> Result<()> {
 	log::setup()?;
 
 	let (raw_settings, mut warnings) = Settings::new().unwrap_or_else(|e| {
-		let error = &e.to_string();
 		quit(match e.downcast_ref::<AppError>() {
 			Some(app_error) => app_error.clone(),
-			None => AppError::Unexpected { error },
+			None => AppError::Unexpected { error: e.to_string() },
 		})
 	});
 
@@ -30,11 +29,11 @@ async fn main() -> Result<()> {
 	let cache = Arc::new(RwLock::new(Cache::new(settings.clone()).await?));
 
 	let warehouse = Arc::new(Warehouse::new(settings.clone()).await.unwrap_or_else(|url| {
-		quit(AppError::WarehouseConnection { url: &url.to_string() });
+		quit(AppError::WarehouseConnection { url: url.to_string() });
 	}));
 
 	let db = Arc::new(Db::new(settings.clone()).await.unwrap_or_else(|url| {
-		quit(AppError::DatabaseConnection { url: &url.to_string() });
+		quit(AppError::DatabaseConnection { url: url.to_string() });
 	}));
 
 	progress.show(ProgressStep::Migrations);
@@ -54,7 +53,7 @@ async fn main() -> Result<()> {
 	if settings.is_indexer {
 		progress.show(ProgressStep::Networks);
 		if let Err(e) = app.connect_networks(false).await {
-			quit(AppError::Network { error: &e.to_string() });
+			quit(AppError::Network { error: e.to_string() });
 		}
 
 		set.spawn({
@@ -85,7 +84,12 @@ async fn main() -> Result<()> {
 	}
 
 	while let Some(res) = set.join_next().await {
-		let _ = res?;
+		if let Err(e) = res? {
+			quit(match e.downcast_ref::<AppError>() {
+				Some(app_error) => app_error.clone(),
+				None => AppError::Unexpected { error: e.to_string() },
+			});
+		}
 	}
 
 	Ok(())

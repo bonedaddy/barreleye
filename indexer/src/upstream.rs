@@ -1,22 +1,20 @@
 use console::style;
 use eyre::{ErrReport, Result};
-use sea_orm::ColumnTrait;
 use std::{
 	cmp,
 	collections::{HashMap, HashSet},
+	time::SystemTime,
 };
 use tokio::{
+	sync::watch::Receiver,
 	task::JoinSet,
 	time::{sleep, Duration},
 };
 
-use crate::{IndexType, Indexer, PrimaryIds};
+use crate::{IndexType, Indexer};
 use barreleye_common::{
 	chain::WarehouseData,
-	models::{
-		Address, AddressColumn, Config, ConfigKey, Entity, Link, LinkUuid, Network, PrimaryId,
-		SoftDeleteModel, Transfer,
-	},
+	models::{Address, Config, ConfigKey, Link, LinkUuid, Network, PrimaryId, Transfer},
 	BlockHeight,
 };
 
@@ -55,15 +53,15 @@ impl IndexedLinks {
 }
 
 impl Indexer {
-	pub async fn index_upstream(&self, verbose: bool) -> Result<()> {
+	pub async fn index_upstream(&self, mut networks_updated: Receiver<SystemTime>) -> Result<()> {
 		let mut warehouse_data = WarehouseData::new();
 		let mut config_key_map = HashMap::<ConfigKey, BlockHeight>::new();
 		let mut started_indexing = false;
 
-		loop {
+		'indexing: loop {
 			if !self.app.is_leading() {
 				if started_indexing {
-					self.log(IndexType::Upstream, "Stopping…");
+					self.log(IndexType::Upstream, false, "Stopping…");
 				}
 
 				started_indexing = false;
@@ -73,11 +71,8 @@ impl Indexer {
 
 			if !started_indexing {
 				started_indexing = true;
-				self.log(IndexType::Upstream, "Starting…");
+				self.log(IndexType::Upstream, false, "Starting…");
 			}
-
-			// remove all soft-deleted records
-			self.prune_upstream().await?;
 
 			// get all networks that are not syncing in chunks
 			let mut networks = vec![];
@@ -121,7 +116,7 @@ impl Indexer {
 					.collect::<HashMap<PrimaryId, BlockHeight>>()
 			};
 			if block_height_map.is_empty() {
-				self.log(IndexType::Upstream, "No fully-synced active networks. Waiting…");
+				self.log(IndexType::Upstream, false, "No fully-synced active networks. Waiting…");
 				sleep(Duration::from_secs(5)).await;
 				continue;
 			}
@@ -134,16 +129,19 @@ impl Indexer {
 			)
 			.await?;
 			if addresses.is_empty() {
-				self.log(IndexType::Upstream, "Nothing to do (no addresses)");
+				self.log(IndexType::Upstream, false, "Nothing to do (no addresses)");
 				sleep(Duration::from_secs(5)).await;
 				continue;
 			}
+
+			// marker to test whether we're all caught up
+			let mut is_at_the_tip = true;
 
 			// process a chunk of blocks per address
 			let mut futures = JoinSet::new();
 			for address in addresses.into_iter() {
 				let network_id = address.network_id;
-				let max_block_height = block_height_map[&network_id];
+				let latest_block_height = block_height_map[&network_id];
 
 				// get latest block for this address:
 				// 1. if in cache -> get it from there
@@ -163,7 +161,7 @@ impl Indexer {
 									&address.address,
 								)
 								.await?
-								.map_or_else(|| max_block_height, |t| t.block_height - 1),
+								.map_or_else(|| latest_block_height, |t| t.block_height - 1),
 							};
 
 						config_key_map.insert(config_key, block_height);
@@ -172,12 +170,17 @@ impl Indexer {
 				};
 
 				// process a new block range if we're not at the tip
-				if block_height < max_block_height {
+				if block_height < latest_block_height {
+					let warehouse = self.app.warehouse.clone();
+					let min_block_height = block_height + 1;
+					let max_block_height =
+						cmp::min(block_height + BLOCKS_PER_LOOP, latest_block_height);
+
+					if max_block_height != latest_block_height {
+						is_at_the_tip = false;
+					}
+
 					futures.spawn({
-						let warehouse = self.app.warehouse.clone();
-						let min_block_height = block_height + 1;
-						let max_block_height =
-							cmp::min(block_height + BLOCKS_PER_LOOP, max_block_height);
 						let uncommitted_links = warehouse_data
 							.clone()
 							.links
@@ -265,31 +268,39 @@ impl Indexer {
 				}
 			}
 
-			// if no new blocks or addresses to scan, give it a break before restarting
-			let should_pause = futures.is_empty();
-
 			// collect results
-			while let Some(res) = futures.join_next().await {
-				if let Ok((config_key, block_height, new_warehouse_data)) = res? {
-					warehouse_data += new_warehouse_data;
-					config_key_map.insert(config_key, block_height);
+			loop {
+				tokio::select! {
+					_ = networks_updated.changed() => {
+						self.log(IndexType::Upstream, true, "Restarting… (networks updated)");
+						break 'indexing Ok(());
+					}
+					result = futures.join_next() => {
+						if let Some(res) = result {
+							if let Ok((config_key, block_height, new_warehouse_data)) = res? {
+								warehouse_data += new_warehouse_data;
+								config_key_map.insert(config_key, block_height);
+							}
+						} else {
+							break;
+						}
+					}
 				}
 			}
 
 			// commit if collected enough
-			if warehouse_data.should_commit() && self.app.is_leading() {
-				if verbose {
-					self.log(
-						IndexType::Upstream,
-						&format!(
-							"Pushing {} record(s) to warehouse",
-							style(self.format_number(warehouse_data.len())?).bold(),
-						),
-					);
-				}
+			if warehouse_data.should_commit(is_at_the_tip) && self.app.is_leading() {
+				self.log(
+					IndexType::Upstream,
+					true,
+					&format!(
+						"Pushing {} record(s) to warehouse",
+						style(self.format_number(warehouse_data.len())?).bold(),
+					),
+				);
 
 				// push to warehouse
-				warehouse_data.commit(&self.app.warehouse).await?;
+				warehouse_data.commit(self.app.warehouse.clone()).await?;
 
 				// commit config marker updates
 				Config::set_many::<_, BlockHeight>(self.app.db(), config_key_map.clone()).await?;
@@ -297,48 +308,9 @@ impl Indexer {
 			}
 
 			// if no threads ever started, pause
-			if should_pause {
+			if is_at_the_tip {
 				sleep(Duration::from_secs(1)).await;
 			}
 		}
-	}
-
-	async fn prune_upstream(&self) -> Result<()> {
-		// get all deleted addresses
-		let addresses = Address::get_all_deleted(self.app.db()).await?;
-		if !addresses.is_empty() {
-			// delete all upstream configs
-			Config::delete_many(
-				self.app.db(),
-				addresses
-					.iter()
-					.map(|a| ConfigKey::IndexerUpstreamSync(a.network_id, a.address_id))
-					.collect(),
-			)
-			.await?;
-
-			// delete all addresses
-			Address::prune_all_where(
-				self.app.db(),
-				AddressColumn::AddressId.is_in(Into::<PrimaryIds>::into(addresses.clone())),
-			)
-			.await?;
-
-			// prune warehouse
-			let mut sources: HashMap<PrimaryId, HashSet<String>> = HashMap::new();
-			for address in addresses.into_iter() {
-				if let Some(set) = sources.get_mut(&address.network_id) {
-					set.insert(address.address);
-				} else {
-					sources.insert(address.network_id, HashSet::from([address.address]));
-				}
-			}
-			Link::delete_all_by_sources(&self.app.warehouse, sources).await?;
-		}
-
-		// prune all entities
-		Entity::prune_all(self.app.db()).await?;
-
-		Ok(())
 	}
 }

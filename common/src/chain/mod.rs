@@ -3,6 +3,7 @@ use chrono::NaiveDateTime;
 use derive_more::Display;
 use eyre::Result;
 use std::{collections::HashSet, ops::AddAssign, sync::Arc};
+use tokio::task::JoinSet;
 
 pub use crate::chain::bitcoin::Bitcoin;
 use crate::{
@@ -88,30 +89,53 @@ impl WarehouseData {
 		self.len() == 0
 	}
 
-	pub fn should_commit(&self) -> bool {
-		utils::ago_in_seconds(10) > self.saved_at && !self.is_empty() ||
-			utils::ago_in_seconds(1) > self.saved_at && self.len() > 10_000
+	pub fn should_commit(&self, force: bool) -> bool {
+		let (min_secs, max_secs) = (1, 10);
+
+		let manually_required = force && !self.is_empty();
+		let lengthy_break = utils::ago_in_seconds(max_secs) > self.saved_at && !self.is_empty();
+		let buffer_is_full = utils::ago_in_seconds(min_secs) > self.saved_at && self.len() > 50_000;
+
+		manually_required || lengthy_break || buffer_is_full
 	}
 
-	pub async fn commit(&mut self, warehouse: &Warehouse) -> Result<()> {
+	pub async fn commit(&mut self, warehouse: Arc<Warehouse>) -> Result<()> {
+		let mut set = JoinSet::new();
+
 		if !self.transfers.is_empty() {
-			Transfer::create_many(warehouse, self.transfers.clone().into_iter().collect()).await?;
+			set.spawn({
+				let w = warehouse.clone();
+				let t = self.transfers.clone().into_iter().collect();
+				async move { Transfer::create_many(&w, t).await }
+			});
 		}
-
 		if !self.amounts.is_empty() {
-			Amount::create_many(warehouse, self.amounts.clone().into_iter().collect()).await?;
+			set.spawn({
+				let w = warehouse.clone();
+				let a = self.amounts.clone().into_iter().collect();
+				async move { Amount::create_many(&w, a).await }
+			});
 		}
-
 		if !self.relations.is_empty() {
-			Relation::create_many(warehouse, self.relations.clone().into_iter().collect()).await?;
+			set.spawn({
+				let w = warehouse.clone();
+				let r = self.relations.clone().into_iter().collect();
+				async move { Relation::create_many(&w, r).await }
+			});
+		}
+		if !self.links.is_empty() {
+			set.spawn({
+				let w = warehouse.clone();
+				let l = self.links.clone().into_iter().collect();
+				async move { Link::create_many(&w, l).await }
+			});
 		}
 
-		if !self.links.is_empty() {
-			Link::create_many(warehouse, self.links.clone().into_iter().collect()).await?;
+		while let Some(res) = set.join_next().await {
+			let _ = res?;
 		}
 
 		self.clear();
-
 		Ok(())
 	}
 

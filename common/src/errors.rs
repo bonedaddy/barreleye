@@ -9,22 +9,22 @@ pub enum AppError<'a> {
 	Config { config: &'a str, error: &'a str },
 
 	#[display(fmt = "Could not start server @ `{url}`: {error}")]
-	ServerStartup { url: &'a str, error: &'a str },
+	ServerStartup { url: String, error: String },
 
 	#[display(
 		fmt = "Barreleye requires Clickhouse to run. Provide the connection URL with \"--warehouse=<URL>\". Could not connect to warehouse @ `{url}`"
 	)]
-	WarehouseConnection { url: &'a str },
+	WarehouseConnection { url: String },
 
 	#[display(fmt = "Could not connect to database @ `{url}`")]
-	DatabaseConnection { url: &'a str },
+	DatabaseConnection { url: String },
 
 	#[display(fmt = "Could not complete network setup:\n{error}")]
-	Network { error: &'a str },
+	Network { error: String },
 
 	#[display(fmt = "Indexing failed: {error}")]
-	Indexing { error: &'a str },
+	Indexing { error: String },
 
 	#[display(fmt = "Unexpected error: {error}")]
-	Unexpected { error: &'a str },
+	Unexpected { error: String },
 }

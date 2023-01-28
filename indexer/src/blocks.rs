@@ -7,9 +7,10 @@ use std::{
 		atomic::{AtomicBool, Ordering},
 		Arc,
 	},
+	time::SystemTime,
 };
 use tokio::{
-	sync::{broadcast, mpsc, mpsc::Sender},
+	sync::{broadcast, mpsc, mpsc::Sender, watch::Receiver},
 	task::JoinSet,
 	time::{sleep, Duration},
 };
@@ -18,11 +19,11 @@ use crate::{IndexType, Indexer, NetworkParams, Pipe};
 use barreleye_common::{
 	chain::WarehouseData,
 	models::{Config, ConfigKey},
-	utils, BlockHeight,
+	BlockHeight,
 };
 
 impl Indexer {
-	pub async fn index_blocks(&self, verbose: bool) -> Result<()> {
+	pub async fn index_blocks(&self, mut networks_updated: Receiver<SystemTime>) -> Result<()> {
 		let mut warehouse_data = WarehouseData::new();
 		let mut config_key_map = HashMap::<ConfigKey, serde_json::Value>::new();
 		let mut started_indexing = false;
@@ -30,7 +31,7 @@ impl Indexer {
 		'indexing: loop {
 			if !self.app.is_leading() {
 				if started_indexing {
-					self.log(IndexType::Blocks, "Stopping…");
+					self.log(IndexType::Blocks, false, "Stopping…");
 				}
 
 				started_indexing = false;
@@ -40,7 +41,7 @@ impl Indexer {
 
 			if !started_indexing {
 				started_indexing = true;
-				self.log(IndexType::Blocks, "Starting…");
+				self.log(IndexType::Blocks, false, "Starting…");
 			}
 
 			if self.app.should_reconnect().await? {
@@ -48,7 +49,7 @@ impl Indexer {
 			}
 
 			if self.app.networks.read().await.is_empty() {
-				self.log(IndexType::Blocks, "No active networks. Standing by…");
+				self.log(IndexType::Blocks, false, "No active networks. Standing by…");
 				sleep(Duration::from_secs(5)).await;
 				continue;
 			}
@@ -222,15 +223,11 @@ impl Indexer {
 			let mut receipts = HashMap::<ConfigKey, Sender<()>>::new();
 
 			let thread_count = network_params_map.len();
-			if verbose {
-				self.log(
-					IndexType::Blocks,
-					&format!(
-						"Launching {} thread(s)",
-						style(self.format_number(thread_count)?).bold(),
-					),
-				);
-			}
+			self.log(
+				IndexType::Blocks,
+				true,
+				&format!("Launching {} thread(s)", style(self.format_number(thread_count)?).bold(),),
+			);
 
 			let mut futures = JoinSet::new();
 			for (config_key, network_params) in network_params_map.clone().into_iter() {
@@ -343,36 +340,19 @@ impl Indexer {
 			// drop the original non-cloned
 			drop(pipe_sender);
 
-			// vars to keep network in sync
-			let networks_updated_at =
-				Config::get::<_, u8>(self.app.db(), ConfigKey::NetworksUpdated)
-					.await?
-					.map(|v| v.updated_at)
-					.unwrap_or_else(utils::now);
-
+			// process thread returns + their outputs
 			let abort = || -> Result<()> {
 				should_keep_going.store(false, Ordering::SeqCst);
 				abort_sender.send(())?;
 				Ok(())
 			};
-
-			// process thread returns + their outputs
 			loop {
 				tokio::select! {
-					_ = sleep(Duration::from_secs(1)) => {
-						if let Some(value) =
-							Config::get::<_, u8>(self.app.db(), ConfigKey::NetworksUpdated)
-								.await?
-						{
-							if value.updated_at != networks_updated_at {
-								if verbose {
-									self.log(IndexType::Blocks, "Restarting… (networks updated)");
-								}
+					_ = networks_updated.changed() => {
+						self.log(IndexType::Blocks, true, "Restarting… (networks updated)");
 
-								abort()?;
-								break;
-							}
-						}
+						abort()?;
+						break 'indexing Ok(());
 					}
 					result = futures.join_next() => {
 						if let Some(task_result) = result {
@@ -389,13 +369,11 @@ impl Indexer {
 							break;
 						}
 
-						if verbose {
-							self.log(IndexType::Blocks, &format!(
+							self.log(IndexType::Blocks, true, &format!(
 								"Thread {} returned {} record(s)",
 								style(config_key).bold(),
 								self.format_number(new_data.len())?,
 							));
-						}
 
 						// update results
 						warehouse_data += new_data;
@@ -407,18 +385,22 @@ impl Indexer {
 						}
 
 						// batch save in warehouse
-						if warehouse_data.should_commit() {
+						//
+						// @NOTE no manual commit because it's hard to figure out
+						// which blockchain is at the tip at this point in code
+						//
+						// but that's still ok because commits will happen either when
+						// buffer fills up or enough time has passed
+						if warehouse_data.should_commit(false) {
 							let mut updated_network_ids = HashSet::new();
 
-							if verbose {
-								self.log(IndexType::Blocks, &format!(
+								self.log(IndexType::Blocks, true, &format!(
 									"Pushing {} record(s) to warehouse",
 									style(self.format_number(warehouse_data.len())?).bold(),
 								));
-							}
 
 							// push to warehouse
-							warehouse_data.commit(&self.app.warehouse).await?;
+							warehouse_data.commit(self.app.warehouse.clone()).await?;
 
 							// commit config marker updates
 							for (config_key, config_value) in config_key_map.iter() {
@@ -564,7 +546,7 @@ impl Indexer {
 								)
 								.await?;
 
-								self.log(IndexType::Blocks, &format!(
+								self.log(IndexType::Blocks, false, &format!(
 									"{} @ {:.4}%…",
 									style(chain.get_network().name).bold(),
 									progress * 100.0,
