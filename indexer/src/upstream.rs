@@ -250,20 +250,23 @@ impl Indexer {
 													prev_link.transfer_uuids.clone();
 												transfer_uuids.push(LinkUuid(transfer.uuid));
 
-												let link = Link::new(
-													address.network_id,
-													transfer.block_height,
-													&prev_link.from_address,
-													&transfer.to_address,
-													transfer_uuids,
-													transfer.created_at,
-												);
+												// avoid loopbacks
+												if prev_link.from_address != transfer.to_address {
+													let link = Link::new(
+														address.network_id,
+														transfer.block_height,
+														&prev_link.from_address,
+														&transfer.to_address,
+														transfer_uuids,
+														transfer.created_at,
+													);
 
-												ret.links.insert(link.clone());
-												new_links.push(link);
+													ret.links.insert(link.clone());
+													new_links.push(link);
+												}
 											}
 										}
-									} else {
+									} else if transfer.from_address != transfer.to_address {
 										// start a new branch
 										let link = Link::new(
 											address.network_id,
