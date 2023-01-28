@@ -4,7 +4,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use crate::{errors::ServerError, ServerResult};
 use barreleye_common::{
-	models::{Address, BasicModel, Entity, Network, SoftDeleteModel},
+	models::{Address, BasicModel, Config, ConfigKey, Entity, Network, PrimaryId, SoftDeleteModel},
 	App,
 };
 
@@ -79,6 +79,22 @@ pub async fn handler(
 				)
 			})
 			.collect(),
+	)
+	.await?;
+
+	// tell upstream indexer about newly created addresses
+	Config::set_many::<_, PrimaryId>(
+		app.db(),
+		Address::get_all_by_network_id_and_addresses(
+			app.db(),
+			network.network_id,
+			payload.addresses.clone().into_keys().collect(),
+			Some(false),
+		)
+		.await?
+		.into_iter()
+		.map(|a| (ConfigKey::NewlyAddedAddress(a.network_id, a.address_id), a.address_id))
+		.collect::<HashMap<ConfigKey, PrimaryId>>(),
 	)
 	.await?;
 

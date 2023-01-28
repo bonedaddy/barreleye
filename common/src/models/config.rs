@@ -29,6 +29,8 @@ pub enum ConfigKey {
 	BlockHeight(PrimaryId),
 	#[display(fmt = "networks_updated")]
 	NetworksUpdated,
+	#[display(fmt = "newly_added_address_n{_0}_a{_1}")]
+	NewlyAddedAddress(PrimaryId, PrimaryId),
 }
 
 impl From<String> for ConfigKey {
@@ -56,6 +58,7 @@ impl From<String> for ConfigKey {
 			"indexer_n{}_progress" if n.len() == 1 => Self::IndexerProgress(n[0]),
 			"block_height_n{}" if n.len() == 1 => Self::BlockHeight(n[0]),
 			"networks_updated" => Self::NetworksUpdated,
+			"newly_added_address_n{}_a{}" if n.len() == 2 => Self::NewlyAddedAddress(n[0], n[1]),
 			_ => panic!("no match in From<String> for ConfigKey: {s:?}"),
 		}
 	}
@@ -73,9 +76,11 @@ mod tests {
 			(ConfigKey::IndexerChunkSync(123, 456), "indexer_chunk_sync_n123_b456"),
 			(ConfigKey::IndexerModuleSync(123, 456), "indexer_module_sync_n123_m456"),
 			(ConfigKey::IndexerModuleSynced(123, 456), "indexer_module_synced_n123_m456"),
+			(ConfigKey::IndexerUpstreamSync(123, 456), "indexer_upstream_sync_n123_a456"),
 			(ConfigKey::IndexerProgress(123), "indexer_n123_progress"),
 			(ConfigKey::BlockHeight(123), "block_height_n123"),
 			(ConfigKey::NetworksUpdated, "networks_updated"),
+			(ConfigKey::NewlyAddedAddress(123, 456), "newly_added_address_n123_a456"),
 		]);
 
 		for (config_key, config_key_str) in config_keys.into_iter() {
@@ -227,16 +232,16 @@ impl Model {
 			.collect())
 	}
 
-	pub async fn get_many_by_keyword<C, T>(
+	pub async fn get_many_by_keywords<C, T>(
 		c: &C,
-		keyword: &str,
+		keywords: Vec<String>,
 	) -> Result<HashMap<ConfigKey, Value<T>>>
 	where
 		C: ConnectionTrait,
 		T: for<'a> Deserialize<'a>,
 	{
 		Ok(Entity::find()
-			.filter(Self::get_keyword_conditions(vec![keyword.to_string()]))
+			.filter(Self::get_keyword_conditions(keywords))
 			.all(c)
 			.await?
 			.into_iter()

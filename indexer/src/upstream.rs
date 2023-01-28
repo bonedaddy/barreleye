@@ -1,5 +1,6 @@
 use console::style;
 use eyre::{ErrReport, Result};
+use sea_orm::{ColumnTrait, Condition};
 use std::{
 	cmp,
 	collections::{HashMap, HashSet},
@@ -14,7 +15,10 @@ use tokio::{
 use crate::{IndexType, Indexer};
 use barreleye_common::{
 	chain::WarehouseData,
-	models::{Address, Config, ConfigKey, Link, LinkUuid, Network, PrimaryId, Transfer},
+	models::{
+		Address, AddressColumn, BasicModel, Config, ConfigKey, Link, LinkUuid, Network, PrimaryId,
+		PrimaryIds, Transfer,
+	},
 	BlockHeight,
 };
 
@@ -121,13 +125,14 @@ impl Indexer {
 				continue;
 			}
 
+			// break the link chains that contain newly added addresses in the middle
+			let network_ids: PrimaryIds =
+				block_height_map.clone().into_keys().collect::<Vec<PrimaryId>>().into();
+			self.break_in_new_addresses(network_ids.clone()).await?;
+
 			// fetch all addresses
-			let addresses = Address::get_all_by_network_ids(
-				self.app.db(),
-				block_height_map.clone().into_keys().collect::<Vec<PrimaryId>>().into(),
-				Some(false),
-			)
-			.await?;
+			let addresses =
+				Address::get_all_by_network_ids(self.app.db(), network_ids, Some(false)).await?;
 			if addresses.is_empty() {
 				self.log(IndexType::Upstream, false, "Nothing to do (no addresses)");
 				sleep(Duration::from_secs(5)).await;
@@ -312,5 +317,49 @@ impl Indexer {
 				sleep(Duration::from_secs(1)).await;
 			}
 		}
+	}
+
+	async fn break_in_new_addresses(&self, network_ids: PrimaryIds) -> Result<()> {
+		// get all newly added addresses for the provided networks
+		let address_ids = Config::get_many_by_keywords::<_, PrimaryId>(
+			self.app.db(),
+			vec![format!("added_address")],
+		)
+		.await?
+		.into_values()
+		.map(|h| h.value)
+		.collect::<Vec<PrimaryId>>();
+		if !address_ids.is_empty() {
+			let newly_added_addresses = Address::get_all_where(
+				self.app.db(),
+				Condition::all()
+					.add(AddressColumn::NetworkId.is_in(network_ids))
+					.add(AddressColumn::AddressId.is_in(address_ids)),
+			)
+			.await?;
+
+			// delete all links that contain newly added entity addresses in the middle
+			let mut address_map: HashMap<PrimaryId, HashSet<String>> = HashMap::new();
+			for address in newly_added_addresses.clone().into_iter() {
+				if let Some(set) = address_map.get_mut(&address.network_id) {
+					set.insert(address.address);
+				} else {
+					address_map.insert(address.network_id, HashSet::from([address.address]));
+				}
+			}
+			Link::delete_all_by_newly_added_addresses(&self.app.warehouse, address_map).await?;
+
+			// delete configs for the newly added addresses
+			Config::delete_many(
+				self.app.db(),
+				newly_added_addresses
+					.iter()
+					.map(|a| ConfigKey::NewlyAddedAddress(a.network_id, a.address_id))
+					.collect(),
+			)
+			.await?;
+		}
+
+		Ok(())
 	}
 }

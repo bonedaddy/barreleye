@@ -132,7 +132,7 @@ impl WarehouseData {
 		}
 
 		while let Some(res) = set.join_next().await {
-			let _ = res?;
+			res??;
 		}
 
 		self.clear();

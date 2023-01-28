@@ -94,12 +94,14 @@ impl Indexer {
 			});
 
 			let ret = tokio::select! {
-				_ = signal::ctrl_c() => Ok(()),
+				_ = signal::ctrl_c() => {
+					break Ok(())
+				},
 				v = self.primary_check() => v,
 				v = self.networks_check(tx) => v,
 				v = async {
 					while let Some(res) = set.join_next().await {
-						let _ = res?;
+						res??;
 					}
 
 					Ok(())
