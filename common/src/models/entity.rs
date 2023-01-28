@@ -23,6 +23,7 @@ pub struct Model {
 	#[sea_orm(nullable)]
 	pub name: Option<String>,
 	pub description: String,
+	pub url: String,
 	#[serde(skip_serializing)]
 	pub is_deleted: bool,
 	#[sea_orm(nullable)]
@@ -55,6 +56,7 @@ pub struct JoinedModel {
 	pub id: String,
 	pub name: Option<String>,
 	pub description: String,
+	pub url: String,
 	pub is_deleted: bool,
 	pub updated_at: Option<DateTime>,
 	pub created_at: DateTime,
@@ -68,6 +70,7 @@ impl From<JoinedModel> for Model {
 			id: m.id,
 			name: m.name,
 			description: m.description,
+			url: m.url,
 			is_deleted: m.is_deleted,
 			updated_at: m.updated_at,
 			created_at: m.created_at,
@@ -94,12 +97,19 @@ pub struct SanitizedEntity {
 	pub id: String,
 	pub name: Option<String>,
 	pub description: String,
+	pub url: String,
 	pub tags: Option<Vec<String>>,
 }
 
 impl From<Model> for SanitizedEntity {
 	fn from(m: Model) -> SanitizedEntity {
-		SanitizedEntity { id: m.id, name: m.name, description: m.description, tags: m.tags }
+		SanitizedEntity {
+			id: m.id,
+			name: m.name,
+			description: m.description,
+			url: m.url,
+			tags: m.tags,
+		}
 	}
 }
 
@@ -128,11 +138,12 @@ impl SoftDeleteModel for Model {
 }
 
 impl Model {
-	pub fn new_model(name: Option<String>, description: &str) -> ActiveModel {
+	pub fn new_model(name: Option<String>, description: &str, url: &str) -> ActiveModel {
 		ActiveModel {
 			id: Set(utils::new_unique_id(IdPrefix::Entity)),
 			name: Set(name),
 			description: Set(description.to_string()),
+			url: Set(url.to_string()),
 			is_deleted: Set(false),
 			..Default::default()
 		}

@@ -20,6 +20,8 @@ use barreleye_common::{
 #[serde(rename_all = "camelCase")]
 pub struct Payload {
 	name: Option<Option<String>>,
+	description: Option<String>,
+	url: Option<String>,
 	tags: Option<Vec<String>>,
 }
 
@@ -53,8 +55,12 @@ pub async fn handler(
 		}
 
 		// update entity
-		let update_data =
-			EntityActiveModel { name: optional_set(payload.name), ..Default::default() };
+		let update_data = EntityActiveModel {
+			name: optional_set(payload.name),
+			description: optional_set(payload.description),
+			url: optional_set(payload.url),
+			..Default::default()
+		};
 		if update_data.is_changed() {
 			Entity::update_by_id(app.db(), &entity_id, update_data).await?;
 		}

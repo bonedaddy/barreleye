@@ -14,6 +14,7 @@ use barreleye_common::{
 pub struct Payload {
 	name: Option<String>,
 	description: String,
+	url: String,
 	tags: Option<Vec<String>>,
 }
 
@@ -48,8 +49,11 @@ pub async fn handler(
 	}
 
 	// create new
-	let entity_id =
-		Entity::create(app.db(), Entity::new_model(payload.name, &payload.description)).await?;
+	let entity_id = Entity::create(
+		app.db(),
+		Entity::new_model(payload.name, &payload.description, &payload.url),
+	)
+	.await?;
 
 	// upsert entity/tag mappings
 	if !tag_ids.is_empty() {
