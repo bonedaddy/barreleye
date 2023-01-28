@@ -133,6 +133,10 @@ impl Indexer {
 			// fetch all addresses
 			let addresses =
 				Address::get_all_by_network_ids(self.app.db(), network_ids, Some(false)).await?;
+			let all_entity_addresses = addresses
+				.iter()
+				.map(|a| (a.network_id, a.address.clone()))
+				.collect::<HashSet<(PrimaryId, String)>>();
 			if addresses.is_empty() {
 				self.log(IndexType::Upstream, false, "Nothing to do (no addresses)");
 				sleep(Duration::from_secs(5)).await;
@@ -185,6 +189,18 @@ impl Indexer {
 						is_at_the_tip = false;
 					}
 
+					let network_entity_addresses =
+						all_entity_addresses
+							.iter()
+							.filter_map(|(nid, address)| {
+								if *nid == network_id {
+									Some(address.clone())
+								} else {
+									None
+								}
+							})
+							.collect::<HashSet<String>>();
+
 					futures.spawn({
 						let uncommitted_links = warehouse_data
 							.clone()
@@ -224,26 +240,31 @@ impl Indexer {
 
 									// create new links
 									if let Some(set) = indexed_links.get(&transfer.from_address) {
-										// extending branch
-										for prev_link in set.iter() {
-											let mut transfer_uuids =
-												prev_link.transfer_uuids.clone();
-											transfer_uuids.push(LinkUuid(transfer.uuid));
+										// make sure we don't track past existing entity addresses
+										if !network_entity_addresses
+											.contains(&transfer.from_address)
+										{
+											// extend branch
+											for prev_link in set.iter() {
+												let mut transfer_uuids =
+													prev_link.transfer_uuids.clone();
+												transfer_uuids.push(LinkUuid(transfer.uuid));
 
-											let link = Link::new(
-												address.network_id,
-												transfer.block_height,
-												&prev_link.from_address,
-												&transfer.to_address,
-												transfer_uuids,
-												transfer.created_at,
-											);
+												let link = Link::new(
+													address.network_id,
+													transfer.block_height,
+													&prev_link.from_address,
+													&transfer.to_address,
+													transfer_uuids,
+													transfer.created_at,
+												);
 
-											ret.links.insert(link.clone());
-											new_links.push(link);
+												ret.links.insert(link.clone());
+												new_links.push(link);
+											}
 										}
 									} else {
-										// starting new branch
+										// start a new branch
 										let link = Link::new(
 											address.network_id,
 											transfer.block_height,
