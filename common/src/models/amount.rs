@@ -99,8 +99,8 @@ impl Model {
 			.get()
 			.query(&format!(
 				r#"
-					ALTER {TABLE}
-					DELETE WHERE network_id IN ?
+					SET allow_experimental_lightweight_delete = true;
+					DELETE FROM {TABLE} WHERE network_id IN ?
                 "#
 			))
 			.bind(network_ids.into_iter().collect::<Vec<PrimaryId>>())

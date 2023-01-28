@@ -23,7 +23,7 @@ Barreleye is an open-source, multi-chain blockchain analytics tool. It's goal is
 
 ## Try
 
-Barreleye requires [Clickhouse](https://github.com/ClickHouse/ClickHouse) to run (default configs point to a locally running server):
+Barreleye requires [Clickhouse](https://github.com/ClickHouse/ClickHouse) 22.8+ to run (default configs point to a locally running server):
 
 ### Via package manager
 
@@ -46,6 +46,7 @@ Notes:
 
 - Use `barreleye --help` to see all options
 - Default RDBMS is configured to use [SQLite](https://www.sqlite.org/) ([MySQL](https://www.mysql.com/) and [PostgreSQL](https://www.postgresql.org/) are also supported)
+- Clickhouse 22.8+ is required because it supports `allow_experimental_lightweight_delete` for MergeTree table engine family.
 
 ## Basics
 
