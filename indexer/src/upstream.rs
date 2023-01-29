@@ -120,7 +120,7 @@ impl Indexer {
 					.collect::<HashMap<PrimaryId, BlockHeight>>()
 			};
 			if block_height_map.is_empty() {
-				self.log(IndexType::Upstream, false, "No fully-synced active networks. Waiting…");
+				self.log(IndexType::Upstream, true, "No fully-synced active networks. Waiting…");
 				sleep(Duration::from_secs(5)).await;
 				continue;
 			}
@@ -138,7 +138,7 @@ impl Indexer {
 				.map(|a| (a.network_id, a.address.clone()))
 				.collect::<HashSet<(PrimaryId, String)>>();
 			if addresses.is_empty() {
-				self.log(IndexType::Upstream, false, "Nothing to do (no addresses)");
+				self.log(IndexType::Upstream, true, "Nothing to do (no addresses)");
 				sleep(Duration::from_secs(5)).await;
 				continue;
 			}
