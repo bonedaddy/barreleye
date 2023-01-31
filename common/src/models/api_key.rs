@@ -20,7 +20,6 @@ pub struct Model {
 	pub id: String,
 	#[serde(skip_serializing)]
 	pub uuid: Uuid,
-	pub is_admin: bool,
 	pub is_active: bool,
 	#[sea_orm(nullable)]
 	#[serde(skip_serializing)]
@@ -44,26 +43,20 @@ impl BasicModel for Model {
 }
 
 impl Model {
-	pub fn new_model(is_admin: bool) -> ActiveModel {
+	pub fn new_model() -> ActiveModel {
 		ActiveModel {
 			id: Set(utils::new_unique_id(IdPrefix::ApiKey)),
 			uuid: Set(utils::new_uuid()),
-			is_admin: Set(is_admin),
 			is_active: Set(true),
 			..Default::default()
 		}
 	}
 
-	pub async fn get_by_uuid<C>(c: &C, uuid: &Uuid, is_admin: Option<bool>) -> Result<Option<Self>>
+	pub async fn get_by_uuid<C>(c: &C, uuid: &Uuid) -> Result<Option<Self>>
 	where
 		C: ConnectionTrait,
 	{
-		let mut q = Entity::find().filter(Column::Uuid.eq(*uuid));
-		if let Some(is_admin) = is_admin {
-			q = q.filter(Column::IsAdmin.eq(is_admin));
-		}
-
-		Ok(q.one(c).await?)
+		Ok(Entity::find().filter(Column::Uuid.eq(*uuid)).one(c).await?)
 	}
 
 	pub fn format(&self) -> Self {

@@ -71,11 +71,9 @@ impl Server {
 		req: Request<B>,
 		next: Next<B>,
 	) -> ServerResult<Response> {
-		let mut requires_admin_key = true;
-		for analytics_endpoint in vec!["/v0/info", "/v0/upstream"].iter() {
-			if req.uri().to_string().starts_with(analytics_endpoint) {
-				requires_admin_key = false;
-				break;
+		for public_endpoint in vec!["/v0/info", "/v0/upstream"].iter() {
+			if req.uri().to_string().starts_with(public_endpoint) {
+				return Ok(next.run(req).await);
 			}
 		}
 
@@ -92,9 +90,8 @@ impl Server {
 		};
 
 		let api_key = Uuid::parse_str(&token).map_err(|_| ServerError::Unauthorized)?;
-		let is_admin = if requires_admin_key { Some(true) } else { None };
 
-		match ApiKey::get_by_uuid(app.db(), &api_key, is_admin)
+		match ApiKey::get_by_uuid(app.db(), &api_key)
 			.await
 			.map_err(|_| ServerError::Unauthorized)?
 		{
