@@ -10,7 +10,7 @@ edition = "2021"
 workspace = ".."
 
 [dependencies]
-async-trait = "0.1.63"
+async-trait = "0.1.64"
 eyre = "0.6.8"
 sea-orm-migration = "0.10.7"
 nanoid = "0.4.0"
@@ -32,10 +32,10 @@ regex = "1.7.1"
 governor = "0.5.1"
 base64 = "0.21.0"
 itertools = "0.10.5"
-futures = "0.3.25"
+futures = "0.3.26"
 bitcoincore-rpc-json = "0.16.0"
 reqwest = { version = "0.11.14", features = ["rustls-tls"] }
-tokio = { version = "1.24.2", features = ["full"] }
+tokio = { version = "1.25.0", features = ["full"] }
 ethers = { version = "1.0.2", features = ["rustls"] }
 clickhouse = { version = "0.11.2", features = ["uuid"] }
 clap = { version = "4.1.4", features = ["cargo", "derive", "env"] }
