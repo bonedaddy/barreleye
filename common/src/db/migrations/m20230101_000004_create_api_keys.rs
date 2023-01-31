@@ -23,6 +23,7 @@ impl MigrationTrait for Migration {
 					)
 					.col(ColumnDef::new(ApiKeys::Id).unique_key().string().not_null())
 					.col(ColumnDef::new(ApiKeys::Uuid).unique_key().uuid().not_null())
+					.col(ColumnDef::new(ApiKeys::IsAdmin).boolean().not_null())
 					.col(ColumnDef::new(ApiKeys::IsActive).boolean().not_null())
 					.col(ColumnDef::new(ApiKeys::UpdatedAt).date_time().null())
 					.col(
@@ -39,10 +40,17 @@ impl MigrationTrait for Migration {
 			.exec_stmt(
 				Query::insert()
 					.into_table(ApiKeys::Table)
-					.columns([ApiKeys::Id, ApiKeys::Uuid, ApiKeys::IsActive])
+					.columns([ApiKeys::Id, ApiKeys::Uuid, ApiKeys::IsAdmin, ApiKeys::IsActive])
+					.values_panic([
+						utils::unique_id(IdPrefix::ApiKey, "default_admin").into(),
+						utils::new_uuid().into(),
+						true.into(),
+						true.into(),
+					])
 					.values_panic([
 						utils::unique_id(IdPrefix::ApiKey, "default").into(),
 						utils::new_uuid().into(),
+						false.into(),
 						true.into(),
 					])
 					.on_conflict(OnConflict::columns([ApiKeys::Id]).do_nothing().to_owned())
@@ -63,6 +71,7 @@ enum ApiKeys {
 	ApiKeyId,
 	Id,
 	Uuid,
+	IsAdmin,
 	IsActive,
 	UpdatedAt,
 	CreatedAt,

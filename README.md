@@ -62,10 +62,11 @@ To run them all together: `cargo run`
 
 ## Add networks
 
-A default API key is generated on the first run, so to get it:
+Two default API keys are generated on the first run (one admin key; one regular key for analytics requests). You can get them by running this in your RDBMS:
 
 ```sql
-select uuid from api_keys;
+select uuid from api_keys where is_admin=true; -- to get admin key
+select uuid from api_keys where is_admin=false; -- to get regular key
 ```
 
 Add a Bitcoin RPC node:
@@ -73,7 +74,7 @@ Add a Bitcoin RPC node:
 ```bash
 curl -X POST \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer <API_KEY>" \
+  -H "Authorization: Bearer <ADMIN_API_KEY>" \
   -d '{
     "name": "Bitcoin",
     "env": "mainnet",
@@ -91,7 +92,7 @@ Add an EVM-based RPC node:
 ```bash
 curl -X POST \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer <API_KEY>" \
+  -H "Authorization: Bearer <ADMIN_API_KEY>" \
   -d '{
     "name": "Ethereum",
     "env": "mainnet",
@@ -109,7 +110,7 @@ curl -X POST \
 ```bash
 curl -X GET \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer <API_KEY>" \
+  -H "Authorization: Bearer <ADMIN_API_KEY>" \
   http://localhost:22775/v0/stats
 ```
 
@@ -120,6 +121,7 @@ To get networks, assets, labels, etc:
 ```bash
 curl -X GET \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <API_KEY>" \
   http://localhost:22775/v0/info?address=<BLOCKCHAIN_ADDRESS>
 ```
 
@@ -128,6 +130,7 @@ To find connected labeled addresses that might have funded the requested address
 ```bash
 curl -X GET \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <API_KEY>" \
   http://localhost:22775/v0/upstream?address=<BLOCKCHAIN_ADDRESS>
 ```
 
