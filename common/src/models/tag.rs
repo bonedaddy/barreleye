@@ -122,10 +122,9 @@ impl Model {
 		C: ConnectionTrait,
 	{
 		Ok(Entity::find()
-			.filter(
-				Condition::all()
-					.add(Func::lower(Expr::col(Column::Name)).equals(name.trim().to_lowercase())),
-			)
+			.filter(Condition::all().add(
+				Expr::expr(Func::lower(Expr::col(Column::Name))).eq(name.trim().to_lowercase()),
+			))
 			.one(c)
 			.await?)
 	}

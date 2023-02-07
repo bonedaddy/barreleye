@@ -135,10 +135,10 @@ impl Model {
 	where
 		C: ConnectionTrait,
 	{
-		let mut q = Entity::find().filter(
-			Condition::all()
-				.add(Func::lower(Expr::col(Column::Name)).equals(name.trim().to_lowercase())),
-		);
+		let mut q =
+			Entity::find().filter(Condition::all().add(
+				Expr::expr(Func::lower(Expr::col(Column::Name))).eq(name.trim().to_lowercase()),
+			));
 
 		if let Some(is_deleted) = is_deleted {
 			q = q.filter(Column::IsDeleted.eq(is_deleted))

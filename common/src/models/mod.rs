@@ -2,7 +2,6 @@ use async_trait::async_trait;
 use eyre::Result;
 use sea_orm::{
 	entity::prelude::*,
-	query::*,
 	sea_query::{types::*, Expr},
 	ActiveValue, QuerySelect,
 };
