@@ -343,7 +343,7 @@ pub enum Blockchain {
 }
 
 pub fn quit(app_error: AppError) -> ! {
-	println!("{} {}Shutting down…\n\n› {}", style("[err]").bold().dim(), EMOJI_QUIT, app_error,);
+	println!("{} {}Shutting down…\n\n› {}", style("[err]").bold().dim(), EMOJI_QUIT, app_error);
 
 	process::exit(match app_error {
 		AppError::SignalHandler | AppError::ServerStartup { .. } => exitcode::OSERR,
