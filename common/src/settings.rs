@@ -125,12 +125,7 @@ pub struct Settings {
 	#[arg(skip)]
 	pub ipv4: Option<IpAddr>,
 
-	#[arg(
-		help_heading = "Server options",
-		long,
-		default_value = "::1",
-		value_name = "IP_V6_ADDRESS"
-	)]
+	#[arg(help_heading = "Server options", long, default_value = "", value_name = "IP_V6_ADDRESS")]
 	http_ipv6: String,
 	#[arg(skip)]
 	pub ipv6: Option<IpAddr>,
